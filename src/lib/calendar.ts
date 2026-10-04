@@ -68,7 +68,9 @@ async function listCalendarRefs(): Promise<CalendarRef[]> {
     // senza elenco si legge almeno il principale
   }
 
-  for (const id of (process.env.GOOGLE_EXTRA_CALENDAR_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean)) {
+  // il calendario di lavoro è condiviso con l'account personale ma non sempre compare nell'elenco: si legge per ID
+  const extra = process.env.GOOGLE_EXTRA_CALENDAR_IDS ?? "francesco.darin@amuseapp.it";
+  for (const id of extra.split(",").map((s) => s.trim()).filter(Boolean)) {
     if (!seen.has(id)) refs.push({ account: "default", id, label: id.endsWith("@amuseapp.it") ? WORK_LABEL : id });
   }
 
