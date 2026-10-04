@@ -3,6 +3,14 @@ import { ingestHealthExport, saveRawDebugPayload, type HealthExportPayload } fro
 
 export const maxDuration = 60;
 
+// Alcune app fanno un controllo di connettività (GET/HEAD) sull'URL prima di mandare
+// i dati veri via POST — osservato nei log di Vercel con richieste GET arrivate da sole,
+// mai seguite da un POST. Rispondere 200 qui evita che quel controllo blocchi l'app
+// prima ancora che arrivi la richiesta reale.
+export async function GET() {
+  return NextResponse.json({ ok: true });
+}
+
 export async function POST(req: NextRequest) {
   const auth = req.headers.get("authorization");
   if (auth !== `Bearer ${process.env.HEALTH_INGEST_SECRET}`) {
