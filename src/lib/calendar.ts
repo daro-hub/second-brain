@@ -51,6 +51,7 @@ export async function createEvent(params: {
   start: string; // ISO 8601, es. 2026-10-06T18:00:00
   end: string;
   location?: string;
+  recurrence?: string[]; // es. ["RRULE:FREQ=WEEKLY;BYDAY=MO"]
 }): Promise<CalendarEvent> {
   const token = await getAccessToken();
   const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
@@ -61,6 +62,7 @@ export async function createEvent(params: {
       location: params.location,
       start: { dateTime: params.start, timeZone: "Europe/Rome" },
       end: { dateTime: params.end, timeZone: "Europe/Rome" },
+      recurrence: params.recurrence,
     }),
   });
   if (!res.ok) throw new Error(`Google Calendar API error: ${res.status}`);
