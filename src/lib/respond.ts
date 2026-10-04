@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { getPassword } from "./bitwarden";
-import { createEvent, getUpcomingEvents } from "./calendar";
+import { createEvent, getUpcomingEvents, isStudySyncEvent } from "./calendar";
+import { addTurns, formatHistory, recentTurns, toPlain, type Turn } from "./chatHistory";
 import { bold, BULLET, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
 import { getRepoInfo } from "./github";
 import { searchEmails } from "./gmail";
@@ -17,7 +18,11 @@ import { kjToKcal } from "./stats";
 import { getStepsStats } from "./steps";
 import {
   findMatchingRoutine,
+  getExerciseHistory,
+  getLastLogFor,
   getLastSession,
+  getPR,
+  resolveExercise,
   getNextRoutineToTrain,
   getRoutinePreview,
   getScheduleForDay,
@@ -30,7 +35,7 @@ function src(trace: Trace | undefined, id: SourceId, summary: string, extra: Par
   trace?.source({ id, label: SOURCE_LABELS[id], summary, ...extra });
 }
 
-async function respondConversationally(text: string, trace?: Trace): Promise<string> {
+async function respondConversationally(text: string, trace?: Trace, history: Turn[] = []): Promise<string> {
   // Niente soglia numerica sulla similarity: con text-embedding-3-small, risposte
   // corrette su fatti personali spesso cadono a 0.3-0.45 (osservato con "dove lavoro?",
   // "con chi vivo?", "quanto peso ora?" — tutte scartate da una soglia 0.5, con risposta
@@ -61,6 +66,8 @@ Regole di conversazione:
 - Rispondi sempre in italiano.
 - Calibra la lunghezza della risposta alla domanda: a una domanda breve e informale ("come stai", "ciao") rispondi in una frase o due, non di più.
 - Non ripetere la domanda, non riassumere quello che ti ha appena detto prima di rispondere.
+- Hai la conversazione recente qui sotto: usala per capire a cosa si riferisce ("quello", "ti ho appena detto", risposte brevi). Se Daro dice che gli hai scritto o detto qualcosa e non lo trovi né nella conversazione né nel contesto, dì che non lo ritrovi: NON inventare mai dettagli e non attribuire a una cosa informazioni che riguardano un'altra.
+- Puoi registrare allenamenti e leggere i dati: non dire mai di non avere "accesso operativo al database". Se Daro vuole registrare o correggere una serie e manca qualcosa, chiedi esattamente cosa manca (esercizio, peso, ripetizioni).
 - Se non sai qualcosa, dillo chiaramente invece di inventare — meglio "non lo so" che un'informazione falsa su di lui.
 - Puoi avere un tono leggero e simpatico — non essere né robotica né eccessivamente formale/burocratica.
 - Il contesto sotto è il risultato di una ricerca per similarità e può includere voci non pertinenti alla domanda — valutale tu una per una: se qualcosa risponde davvero alla domanda usalo per rispondere, anche se è solo una delle voci; se nulla nel contesto risponde davvero, dillo chiaramente invece di usare un dato non correlato o inventare.
@@ -73,11 +80,12 @@ ${BULLET} vedi il suo calendario Google (impegni, puoi anche aggiungere eventi) 
 ${BULLET} tieni traccia dei suoi allenamenti in palestra (serie, pesi, PR, routine) e delle sue corse/attività su Strava
 ${BULLET} gestisci la sua lista della spesa (aggiungere articoli, segnarli comprati, vederla)
 ${BULLET} recuperi le sue password salvate, informazioni sui suoi repository GitHub e le sue issue Linear
+${BULLET} registri gli allenamenti che Daro ti scrive o detta (anche più esercizi insieme, anche "stesso peso dell'ultima volta") e sai dirgli quanto faceva in un esercizio
 ${BULLET} capisci sia messaggi scritti che vocali
 ${BULLET} ogni mattina gli mandi un riassunto delle notizie principali, ogni sera il programma del giorno dopo, in automatico
 
 Contesto dalla knowledge base:
-${contextText}`,
+${contextText}${history.length ? `\n\nConversazione recente:\n${formatHistory(history)}` : ""}`,
       },
       { role: "user", content: text },
     ],
@@ -110,6 +118,11 @@ ${context}`,
     ],
   });
   return sanitizeTelegramHtml(res.choices[0].message.content ?? context);
+}
+
+/** "70kg x8", oppure "corpo libero x7" quando il peso è 0 (dragon flag, trazioni senza zavorra...). */
+function fmtSet(weightKg: number, reps: number): string {
+  return weightKg > 0 ? `${weightKg}kg x${reps}` : `corpo libero x${reps}`;
 }
 
 function formatPace(distanceKm: number, movingTimeMin: number): string {
@@ -146,7 +159,7 @@ async function replyWithGymPlan(trace?: Trace): Promise<string> {
     .map((p) => {
       const name = escapeHtml(p.exercise);
       if (!p.last) return `${BULLET} ${name} — nessun dato registrato`;
-      return `${BULLET} ${name} — ${bold(`${p.last.weight_kg}kg x${p.last.reps}`)}`;
+      return `${BULLET} ${name} — ${bold(fmtSet(p.last.weight_kg, p.last.reps))}`;
     })
     .join("\n");
   return `🏋️ ${bold(`Allenamento di oggi: ${escapeHtml(routine)}`)}\n\n${previewText}`;
@@ -171,8 +184,64 @@ export async function handleMessage(text: string): Promise<string> {
   return handleMessageTraced(text);
 }
 
-/** Come handleMessage, ma notifica tipo di richiesta e fonti consultate (usato dall'interfaccia web). */
-export async function handleMessageTraced(text: string, trace?: Trace): Promise<string> {
+/**
+ * Come handleMessage, ma notifica tipo di richiesta e fonti consultate (usato dall'interfaccia web)
+ * e ricorda gli ultimi scambi per canale, così i messaggi brevi ("Leg curl", "Si chiama Nicole")
+ * si capiscono nel loro contesto.
+ */
+export async function handleMessageTraced(text: string, trace?: Trace, channel = "telegram"): Promise<string> {
+  const history = await recentTurns(channel).catch(() => [] as Turn[]);
+  let intentType = "none";
+  const wrapped: Trace = {
+    intent: (t) => {
+      intentType = t;
+      trace?.intent(t);
+    },
+    source: (x) => trace?.source(x),
+  };
+  const reply = await route(text, wrapped, history);
+  // le password non passano mai dallo storico (né la richiesta né la risposta)
+  if (intentType !== "password_request") {
+    await addTurns(channel, [
+      { role: "user", content: text },
+      { role: "assistant", content: toPlain(reply) },
+    ]).catch(() => {});
+  }
+  return reply;
+}
+
+/** Risposta a un'informazione da ricordare: reagisce come un'amica E salva la nota, riscritta in modo autosufficiente. */
+async function rememberAndReply(text: string, history: Turn[], trace?: Trace): Promise<string> {
+  let note = text;
+  let reply = "Capito, me lo ricordo 🙂";
+  try {
+    const res = await openai.chat.completions.create({
+      model: "gpt-6-luna",
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `Sei Aira, l'assistente personale di Daro (femminile, amichevole). Daro ti ha detto qualcosa che vale la pena ricordare. Rispondi SOLO con JSON: {"note": string, "reply": string}.
+- "note": l'informazione riscritta come fatto AUTOSUFFICIENTE, in italiano, in terza persona ("Daro ..."), unendo il contesto della conversazione recente quando il messaggio da solo non basta (es. "Si chiama Nicole" dopo che ha parlato di una ragazza conosciuta -> "Daro ha conosciuto una ragazza di nome Nicole, ..."). Solo ciò che è stato detto, niente invenzioni.
+- "reply": la tua risposta a Daro, naturale come un'amica: reagisci al contenuto (un commento o una breve domanda di curiosità), 1-3 frasi. NON dire "salvato", "registrato" o "ho salvato" e non ripetere ciò che ha detto; al massimo fai capire che te lo ricorderai.
+
+${STYLE_GUIDE}${history.length ? `\n\nConversazione recente:\n${formatHistory(history)}` : ""}`,
+        },
+        { role: "user", content: text },
+      ],
+    });
+    const parsed = JSON.parse(res.choices[0].message.content ?? "{}");
+    if (typeof parsed.note === "string" && parsed.note.trim()) note = parsed.note.trim();
+    if (typeof parsed.reply === "string" && parsed.reply.trim()) reply = sanitizeTelegramHtml(parsed.reply.trim());
+  } catch {
+    // se la riscrittura fallisce si salva il testo originale: meglio un frammento che perdere l'informazione
+  }
+  await ingest(note, "telegram");
+  src(trace, "kb", "Nuova nota salvata", { href: "/aira?view=brain", items: [{ text: note.length > 140 ? `${note.slice(0, 140)}…` : note }] });
+  return reply;
+}
+
+async function route(text: string, trace: Trace | undefined, history: Turn[]): Promise<string> {
   // Parola d'ordine: "spesa" da sola risponde subito con la lista, senza passare dal
   // classificatore LLM — zero costo/latenza per il caso d'uso più comune.
   if (text.trim().toLowerCase() === "spesa") {
@@ -192,27 +261,75 @@ export async function handleMessageTraced(text: string, trace?: Trace): Promise<
     const preview = await getRoutinePreview(routineName);
     src(trace, "gym", `Ultimi pesi registrati per ${routineName}`, {
       href: "/palestra",
-      items: (preview ?? []).map((p) => ({ text: p.exercise, meta: p.last ? `${p.last.weight_kg}kg x${p.last.reps}` : "nessun dato" })),
+      items: (preview ?? []).map((p) => ({ text: p.exercise, meta: p.last ? fmtSet(p.last.weight_kg, p.last.reps) : "nessun dato" })),
     });
     if (!preview) return `Nessun esercizio definito per "${escapeHtml(routineName)}".`;
     const previewText = preview
       .map((p) => {
         const name = escapeHtml(p.exercise);
         if (!p.last) return `${BULLET} ${name} — nessun dato registrato`;
-        return `${BULLET} ${name}: ${bold(`${p.last.weight_kg}kg x${p.last.reps}`)}`;
+        return `${BULLET} ${name}: ${bold(fmtSet(p.last.weight_kg, p.last.reps))}`;
       })
       .join("\n");
     return `${bold(escapeHtml(routineName))} — ultimi pesi registrati\n\n${previewText}`;
   }
 
-  const intent = await classifyMessage(text);
+  const intent = await classifyMessage(text, history);
   trace?.intent(intent.type);
 
+  if (intent.type === "clarify") {
+    return `🏋️ ${escapeHtml(intent.question)}`;
+  }
+
   if (intent.type === "workout") {
-    const result = await logWorkout(intent.entry);
-    src(trace, "gym", `Serie salvata: ${intent.entry.exercise} ${intent.entry.weightKg}kg x${intent.entry.reps}`, { href: "/palestra" });
-    const prText = result.isPR ? " 🏆 Nuovo PR!" : "";
-    return `✅ Salvato: ${bold(escapeHtml(intent.entry.exercise))} ${intent.entry.weightKg}kg x${intent.entry.reps}.${prText}`;
+    const lines: string[] = [];
+    const saved: string[] = [];
+    for (const e of intent.entries) {
+      const res = await resolveExercise(e.exercise, e.muscleGroup);
+      if (!res.match && res.options.length) {
+        lines.push(`❓ ${bold(escapeHtml(e.exercise))}: intendi ${res.options.slice(0, 3).map((o) => escapeHtml(o)).join(" o ")}?`);
+        continue;
+      }
+      const name = res.match?.name ?? e.exercise;
+      let weight = e.weightKg;
+      let reps = e.reps;
+      if (e.sameAsLast || weight === null || reps === null) {
+        const last = await getLastLogFor(name);
+        if (!last) {
+          lines.push(`❓ ${bold(escapeHtml(name))}: non ho un valore precedente, dimmi peso e ripetizioni.`);
+          continue;
+        }
+        weight = weight ?? last.weight_kg;
+        reps = reps ?? last.reps;
+      }
+      const result = await logWorkout({ exercise: name, weightKg: weight, reps, sets: e.sets, muscleGroup: e.muscleGroup ?? res.match?.muscleGroup ?? undefined });
+      saved.push(`${name} ${fmtSet(weight, reps)}`);
+      lines.push(`${BULLET} ${bold(escapeHtml(name))} ${fmtSet(weight, reps)}${result.isPR ? " 🏆 Nuovo PR!" : ""}`);
+    }
+    if (saved.length) src(trace, "gym", `Serie salvate: ${saved.join(", ")}`, { href: "/palestra", items: saved.map((t) => ({ text: t })) });
+    if (lines.length === 1 && saved.length === 1) return `✅ Salvato: ${lines[0].slice(BULLET.length + 1)}`;
+    if (!saved.length) return lines.join("\n");
+    return `✅ ${bold("Registrato")}\n\n${lines.join("\n")}`;
+  }
+
+  if (intent.type === "exercise_query") {
+    try {
+      const res = await resolveExercise(intent.exercise);
+      if (!res.match) {
+        return res.options.length
+          ? `🏋️ Intendi ${res.options.slice(0, 3).map((o) => escapeHtml(o)).join(" o ")}?`
+          : `🏋️ Non trovo "${escapeHtml(intent.exercise)}" nel tuo storico.`;
+      }
+      const [hist, pr] = await Promise.all([getExerciseHistory(res.match.name, 6), getPR(res.match.name)]);
+      src(trace, "gym", `Storico di ${res.match.name}`, {
+        href: "/palestra",
+        items: hist.map((h) => ({ text: fmtSet(Number(h.weight_kg), Number(h.reps)), meta: new Date(h.performed_at).toLocaleDateString("it-IT", { timeZone: "Europe/Rome" }) })),
+      });
+      const context = `Esercizio: ${res.match.name}\nUltime serie (dalla più recente): ${hist.map((h) => `${fmtSet(Number(h.weight_kg), Number(h.reps))}`).join(", ")}\n${pr ? `Miglior serie (1RM stimato ${pr.estimatedOneRm.toFixed(1)} kg): ${fmtSet(pr.weight_kg, pr.reps)}` : ""}`;
+      return await answerFromData(text, context, "Rispondi in modo diretto con il carico più recente e, se utile, il massimo. Le date storiche precedenti al 4 ottobre non sono affidabili: non citarle.");
+    } catch {
+      return "Errore nel recupero dello storico dell'esercizio.";
+    }
   }
 
   if (intent.type === "session_query") {
@@ -291,8 +408,8 @@ export async function handleMessageTraced(text: string, trace?: Trace): Promise<
       // Una domanda generica tipo "cosa devo fare questa settimana?" riguarda tutta la
       // vita di Daro, non solo Google Calendar: senza studio/palestra la risposta è
       // incompleta anche se tecnicamente corretta sui soli eventi di calendario.
-      const [events, weekSchedule, nextRoutine] = await Promise.all([
-        getUpcomingEvents(10),
+      const [allEvents, weekSchedule, nextRoutine] = await Promise.all([
+        getUpcomingEvents(14),
         Promise.all(
           Array.from({ length: 7 }, (_, i) => {
             const d = new Date();
@@ -303,9 +420,11 @@ export async function handleMessageTraced(text: string, trace?: Trace): Promise<
         getNextRoutineToTrain(),
       ]);
 
+      // gli eventi 📚/🎓 sono l'orario di studio sincronizzato su Calendar: già coperto da "Orario di studio"
+      const events = allEvents.filter((e) => !isStudySyncEvent(e.summary)).slice(0, 10);
       const eventsText = events.length
         ? events
-            .map((e) => `${new Date(e.start).toLocaleString("it-IT")} — ${e.summary}${e.location ? ` (${e.location})` : ""}`)
+            .map((e) => `${new Date(e.start).toLocaleString("it-IT", { timeZone: "Europe/Rome" })} — ${e.summary}${e.location ? ` (${e.location})` : ""}`)
             .join("\n")
         : "Nessuno";
 
@@ -320,7 +439,7 @@ export async function handleMessageTraced(text: string, trace?: Trace): Promise<
 
       src(trace, "calendar", `${events.length} prossimi eventi`, {
         href: "/",
-        items: events.map((e) => ({ text: e.summary, meta: new Date(e.start).toLocaleString("it-IT", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) })),
+        items: events.map((e) => ({ text: e.summary, meta: new Date(e.start).toLocaleString("it-IT", { timeZone: "Europe/Rome", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) })),
       });
       src(trace, "study", "Lezioni e studio dei prossimi 7 giorni", {
         href: "/",
@@ -352,6 +471,7 @@ export async function handleMessageTraced(text: string, trace?: Trace): Promise<
         location: intent.location ?? undefined,
       });
       const label = new Date(event.start).toLocaleString("it-IT", {
+        timeZone: "Europe/Rome",
         weekday: "long",
         day: "numeric",
         month: "long",
@@ -541,10 +661,8 @@ export async function handleMessageTraced(text: string, trace?: Trace): Promise<
   }
 
   if (!intent.save) {
-    return respondConversationally(text, trace);
+    return respondConversationally(text, trace, history);
   }
 
-  const id = await ingest(text, "telegram");
-  src(trace, "kb", "Nuova nota salvata", { href: "/aira?view=brain" });
-  return `Salvato ✅ (${id})`;
+  return rememberAndReply(text, history, trace);
 }

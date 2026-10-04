@@ -126,3 +126,8 @@ export async function getEventsInRange(from: Date, to: Date): Promise<CalendarEv
     }),
   );
 }
+
+/** Gli eventi che iniziano con 📚/🎓 sono l'orario di studio sincronizzato su Calendar: duplicano quello del piano di studio. */
+export function isStudySyncEvent(summary: string): boolean {
+  return /^[📚🎓]/u.test(summary);
+}

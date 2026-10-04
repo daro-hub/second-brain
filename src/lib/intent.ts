@@ -1,10 +1,25 @@
 import OpenAI from "openai";
-import type { WorkoutEntry } from "./workouts";
+import { formatHistory, type Turn } from "./chatHistory";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+/**
+ * Una serie da registrare. weightKg/reps null = "come l'ultima volta" (sameAsLast) oppure da chiedere.
+ * weightKg 0 = esercizio a corpo libero.
+ */
+export interface WorkoutRequest {
+  exercise: string;
+  weightKg: number | null;
+  reps: number | null;
+  sets: number;
+  muscleGroup?: string;
+  sameAsLast: boolean;
+}
+
 export type MessageIntent =
-  | { type: "workout"; entry: WorkoutEntry }
+  | { type: "workout"; entries: WorkoutRequest[] }
+  | { type: "clarify"; question: string }
+  | { type: "exercise_query"; exercise: string }
   | { type: "session_query"; muscleGroup: string }
   | { type: "password_request"; itemName: string }
   | { type: "github_query"; repoName: string }
@@ -29,7 +44,7 @@ export type MessageIntent =
   | { type: "energy_query" }
   | { type: "none"; save: boolean };
 
-export async function classifyMessage(text: string): Promise<MessageIntent> {
+export async function classifyMessage(text: string, history: Turn[] = []): Promise<MessageIntent> {
   const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
   const res = await openai.chat.completions.create({
     model: "gpt-6-luna",
@@ -38,7 +53,9 @@ export async function classifyMessage(text: string): Promise<MessageIntent> {
       {
         role: "system",
         content: `Oggi è ${today}. Classifica un messaggio in italiano in una di queste categorie, rispondendo SOLO con JSON:
-1. Serie di allenamento specifica (esercizio + peso + ripetizioni): {"intent": "workout", "exercise": string, "weightKg": number, "reps": number, "sets": number, "muscleGroup": string}
+1. Una o PIÙ serie di allenamento da registrare (es. "hack 70 kg 8 reps", "leg curl 41 7", "oggi abs machine stesso peso e dragon flag anche"): {"intent": "workout", "entries": [{"exercise": string, "weightKg": number oppure null, "reps": number oppure null, "sets": number, "muscleGroup": string, "sameAsLast": boolean}]}. Regole: una voce per esercizio. Se dice "stesso peso", "come l'ultima volta", "uguale", "anche" (riferito a un esercizio già fatto) metti "sameAsLast": true e lascia a null il peso (e le reps se non le specifica). Per esercizi a corpo libero senza zavorra (dragon flag, trazioni, plank) il peso è 0. Se i numeri sono dati senza nome dell'esercizio (es. "41 7"), cerca l'esercizio nella conversazione recente: se è chiaro usalo, altrimenti usa il caso 1c. I plurali e i nomi parziali (es. "extension" per "leg extension") vanno comunque restituiti come li ha detti: li normalizza il codice.
+1c. Dati di un allenamento incompleti o ambigui che non si risolvono dalla conversazione recente (es. "41 7" senza esercizio, "ho fatto 50 kg" senza reps né esercizio): {"intent": "clarify", "question": string} dove "question" è UNA domanda brevissima in italiano che chiede solo ciò che manca (es. "Per quale esercizio? 41 kg × 7 reps"). Se invece Daro sta rispondendo a una domanda che gli hai appena fatto nella conversazione recente (es. scrive solo "Leg curl" dopo "per quale esercizio?"), combina con i numeri già detti e restituisci il caso 1.
+1d. Domanda sullo storico/record di un esercizio (es. "quanto facevo di leg extension?", "qual è il mio massimo di panca?", "che peso uso al leg curl?"): {"intent": "exercise_query", "exercise": string}
 2. Annuncio di un tipo di allenamento senza numeri specifici, per sapere cosa fatto l'ultima volta (es. "oggi faccio petto", "allenamento schiena"): {"intent": "session_query", "muscleGroup": string}
 3. Richiesta di recuperare una password salvata (es. "password di Supabase", "mi serve la password del progetto Longevity", "password wifi"): {"intent": "password_request", "itemName": string}
 4. Domanda su un repository GitHub/progetto di codice (es. "il link di Orbis", "cosa fa Scolastica", "parlami del progetto Longevity"): {"intent": "github_query", "repoName": string}
@@ -57,22 +74,40 @@ export async function classifyMessage(text: string): Promise<MessageIntent> {
 11. Nessuno dei precedenti. Qui devi anche decidere se il messaggio contiene un'informazione/fatto che vale la pena ricordare per il futuro (es. una nota, un pensiero, un dato su di sé) oppure se è solo una domanda, una richiesta, un commento di passaggio o un testo senza vero valore informativo da conservare (es. trascrizione vocale rumorosa, "ciao", "ok", una domanda retorica): {"intent": "none", "save": boolean}
 "muscleGroup" è una tra: petto, schiena, spalle, bicipiti, tricipiti, gambe, addome. Normalizza "exercise" in minuscolo. Se "sets" non è specificato, usa 1. "itemName" è il nome breve della voce da cercare nel vault (es. "Supabase", "Longevity"). "repoName" è il nome breve del repository (es. "Orbis", "Scolastica", "second-brain"). "term" è il testo/termine chiave da cercare su Linear. Per "shopping_add"/"shopping_done", "items" è l'elenco dei nomi degli articoli in minuscolo, al singolare dove ha senso (es. "uova" resta "uova").`,
       },
+      ...(history.length
+        ? [
+            {
+              role: "system" as const,
+              content: `Conversazione recente (serve a capire riferimenti come "quello", "stesso peso", risposte brevi a una tua domanda, numeri senza nome). Classifica SOLO l'ultimo messaggio dell'utente, usando questo contesto:\n${formatHistory(history)}`,
+            },
+          ]
+        : []),
       { role: "user", content: text },
     ],
   });
   const parsed = JSON.parse(res.choices[0].message.content!);
 
-  if (parsed.intent === "workout") {
+  if (parsed.intent === "workout" && Array.isArray(parsed.entries) && parsed.entries.length) {
+    const num = (v: unknown): number | null => (v === null || v === undefined || v === "" || Number.isNaN(Number(v)) ? null : Number(v));
     return {
       type: "workout",
-      entry: {
-        exercise: String(parsed.exercise).toLowerCase().trim(),
-        weightKg: Number(parsed.weightKg),
-        reps: Number(parsed.reps),
-        sets: Number(parsed.sets ?? 1),
-        muscleGroup: parsed.muscleGroup ? String(parsed.muscleGroup).toLowerCase().trim() : undefined,
-      },
+      entries: parsed.entries
+        .filter((e: { exercise?: unknown }) => e && e.exercise)
+        .map((e: Record<string, unknown>) => ({
+          exercise: String(e.exercise).toLowerCase().trim(),
+          weightKg: num(e.weightKg),
+          reps: num(e.reps),
+          sets: num(e.sets) ?? 1,
+          muscleGroup: e.muscleGroup ? String(e.muscleGroup).toLowerCase().trim() : undefined,
+          sameAsLast: Boolean(e.sameAsLast),
+        })),
     };
+  }
+  if (parsed.intent === "clarify" && parsed.question) {
+    return { type: "clarify", question: String(parsed.question).trim() };
+  }
+  if (parsed.intent === "exercise_query" && parsed.exercise) {
+    return { type: "exercise_query", exercise: String(parsed.exercise).toLowerCase().trim() };
   }
   if (parsed.intent === "session_query" && parsed.muscleGroup) {
     return { type: "session_query", muscleGroup: String(parsed.muscleGroup).toLowerCase().trim() };

@@ -247,3 +247,76 @@ export async function getPR(exercise: string) {
   }
   return { ...best, estimatedOneRm: bestOneRm };
 }
+
+export interface KnownExercise {
+  name: string;
+  muscleGroup: string | null;
+  logs: number;
+}
+
+async function getKnownExercises(): Promise<KnownExercise[]> {
+  const { data, error } = await supabase.from("workout_logs").select("exercise, muscle_group").neq("exercise", "riposo");
+  if (error) throw error;
+  const map = new Map<string, KnownExercise>();
+  for (const r of data ?? []) {
+    const name = String(r.exercise);
+    const e = map.get(name) ?? { name, muscleGroup: (r.muscle_group as string | null) ?? null, logs: 0 };
+    e.logs++;
+    if (!e.muscleGroup && r.muscle_group) e.muscleGroup = r.muscle_group as string;
+    map.set(name, e);
+  }
+  return [...map.values()];
+}
+
+const tokens = (s: string): string[] =>
+  s
+    .toLowerCase()
+    .split(/[^a-zà-ù0-9]+/)
+    .filter(Boolean)
+    .map((t) => (t.length > 3 && t.endsWith("s") ? t.slice(0, -1) : t));
+
+/**
+ * Porta il nome detto a voce/scritto al nome già usato nello storico. Senza questo "extension"
+ * diventava un esercizio nuovo invece di "leg extension" e spezzava storico, massimali e PR.
+ * Esatto > uno contenuto nell'altro (per parole, plurali ignorati); a parità vince il più registrato.
+ */
+export interface ExerciseResolution {
+  match: KnownExercise | null;
+  /** più esercizi noti compatibili con il nome detto: serve chiedere quale */
+  options: string[];
+}
+
+export async function resolveExercise(name: string, muscleGroupHint?: string): Promise<ExerciseResolution> {
+  const wanted = name.toLowerCase().trim();
+  if (!wanted) return { match: null, options: [] };
+  const known = await getKnownExercises();
+  const exact = known.find((k) => k.name === wanted);
+  if (exact) return { match: exact, options: [] };
+  const wt = tokens(wanted);
+  const candidates = known.filter((k) => {
+    const kt = tokens(k.name);
+    return wt.every((t) => kt.includes(t)) || kt.every((t) => wt.includes(t));
+  });
+  if (candidates.length === 1) return { match: candidates[0], options: [] };
+  if (candidates.length > 1) {
+    // se il gruppo muscolare indicato restringe a un solo esercizio, o uno è nettamente il più usato, è lui
+    const byGroup = muscleGroupHint ? candidates.filter((c) => c.muscleGroup === muscleGroupHint) : [];
+    const pool = byGroup.length ? byGroup : candidates;
+    const sorted = pool.slice().sort((x, y) => y.logs - x.logs);
+    if (sorted.length === 1 || sorted[0].logs >= sorted[1].logs * 2) return { match: sorted[0], options: [] };
+    return { match: null, options: sorted.map((c) => c.name) };
+  }
+  return { match: null, options: [] };
+}
+
+export async function getLastLogFor(exercise: string): Promise<{ weight_kg: number; reps: number; sets: number } | null> {
+  const { data, error } = await supabase
+    .from("workout_logs")
+    .select("weight_kg, reps, sets")
+    .eq("exercise", exercise)
+    .order("performed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? { weight_kg: Number(data.weight_kg), reps: Number(data.reps), sets: Number(data.sets ?? 1) } : null;
+}

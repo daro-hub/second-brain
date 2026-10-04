@@ -1,16 +1,22 @@
-import { getEventsForDate } from "./calendar";
+import { getEventsInRange, isStudySyncEvent } from "./calendar";
 import { bold, BULLET, escapeHtml } from "./format";
+import { addDays, dayRangeUtc, formatDayLong, localHHMM, startOfDayUtc, todayKey, weekdayOf } from "./time";
 import { getNextRoutineToTrain, getScheduleForDay, markRestDay } from "./workouts";
 
 export async function buildEveningDigest(): Promise<string> {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  // Il server gira in UTC: "domani", i confini del giorno e gli orari vanno calcolati in ora italiana,
+  // altrimenti gli eventi comparivano con 2 ore di anticipo (08:30 -> 06:30) e il giorno poteva sfasarsi.
+  const tomorrowKey = addDays(todayKey(), 1);
+  const { from, to } = dayRangeUtc(tomorrowKey);
 
-  const [schedule, events, nextRoutine] = await Promise.all([
-    getScheduleForDay(tomorrow.getDay()),
-    getEventsForDate(tomorrow),
+  const [schedule, allEvents, nextRoutine] = await Promise.all([
+    getScheduleForDay(weekdayOf(tomorrowKey)),
+    getEventsInRange(from, to),
     getNextRoutineToTrain(),
   ]);
+
+  // gli eventi 📚/🎓 sono lo stesso orario di studio già elencato sopra: niente doppioni
+  const events = allEvents.filter((e) => !isStudySyncEvent(e.summary));
 
   const scheduleText = schedule.length
     ? schedule
@@ -20,24 +26,19 @@ export async function buildEveningDigest(): Promise<string> {
 
   const eventsText = events.length
     ? events
-        .map(
-          (e) =>
-            `${BULLET} ${bold(new Date(e.start).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }))} ${escapeHtml(e.summary)}`,
-        )
+        .map((e) => `${BULLET} ${bold(e.allDay ? "tutto il giorno" : localHHMM(e.start))} ${escapeHtml(e.summary)}`)
         .join("\n")
     : `${BULLET} Nessun impegno.`;
 
   let trainingText: string;
   if (nextRoutine === "riposo") {
-    await markRestDay(tomorrow);
+    await markRestDay(new Date(startOfDayUtc(tomorrowKey).getTime() + 12 * 3600_000));
     trainingText = bold("Riposo");
   } else {
     trainingText = bold(escapeHtml(nextRoutine));
   }
 
-  const dateLabel = tomorrow.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
-
-  return `🌙 ${bold(`Programma di domani (${dateLabel})`)}
+  return `🌙 ${bold(`Programma di domani (${formatDayLong(tomorrowKey)})`)}
 
 📚 ${bold("Studio")}
 ${scheduleText}

@@ -36,7 +36,7 @@ export async function POST(req: Request) {
             send({ t: "intent", type });
           },
           source: (source) => send({ t: "source", source }),
-        });
+        }, "web");
         send({
           t: "reply",
           html: reply,
