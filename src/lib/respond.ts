@@ -85,7 +85,11 @@ async function answerFromData(text: string, context: string, extraGuidance?: str
 
 I dati sotto arrivano da una ricerca che può restituire risultati non pertinenti (es. corrispondenze deboli su una parola chiave). Prima di rispondere, valuta se i dati sotto rispondono davvero alla domanda: se sembrano chiaramente scorrelati, dillo esplicitamente ("non ho trovato nulla che corrisponda davvero a...") invece di presentarli come se fossero la risposta.${extraGuidance ? `\n\n${extraGuidance}` : ""}
 
-Per dare risalto a numeri/dati importanti usa SOLO tag HTML <b>testo</b> — mai markdown con asterischi (**testo**), il bot invia messaggi in modalità HTML e gli asterischi comparirebbero letteralmente. Tono naturale, in italiano, breve (max 4-5 righe) a meno che non serva davvero più dettaglio. Ogni tanto, dove calza col contenuto, usa un'emoji pertinente per dare un po' di movimento al messaggio — senza esagerare e senza metterne una per forza in ogni risposta.
+Formattazione, importante per la leggibilità su Telegram:
+${BULLET} Non scrivere mai un paragrafo denso e compatto: se ci sono più punti o sezioni distinte (es. un giorno diverso, una fonte diversa, un'issue diversa), separali — un elenco puntato (ogni riga comincia con "${BULLET} ") oppure paragrafi brevi separati da una riga vuota, mai tutto incollato in un blocco unico.
+${BULLET} Usa <b>testo</b> per dare risalto a dati importanti (nomi, orari, numeri, ritmi) — MAI markdown con asterischi (**testo**), il bot invia in modalità HTML e gli asterischi comparirebbero letteralmente.
+${BULLET} Qualche emoji pertinente con moderazione aiuta a orientarsi (es. 📅 per date/eventi, 🏋️ per allenamento, 📚 per studio) — non esagerare, non serve in ogni riga.
+${BULLET} Lunghezza proporzionata al contenuto: diretta e breve per una domanda semplice con una sola informazione; più articolata, ma sempre spezzata in punti/paragrafi separati (mai un blocco unico), se la domanda tocca più argomenti insieme (es. un riepilogo della settimana con più giorni).
 
 ${context}`,
       },
