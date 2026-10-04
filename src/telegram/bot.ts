@@ -2,7 +2,7 @@ import "dotenv/config";
 import { Bot, InputFile } from "grammy";
 import { getPassword } from "../lib/bitwarden";
 import { isDuplicateUpdate } from "../lib/dedup";
-import { bold, BULLET, escapeHtml } from "../lib/format";
+import { bold, BULLET, escapeHtml, stripForSpeech } from "../lib/format";
 import { getExerciseHistory, getPR } from "../lib/workouts";
 import { ingest } from "../lib/ingest";
 import { handleMessage } from "../lib/respond";
@@ -128,13 +128,13 @@ bot.on("message:voice", async (ctx) => {
   const reply = await handleMessage(transcript);
 
   try {
-    const voiceReply = await textToSpeech(reply);
+    const voiceReply = await textToSpeech(stripForSpeech(reply));
     await ctx.replyWithVoice(new InputFile(voiceReply, "reply.ogg"));
   } catch {
     // se la sintesi vocale fallisce, arriva comunque la risposta testuale sotto
   }
 
-  await ctx.reply(reply);
+  await ctx.reply(reply, { parse_mode: "HTML" });
 });
 
 export { bot };

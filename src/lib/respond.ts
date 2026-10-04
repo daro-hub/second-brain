@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { getPassword } from "./bitwarden";
 import { createEvent, getUpcomingEvents } from "./calendar";
-import { bold, BULLET, escapeHtml } from "./format";
+import { bold, BULLET, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
 import { getRepoInfo } from "./github";
 import { searchEmails } from "./gmail";
 import { ingest } from "./ingest";
@@ -10,7 +10,8 @@ import { searchIssues } from "./linear";
 import { searchSemantic } from "./search";
 import { getRunningStats } from "./dashboard";
 import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList } from "./shoppingList";
-import { getMetricSummary } from "./health";
+import { getMetricSummary, type MetricSummary } from "./health";
+import { kjToKcal } from "./stats";
 import { getStepsStats } from "./steps";
 import {
   findMatchingRoutine,
@@ -46,11 +47,11 @@ Regole di conversazione:
 - Rispondi sempre in italiano.
 - Calibra la lunghezza della risposta alla domanda: a una domanda breve e informale ("come stai", "ciao") rispondi in una frase o due, non di più.
 - Non ripetere la domanda, non riassumere quello che ti ha appena detto prima di rispondere.
-- Non scrivere mai un paragrafo lungo e compatto: se la risposta ha più di un punto, o rischia di diventare un muro di testo, spezzala in una lista breve (ogni riga comincia con "${BULLET} ") o in righe corte — più facile da leggere su Telegram che un blocco di prosa.
-- Puoi usare la formattazione HTML di Telegram per dare risalto: <b>testo</b> per grassetto, <i>testo</i> per corsivo — con moderazione, solo dove aiuta davvero la leggibilità (es. il nome di un esercizio, un dato numerico importante). MAI markdown con asterischi (**testo**): il bot invia in modalità HTML, gli asterischi comparirebbero letteralmente.
 - Se non sai qualcosa, dillo chiaramente invece di inventare — meglio "non lo so" che un'informazione falsa su di lui.
-- Puoi avere un tono leggero, simpatico, con qualche emoji con moderazione — non essere né robotica né eccessivamente formale/burocratica.
+- Puoi avere un tono leggero e simpatico — non essere né robotica né eccessivamente formale/burocratica.
 - Il contesto sotto è il risultato di una ricerca per similarità e può includere voci non pertinenti alla domanda — valutale tu una per una: se qualcosa risponde davvero alla domanda usalo per rispondere, anche se è solo una delle voci; se nulla nel contesto risponde davvero, dillo chiaramente invece di usare un dato non correlato o inventare.
+
+${STYLE_GUIDE}
 
 Se Daro ti chiede chi sei, cosa sai fare o quali sono le tue funzionalità, NON rispondere con capacità generiche da assistente AI (scrivere/rivedere testi, tradurre, fare ricerche, spiegare argomenti) — quello non è il tuo ruolo qui. Rispondi invece in modo naturale e discorsivo (o con una breve lista, se più chiara) descrivendo le tue capacità reali e concrete su questo bot:
 ${BULLET} hai una knowledge base personale su di lui (progetti, interessi, competenze, note che ti dice di ricordare) da cui attingi per rispondere
@@ -67,7 +68,7 @@ ${contextText}`,
       { role: "user", content: text },
     ],
   });
-  return res.choices[0].message.content ?? "Non so cosa risponderti.";
+  return sanitizeTelegramHtml(res.choices[0].message.content ?? "Non so cosa risponderti.");
 }
 
 /**
@@ -87,18 +88,14 @@ async function answerFromData(text: string, context: string, extraGuidance?: str
 
 I dati sotto arrivano da una ricerca che può restituire risultati non pertinenti (es. corrispondenze deboli su una parola chiave). Prima di rispondere, valuta se i dati sotto rispondono davvero alla domanda: se sembrano chiaramente scorrelati, dillo esplicitamente ("non ho trovato nulla che corrisponda davvero a...") invece di presentarli come se fossero la risposta.${extraGuidance ? `\n\n${extraGuidance}` : ""}
 
-Formattazione, importante per la leggibilità su Telegram:
-${BULLET} Non scrivere mai un paragrafo denso e compatto: se ci sono più punti o sezioni distinte (es. un giorno diverso, una fonte diversa, un'issue diversa), separali — un elenco puntato (ogni riga comincia con "${BULLET} ") oppure paragrafi brevi separati da una riga vuota, mai tutto incollato in un blocco unico.
-${BULLET} Usa <b>testo</b> per dare risalto a dati importanti (nomi, orari, numeri, ritmi) — MAI markdown con asterischi (**testo**), il bot invia in modalità HTML e gli asterischi comparirebbero letteralmente.
-${BULLET} Qualche emoji pertinente con moderazione aiuta a orientarsi (es. 📅 per date/eventi, 🏋️ per allenamento, 📚 per studio) — non esagerare, non serve in ogni riga.
-${BULLET} Lunghezza proporzionata al contenuto: diretta e breve per una domanda semplice con una sola informazione; più articolata, ma sempre spezzata in punti/paragrafi separati (mai un blocco unico), se la domanda tocca più argomenti insieme (es. un riepilogo della settimana con più giorni).
+${STYLE_GUIDE}
 
 ${context}`,
       },
       { role: "user", content: text },
     ],
   });
-  return res.choices[0].message.content ?? context;
+  return sanitizeTelegramHtml(res.choices[0].message.content ?? context);
 }
 
 function formatPace(distanceKm: number, movingTimeMin: number): string {
@@ -107,6 +104,14 @@ function formatPace(distanceKm: number, movingTimeMin: number): string {
   const minutes = Math.floor(paceMinPerKm);
   const seconds = Math.round((paceMinPerKm - minutes) * 60);
   return `${minutes}:${String(seconds).padStart(2, "0")}/km`;
+}
+
+// Apple Health/Yazio forniscono l'energia in kJ, ma nessuno ragiona in kJ quando mangia: si
+// converte nel codice (mai lasciato al modello, che a volte lo faceva e a volte no).
+function energyInKcal(s: MetricSummary): MetricSummary {
+  if (s.units !== "kJ") return s;
+  const k = (v: number | null) => (v === null ? null : kjToKcal(v));
+  return { ...s, units: "kcal", sum: k(s.sum), avg: k(s.avg), min: k(s.min), max: k(s.max) };
 }
 
 function addOneHour(time: string): string {
@@ -392,11 +397,13 @@ export async function handleMessage(text: string): Promise<string> {
         return "Nessun dato trovato per questo periodo — controlla che l'automazione Apple Health sia attiva e abbia già sincronizzato.";
       }
       const context = withData
+        .map(energyInKcal)
         .map((s) => {
           const unit = s.units ? ` ${s.units}` : "";
+          const dp = s.units === "kcal" ? 0 : 1;
           const parts = [`Metrica: ${s.metricName}`, `Punti registrati: ${s.pointCount}`];
-          if (s.sum !== null) parts.push(`Totale: ${s.sum.toFixed(1)}${unit}`, `Media per punto: ${s.avg?.toFixed(1)}${unit}`);
-          else if (s.avg !== null) parts.push(`Media: ${s.avg.toFixed(1)}${unit}`, `Min: ${s.min}${unit}`, `Max: ${s.max}${unit}`);
+          if (s.sum !== null) parts.push(`Totale: ${s.sum.toFixed(dp)}${unit}`, `Media per punto: ${s.avg?.toFixed(dp)}${unit}`);
+          else if (s.avg !== null) parts.push(`Media: ${s.avg.toFixed(dp)}${unit}`, `Min: ${s.min}${unit}`, `Max: ${s.max}${unit}`);
           return parts.join(", ");
         })
         .join("\n");
