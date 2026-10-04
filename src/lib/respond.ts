@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { getPassword } from "./bitwarden";
-import { getUpcomingEvents } from "./calendar";
+import { createEvent, getUpcomingEvents } from "./calendar";
 import { getRepoInfo } from "./github";
 import { ingest } from "./ingest";
 import { classifyMessage } from "./intent";
@@ -13,6 +13,7 @@ import {
   getLastSession,
   getNextRoutineToTrain,
   getRoutinePreview,
+  getScheduleForDay,
   logWorkout,
 } from "./workouts";
 
@@ -52,6 +53,12 @@ ${contextText}`,
   return res.choices[0].message.content ?? "Non so cosa risponderti.";
 }
 
+function addOneHour(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  const next = (h + 1) % 24;
+  return `${String(next).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
 async function replyWithGymPlan(): Promise<string> {
   const routine = await getNextRoutineToTrain();
   if (routine === "riposo") {
@@ -68,11 +75,14 @@ async function replyWithGymPlan(): Promise<string> {
   return `🏋️ Allenamento di oggi: ${routine}\n\n${previewText}`;
 }
 
+function formatShoppingList(list: { item: string }[]): string {
+  if (!list.length) return "La lista della spesa è vuota 🛒";
+  return `Lista della spesa:\n${list.map((l) => `- ${l.item}`).join("\n")}`;
+}
+
 async function replyWithShoppingList(): Promise<string> {
   try {
-    const list = await getActiveShoppingList();
-    if (!list.length) return "La lista della spesa è vuota 🛒";
-    return `Lista della spesa:\n${list.map((l) => `- ${l.item}`).join("\n")}`;
+    return formatShoppingList(await getActiveShoppingList());
   } catch {
     return "Errore nel recupero della lista della spesa.";
   }
@@ -164,6 +174,45 @@ export async function handleMessage(text: string): Promise<string> {
     }
   }
 
+  if (intent.type === "calendar_add") {
+    try {
+      const start = `${intent.date}T${intent.startTime}:00`;
+      const endTime = intent.endTime ?? addOneHour(intent.startTime);
+      const end = `${intent.date}T${endTime}:00`;
+      const event = await createEvent({
+        summary: intent.summary,
+        start,
+        end,
+        location: intent.location ?? undefined,
+      });
+      const label = new Date(event.start).toLocaleString("it-IT", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      return `📅 Evento creato: ${event.summary} — ${label}`;
+    } catch {
+      return "Errore nella creazione dell'evento su Google Calendar.";
+    }
+  }
+
+  if (intent.type === "study_schedule_query") {
+    try {
+      const dateObj = new Date(`${intent.date}T00:00:00`);
+      const schedule = await getScheduleForDay(dateObj.getDay());
+      const dateLabel = dateObj.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
+      if (!schedule.length) return `Nessun impegno di studio per ${dateLabel}.`;
+      const scheduleText = schedule
+        .map((s) => `- ${s.startTime}-${s.endTime} ${s.type}: ${s.subject}`)
+        .join("\n");
+      return `📚 Studio (${dateLabel}):\n${scheduleText}`;
+    } catch {
+      return "Errore nel recupero dell'orario di studio.";
+    }
+  }
+
   if (intent.type === "strava_query") {
     try {
       const activities = await getRecentActivities(10);
@@ -179,7 +228,8 @@ export async function handleMessage(text: string): Promise<string> {
   if (intent.type === "shopping_add") {
     try {
       await addShoppingItems(intent.items);
-      return `Aggiunto alla lista della spesa: ${intent.items.join(", ")} 🛒`;
+      const list = await getActiveShoppingList();
+      return `Aggiornato ✅\n\n${formatShoppingList(list)}`;
     } catch {
       return "Errore nel salvare la lista della spesa.";
     }
@@ -189,7 +239,8 @@ export async function handleMessage(text: string): Promise<string> {
     try {
       const matched = await checkOffShoppingItemsByName(intent.items);
       if (!matched.length) return "Non ho trovato questi articoli nella lista.";
-      return `Segnato come comprato: ${matched.join(", ")} ✅`;
+      const list = await getActiveShoppingList();
+      return `Aggiornato ✅\n\n${formatShoppingList(list)}`;
     } catch {
       return "Errore nell'aggiornare la lista della spesa.";
     }

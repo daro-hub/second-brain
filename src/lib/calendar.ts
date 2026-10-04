@@ -46,10 +46,45 @@ export async function getEventsForDate(date: Date): Promise<CalendarEvent[]> {
   }));
 }
 
-export async function getUpcomingEvents(maxResults = 10): Promise<CalendarEvent[]> {
+export async function createEvent(params: {
+  summary: string;
+  start: string; // ISO 8601, es. 2026-10-06T18:00:00
+  end: string;
+  location?: string;
+}): Promise<CalendarEvent> {
   const token = await getAccessToken();
+  const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      summary: params.summary,
+      location: params.location,
+      start: { dateTime: params.start },
+      end: { dateTime: params.end },
+    }),
+  });
+  if (!res.ok) throw new Error(`Google Calendar API error: ${res.status}`);
+  const e = await res.json();
+  return {
+    summary: e.summary ?? "(senza titolo)",
+    start: e.start?.dateTime ?? e.start?.date ?? "",
+    end: e.end?.dateTime ?? e.end?.date ?? "",
+    location: e.location,
+  };
+}
+
+export async function getUpcomingEvents(maxResults = 10, windowDays = 30): Promise<CalendarEvent[]> {
+  const token = await getAccessToken();
+  const timeMax = new Date();
+  timeMax.setDate(timeMax.getDate() + windowDays);
+
   const url = new URL("https://www.googleapis.com/calendar/v3/calendars/primary/events");
   url.searchParams.set("timeMin", new Date().toISOString());
+  // Senza un limite superiore, singleEvents=true espande anche gli eventi ricorrenti
+  // (es. compleanni annuali) su anni futuri: se nel breve termine c'è poco altro,
+  // i risultati finiscono dominati da ripetizioni dello stesso evento molto lontane
+  // nel tempo invece dei prossimi impegni reali.
+  url.searchParams.set("timeMax", timeMax.toISOString());
   url.searchParams.set("maxResults", String(maxResults));
   url.searchParams.set("singleEvents", "true");
   url.searchParams.set("orderBy", "startTime");

@@ -10,27 +10,39 @@ export type MessageIntent =
   | { type: "github_query"; repoName: string }
   | { type: "linear_query"; term: string }
   | { type: "calendar_query" }
+  | {
+      type: "calendar_add";
+      summary: string;
+      date: string;
+      startTime: string;
+      endTime: string | null;
+      location: string | null;
+    }
   | { type: "strava_query" }
+  | { type: "study_schedule_query"; date: string }
   | { type: "shopping_add"; items: string[] }
   | { type: "shopping_done"; items: string[] }
   | { type: "shopping_query" }
   | { type: "none"; save: boolean };
 
 export async function classifyMessage(text: string): Promise<MessageIntent> {
+  const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
   const res = await openai.chat.completions.create({
     model: "gpt-6-luna",
     response_format: { type: "json_object" },
     messages: [
       {
         role: "system",
-        content: `Classifica un messaggio in italiano in una di queste categorie, rispondendo SOLO con JSON:
+        content: `Oggi è ${today}. Classifica un messaggio in italiano in una di queste categorie, rispondendo SOLO con JSON:
 1. Serie di allenamento specifica (esercizio + peso + ripetizioni): {"intent": "workout", "exercise": string, "weightKg": number, "reps": number, "sets": number, "muscleGroup": string}
 2. Annuncio di un tipo di allenamento senza numeri specifici, per sapere cosa fatto l'ultima volta (es. "oggi faccio petto", "allenamento schiena"): {"intent": "session_query", "muscleGroup": string}
 3. Richiesta di recuperare una password salvata (es. "password di Supabase", "mi serve la password del progetto Longevity", "password wifi"): {"intent": "password_request", "itemName": string}
 4. Domanda su un repository GitHub/progetto di codice (es. "il link di Orbis", "cosa fa Scolastica", "parlami del progetto Longevity"): {"intent": "github_query", "repoName": string}
 5. Domanda su issue/task di lavoro Linear (es. "a che punto è l'issue sull'audio?", "ci sono task aperti su AMU-803?"): {"intent": "linear_query", "term": string}
-6. Domanda sul calendario/agenda/impegni (es. "cosa ho in agenda?", "quali sono i prossimi impegni?"): {"intent": "calendar_query"}
+6. Domanda sul calendario/agenda/impegni generici, NON di studio (es. "cosa ho in agenda?", "quali sono i prossimi impegni?", "quando è il compleanno di papà?"): {"intent": "calendar_query"}
+6b. Richiesta di AGGIUNGERE un evento al calendario (es. "domani alle 18 ho il dentista", "venerdì alle 10 riunione con Marco", "aggiungi appuntamento alle 15:30"): {"intent": "calendar_add", "summary": string, "date": "YYYY-MM-DD" (risolvi tu la data assoluta da riferimenti relativi come "domani"/"venerdì" usando la data di oggi sopra), "startTime": "HH:MM", "endTime": "HH:MM oppure null se non specificato", "location": string oppure null}
 7. Domanda sulle attività sportive/corse/allenamenti tracciati su Strava (es. "quanto ho corso questa settimana?", "le mie ultime attività Strava"): {"intent": "strava_query"}
+7b. Domanda sull'orario di studio/lezioni universitarie per un giorno specifico (es. "domani cosa devo studiare?", "che lezioni ho lunedì?", "cosa ho di studio oggi?") — DIVERSA da una domanda sul calendario/agenda generica, è specifica sull'orario di studio/università: {"intent": "study_schedule_query", "date": "YYYY-MM-DD" (risolvi tu la data assoluta da riferimenti relativi come "domani"/"oggi"/"lunedì" usando la data di oggi sopra)}
 8. Aggiunta di uno o più articoli alla lista della spesa (es. "compra latte", "aggiungi pane e uova alla lista", "manca il detersivo", "finito il caffè" = è terminato, va comprato): {"intent": "shopping_add", "items": string[]}
 9. Articoli comprati/da togliere dalla lista della spesa (es. "ho preso il latte", "ho comprato pane e uova", "togli il detersivo dalla lista"): {"intent": "shopping_done", "items": string[]}
 10. Domanda sulla lista della spesa attuale (es. "cosa devo comprare?", "lista della spesa", "cosa manca?"): {"intent": "shopping_query"}
@@ -69,8 +81,21 @@ export async function classifyMessage(text: string): Promise<MessageIntent> {
   if (parsed.intent === "calendar_query") {
     return { type: "calendar_query" };
   }
+  if (parsed.intent === "calendar_add" && parsed.summary && parsed.date && parsed.startTime) {
+    return {
+      type: "calendar_add",
+      summary: String(parsed.summary).trim(),
+      date: String(parsed.date).trim(),
+      startTime: String(parsed.startTime).trim(),
+      endTime: parsed.endTime ? String(parsed.endTime).trim() : null,
+      location: parsed.location ? String(parsed.location).trim() : null,
+    };
+  }
   if (parsed.intent === "strava_query") {
     return { type: "strava_query" };
+  }
+  if (parsed.intent === "study_schedule_query" && parsed.date) {
+    return { type: "study_schedule_query", date: String(parsed.date).trim() };
   }
   if (parsed.intent === "shopping_add" && Array.isArray(parsed.items) && parsed.items.length) {
     return { type: "shopping_add", items: parsed.items.map((i: string) => String(i).trim()) };
