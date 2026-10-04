@@ -11,6 +11,8 @@ export interface CalendarEvent {
 
 export interface CalendarEventDetailed extends CalendarEvent {
   allDay: boolean;
+  /** identificativo stabile dell evento (iCalUID), per deduplicare e ricordare gli avvisi già inviati */
+  uid?: string;
 }
 
 interface RawEvent {
@@ -114,7 +116,7 @@ async function fetchAll(params: Record<string, string>, limit: number): Promise<
   const merged = new Map<string, CalendarEventDetailed>();
   for (const r of results) {
     if (r.status !== "fulfilled") continue;
-    for (const { uid, ...e } of r.value) if (!merged.has(uid)) merged.set(uid, e);
+    for (const { uid, ...e } of r.value) if (!merged.has(uid)) merged.set(uid, { ...e, uid });
   }
   return [...merged.values()].sort((a, b) => a.start.localeCompare(b.start)).slice(0, limit);
 }
