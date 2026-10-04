@@ -64,6 +64,33 @@ ${contextText}`,
   return res.choices[0].message.content ?? "Non so cosa risponderti.";
 }
 
+/**
+ * Pattern condiviso per ogni intent che recupera dati reali e deve rispondere alla
+ * domanda specifica di Daro, non solo scaricare un elenco grezzo — lo stesso bug che
+ * ha colpito Strava (chiedeva un consiglio sul ritmo, il bot dumpava la lista attività)
+ * può capitare su qualunque fonte dati se la domanda richiede analisi/confronto/consiglio
+ * invece di un semplice elenco.
+ */
+async function answerFromData(text: string, context: string, extraGuidance?: string): Promise<string> {
+  const res = await openai.chat.completions.create({
+    model: "gpt-6-luna",
+    messages: [
+      {
+        role: "system",
+        content: `Sei Aira, l'assistente personale di Daro. Rispondi alla sua domanda usando SOLO i dati reali sotto — non inventare nulla che non c'è. Se la domanda è una richiesta semplice di elenco/riepilogo, rispondi in modo diretto; se invece richiede un'analisi, un confronto, una risposta puntuale o un consiglio (es. "ho tempo libero venerdì?", "qual è la più urgente?", "a che velocità posso correre oggi?"), ragiona sui dati sotto e rispondi specificamente a quello che ha chiesto, non limitarti a ripetere l'elenco.
+
+I dati sotto arrivano da una ricerca che può restituire risultati non pertinenti (es. corrispondenze deboli su una parola chiave). Prima di rispondere, valuta se i dati sotto rispondono davvero alla domanda: se sembrano chiaramente scorrelati, dillo esplicitamente ("non ho trovato nulla che corrisponda davvero a...") invece di presentarli come se fossero la risposta.${extraGuidance ? `\n\n${extraGuidance}` : ""}
+
+Per dare risalto a numeri/dati importanti usa SOLO tag HTML <b>testo</b> — mai markdown con asterischi (**testo**), il bot invia messaggi in modalità HTML e gli asterischi comparirebbero letteralmente. Tono naturale, in italiano, breve (max 4-5 righe) a meno che non serva davvero più dettaglio.
+
+${context}`,
+      },
+      { role: "user", content: text },
+    ],
+  });
+  return res.choices[0].message.content ?? context;
+}
+
 function formatPace(distanceKm: number, movingTimeMin: number): string {
   if (distanceKm <= 0) return "N/D";
   const paceMinPerKm = movingTimeMin / distanceKm;
@@ -143,21 +170,23 @@ export async function handleMessage(text: string): Promise<string> {
   }
 
   if (intent.type === "session_query") {
-    const session = await getLastSession(intent.muscleGroup);
-    if (!session || !session.length) return `Nessun allenamento registrato per ${escapeHtml(intent.muscleGroup)}.`;
-    const date = new Date(session[0].performed_at).toLocaleDateString("it-IT");
-    const sessionText = session
-      .map((s) => `${BULLET} ${escapeHtml(s.exercise)}: ${bold(`${s.weight_kg}kg x${s.reps}`)}`)
-      .join("\n");
-    return `${bold(`Ultimo allenamento ${escapeHtml(intent.muscleGroup)} (${date})`)}\n\n${sessionText}`;
+    try {
+      const session = await getLastSession(intent.muscleGroup);
+      if (!session || !session.length) return `Nessun allenamento registrato per ${escapeHtml(intent.muscleGroup)}.`;
+      const date = new Date(session[0].performed_at).toLocaleDateString("it-IT");
+      const sessionText = session.map((s) => `${s.exercise}: ${s.weight_kg}kg x${s.reps}`).join("\n");
+      return await answerFromData(text, `Ultimo allenamento ${intent.muscleGroup} (${date}):\n${sessionText}`);
+    } catch {
+      return "Errore nel recupero dell'allenamento.";
+    }
   }
 
   if (intent.type === "password_request") {
     try {
       const password = await getPassword(intent.itemName);
-      // Testo semplice, mai HTML: una password è un dato letterale, non va mai
-      // interpretato/escapato come markup.
-      return password ?? `Nessuna voce trovata per "${intent.itemName}".`;
+      // Il chiamante (bot.ts) invia sempre con parse_mode HTML: va escapata
+      // per sicurezza (round-trip identico, nessuna interpretazione come markup).
+      return password ? escapeHtml(password) : `Nessuna voce trovata per "${intent.itemName}".`;
     } catch {
       return "Errore nel recupero da Bitwarden.";
     }
@@ -167,13 +196,15 @@ export async function handleMessage(text: string): Promise<string> {
     try {
       const repo = await getRepoInfo(intent.repoName);
       if (!repo) return `Nessun repository trovato per "${escapeHtml(intent.repoName)}".`;
-      const parts = [
-        bold(escapeHtml(repo.name)),
-        escapeHtml(repo.description ?? "(nessuna descrizione)"),
-        repo.url,
-      ];
-      if (repo.readmeExcerpt) parts.push(`\n${escapeHtml(repo.readmeExcerpt)}`);
-      return parts.join("\n");
+      const context = [
+        `Repository: ${repo.name}`,
+        `Descrizione: ${repo.description ?? "(nessuna descrizione)"}`,
+        `URL: ${repo.url}`,
+        repo.readmeExcerpt ? `Estratto README:\n${repo.readmeExcerpt}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+      return await answerFromData(text, context, 'Includi sempre l\'URL del repository nella risposta se è pertinente alla domanda.');
     } catch {
       return "Errore nel recupero da GitHub.";
     }
@@ -182,10 +213,18 @@ export async function handleMessage(text: string): Promise<string> {
   if (intent.type === "linear_query") {
     try {
       const issues = await searchIssues(intent.term);
-      if (!issues.length) return `Nessuna issue trovata per "${escapeHtml(intent.term)}".`;
-      return issues
-        .map((i) => `${BULLET} ${bold(escapeHtml(i.identifier))} [${escapeHtml(i.state)}] ${escapeHtml(i.title)}\n${i.url}`)
-        .join("\n\n");
+      // Linear restituisce risultati fuzzy: su un termine senza match reali può
+      // rispondere con issue completamente scorrelate invece di un elenco vuoto
+      // (osservato con "second-brain" -> issue su audio/AssemblyAI di AmuseUp).
+      // Un modello economico non si corregge in modo affidabile da solo se gli dai
+      // in pasto dati già scorrelati: il filtro va fatto qui, in codice.
+      const termWords = intent.term.toLowerCase().split(/[^a-zà-ù0-9]+/).filter((w) => w.length > 2);
+      const relevant = termWords.length
+        ? issues.filter((i) => termWords.some((w) => i.title.toLowerCase().includes(w)))
+        : issues;
+      if (!relevant.length) return `Nessuna issue trovata per "${escapeHtml(intent.term)}".`;
+      const context = relevant.map((i) => `${i.identifier} [${i.state}] ${i.title} — ${i.url}`).join("\n");
+      return await answerFromData(text, `Issue Linear trovate per "${intent.term}":\n${context}`);
     } catch {
       return "Errore nel recupero da Linear.";
     }
@@ -194,14 +233,11 @@ export async function handleMessage(text: string): Promise<string> {
   if (intent.type === "calendar_query") {
     try {
       const events = await getUpcomingEvents(10);
-      if (!events.length) return "Nessun evento in programma.";
-      return events
-        .map((e) => {
-          const when = new Date(e.start).toLocaleString("it-IT");
-          const where = e.location ? ` (${escapeHtml(e.location)})` : "";
-          return `${BULLET} ${bold(when)} — ${escapeHtml(e.summary)}${where}`;
-        })
+      if (!events.length) return "Nessun evento in programma nei prossimi 30 giorni.";
+      const context = events
+        .map((e) => `${new Date(e.start).toLocaleString("it-IT")} — ${e.summary}${e.location ? ` (${e.location})` : ""}`)
         .join("\n");
+      return await answerFromData(text, `Prossimi eventi in calendario (entro 30 giorni):\n${context}`);
     } catch {
       return "Errore nel recupero da Google Calendar.";
     }
@@ -237,10 +273,8 @@ export async function handleMessage(text: string): Promise<string> {
       const schedule = await getScheduleForDay(dateObj.getDay());
       const dateLabel = dateObj.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
       if (!schedule.length) return `Nessun impegno di studio per ${dateLabel}.`;
-      const scheduleText = schedule
-        .map((s) => `${BULLET} ${s.startTime}-${s.endTime} ${s.type}: ${escapeHtml(s.subject)}`)
-        .join("\n");
-      return `📚 ${bold(`Studio (${dateLabel})`)}\n${scheduleText}`;
+      const scheduleText = schedule.map((s) => `${s.startTime}-${s.endTime} ${s.type}: ${s.subject}`).join("\n");
+      return await answerFromData(text, `Orario di studio per ${dateLabel}:\n${scheduleText}`);
     } catch {
       return "Errore nel recupero dell'orario di studio.";
     }
@@ -254,28 +288,15 @@ export async function handleMessage(text: string): Promise<string> {
         .slice(0, 10)
         .map((r) => {
           const date = new Date(r.date).toLocaleDateString("it-IT");
-          return `${BULLET} ${bold(date)} — ${escapeHtml(r.name)}: ${r.distanceKm}km in ${r.movingTimeMin}min (passo ${formatPace(r.distanceKm, r.movingTimeMin)})`;
+          return `${date} — ${r.name}: ${r.distanceKm}km in ${r.movingTimeMin}min (passo ${formatPace(r.distanceKm, r.movingTimeMin)})`;
         })
         .join("\n");
-
-      const res = await openai.chat.completions.create({
-        model: "gpt-6-luna",
-        messages: [
-          {
-            role: "system",
-            content: `Sei Aira, l'assistente personale di Daro. Rispondi alla sua domanda sulle corse usando SOLO i dati reali sotto — il passo (min/km) è già calcolato, non ricalcolarlo tu e non inventare numeri che non ci sono.
-
-Se chiede un consiglio su ritmo/velocità da tenere in un allenamento, guarda l'andamento recente (passo costante, in miglioramento, distanze tipiche) e proponi un ritmo target concreto in min/km con una breve motivazione basata sui dati. Se chiede solo un riepilogo/elenco, rispondi in modo diretto.
-
-Per dare risalto a numeri/ritmi importanti usa SOLO tag HTML <b>testo</b> — mai markdown con asterischi (**testo**), il bot invia messaggi in modalità HTML e gli asterischi comparirebbero letteralmente. Tono naturale, in italiano, breve (max 4-5 righe) a meno che non serva davvero più dettaglio.
-
-Corse recenti (dalla più recente), passo medio ${formatPace(stats.totalDistanceKm, stats.totalMovingTimeMin)}:
-${runsText}`,
-          },
-          { role: "user", content: text },
-        ],
-      });
-      return res.choices[0].message.content ?? runsText;
+      const context = `Corse recenti (dalla più recente), passo medio ${formatPace(stats.totalDistanceKm, stats.totalMovingTimeMin)}:\n${runsText}`;
+      return await answerFromData(
+        text,
+        context,
+        "Il passo (min/km) è già calcolato nei dati sopra, non ricalcolarlo tu. Se chiede un consiglio su ritmo/velocità da tenere in un allenamento, guarda l'andamento recente (passo costante, in miglioramento, distanze tipiche) e proponi un ritmo target concreto in min/km con una breve motivazione basata sui dati.",
+      );
     } catch {
       return "Errore nel recupero da Strava.";
     }
