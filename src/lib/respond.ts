@@ -3,6 +3,7 @@ import { getPassword } from "./bitwarden";
 import { createEvent, getUpcomingEvents } from "./calendar";
 import { bold, BULLET, escapeHtml } from "./format";
 import { getRepoInfo } from "./github";
+import { searchEmails } from "./gmail";
 import { ingest } from "./ingest";
 import { classifyMessage } from "./intent";
 import { searchIssues } from "./linear";
@@ -406,6 +407,26 @@ export async function handleMessage(text: string): Promise<string> {
       );
     } catch {
       return "Errore nel recupero dei dati di salute.";
+    }
+  }
+
+  if (intent.type === "email_query") {
+    try {
+      const emails = await searchEmails(intent.query);
+      if (!emails.length) return `Nessuna email trovata per "${escapeHtml(intent.query)}".`;
+      const context = emails
+        .map((e) => {
+          const urlsText = e.urls.length ? `Link trovati: ${e.urls.join(", ")}` : "Nessun link nel corpo del messaggio";
+          return `Da: ${e.from}\nOggetto: ${e.subject}\nData: ${e.date}\nAnteprima: ${e.snippet}\n${urlsText}`;
+        })
+        .join("\n\n");
+      return await answerFromData(
+        text,
+        `Email trovate per "${intent.query}":\n\n${context}`,
+        "Se la domanda chiede un link/URL specifico, riportalo per intero e segnala da quale email viene (mittente/oggetto). Se ci sono più email candidate, indica quale sembra la più pertinente invece di elencarle tutte alla pari.",
+      );
+    } catch {
+      return "Errore nel recupero da Gmail.";
     }
   }
 

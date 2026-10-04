@@ -2,7 +2,7 @@
 
 Segretario personale: knowledge base RAG (Supabase + pgvector), tracking
 allenamenti, e integrazioni live (Bitwarden, GitHub, Linear, Google Calendar,
-Strava) — interrogabile su Telegram in linguaggio naturale (testo o vocale,
+Gmail, Strava) — interrogabile su Telegram in linguaggio naturale (testo o vocale,
 nessun comando richiesto per l'uso normale) o da Claude Code/Cursor via MCP.
 Deployato come webhook su Vercel: funziona ovunque, non richiede il PC acceso.
 
@@ -18,6 +18,7 @@ MCP server (Claude Code) ┼──► src/lib/respond.ts (classificazione intent
                          │         ├─► GitHub REST API — repo live
                          │         ├─► Linear GraphQL API — issue live
                          │         ├─► Google Calendar API — eventi live
+                         │         ├─► Gmail API (read-only) — ricerca email live
                          │         └─► Strava API — attività live
                          │
 Automazione Apple Shortcuts (iPhone) ──► POST /api/steps ──► daily_steps
@@ -46,8 +47,10 @@ riceve via push da un'Automazione Shortcuts sul telefono, protetta da
 - `voice.ts` — trascrizione (`gpt-4o-mini-transcribe`) e sintesi vocale
   (`gpt-4o-mini-tts`, formato Opus nativo Telegram)
 - `bitwarden.ts` — CLI Bitwarden via `child_process`, mai tramite OpenAI
-- `github.ts`, `linear.ts`, `calendar.ts`, `strava.ts` — client diretti alle
-  rispettive API, nessuna dipendenza tra loro
+- `github.ts`, `linear.ts`, `calendar.ts`, `gmail.ts`, `strava.ts` — client
+  diretti alle rispettive API, nessuna dipendenza tra loro
+- `googleAuth.ts` — refresh token → access token condiviso tra `calendar.ts`
+  e `gmail.ts` (stesso client OAuth Google, scope `calendar` + `gmail.readonly`)
 
 ### Entry point
 

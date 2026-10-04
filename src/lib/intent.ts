@@ -25,6 +25,7 @@ export type MessageIntent =
   | { type: "shopping_query" }
   | { type: "steps_query"; startDate: string; endDate: string }
   | { type: "health_query"; metricNames: string[]; startDate: string; endDate: string }
+  | { type: "email_query"; query: string }
   | { type: "none"; save: boolean };
 
 export async function classifyMessage(text: string): Promise<MessageIntent> {
@@ -50,6 +51,7 @@ export async function classifyMessage(text: string): Promise<MessageIntent> {
 10. Domanda sulla lista della spesa attuale (es. "cosa devo comprare?", "lista della spesa", "cosa manca?"): {"intent": "shopping_query"}
 10b. Domanda sui passi fatti/camminata/attività quotidiana (es. "quanti passi ho fatto ieri?", "come sto andando a passi questo mese?", "fammi un recap dei passi dell'ultima settimana"): {"intent": "steps_query", "startDate": "YYYY-MM-DD", "endDate": "YYYY-MM-DD"} — risolvi tu l'intervallo assoluto da riferimenti relativi usando la data di oggi sopra (es. "ieri" = un solo giorno, "questo mese" = dal 1° del mese corrente a oggi, "ultima settimana"/"ultimi 7 giorni" = ultimi 7 giorni inclusi oggi, nessun riferimento esplicito = ultimi 7 giorni).
 10c. Domanda su dati di salute/alimentazione/battito/corpo tracciati via Apple Health (es. "quante calorie ho mangiato oggi?", "quante proteine ho preso?", "come sta andando il battito?", "quanto peso ora?" [solo se non già coperto da una nota profilo], "come sto dormendo?") — DIVERSA da steps_query (quella è solo passi/camminata): {"intent": "health_query", "metricNames": string[], "startDate": "YYYY-MM-DD", "endDate": "YYYY-MM-DD"}. "metricNames" è un array con una o più di queste chiavi esatte, solo quelle pertinenti alla domanda: dietary_energy (calorie mangiate), protein (proteine), carbohydrates (carboidrati), total_fat (grassi), saturated_fat (grassi saturi), dietary_sugar (zuccheri), fiber (fibre), heart_rate (battito cardiaco), resting_heart_rate (battito a riposo), active_energy (calorie attive bruciate), basal_energy_burned (metabolismo basale), walking_running_distance (distanza percorsa), weight_body_mass (peso corporeo), sleep_analysis (sonno), blood_pressure (pressione). Risolvi l'intervallo di date come per steps_query (nessun riferimento esplicito = ultimi 7 giorni).
+10d. Domanda su qualcosa che bisogna cercare nelle email/Gmail (es. "cerca nelle mie email...", "c'è una mail di Martina su...", "trovami il link che mi ha mandato..."): {"intent": "email_query", "query": string} — "query" è una query di ricerca Gmail valida (puoi usare operatori come "from:", "subject:", parole chiave), costruita dal contenuto della richiesta (es. "mail di Martina con un cliente sui totem" -> "from:martina totem").
 11. Nessuno dei precedenti. Qui devi anche decidere se il messaggio contiene un'informazione/fatto che vale la pena ricordare per il futuro (es. una nota, un pensiero, un dato su di sé) oppure se è solo una domanda, una richiesta, un commento di passaggio o un testo senza vero valore informativo da conservare (es. trascrizione vocale rumorosa, "ciao", "ok", una domanda retorica): {"intent": "none", "save": boolean}
 "muscleGroup" è una tra: petto, schiena, spalle, bicipiti, tricipiti, gambe, addome. Normalizza "exercise" in minuscolo. Se "sets" non è specificato, usa 1. "itemName" è il nome breve della voce da cercare nel vault (es. "Supabase", "Longevity"). "repoName" è il nome breve del repository (es. "Orbis", "Scolastica", "second-brain"). "term" è il testo/termine chiave da cercare su Linear. Per "shopping_add"/"shopping_done", "items" è l'elenco dei nomi degli articoli in minuscolo, al singolare dove ha senso (es. "uova" resta "uova").`,
       },
@@ -120,6 +122,9 @@ export async function classifyMessage(text: string): Promise<MessageIntent> {
       startDate: String(parsed.startDate).trim(),
       endDate: String(parsed.endDate).trim(),
     };
+  }
+  if (parsed.intent === "email_query" && parsed.query) {
+    return { type: "email_query", query: String(parsed.query).trim() };
   }
   return { type: "none", save: Boolean(parsed.save) };
 }

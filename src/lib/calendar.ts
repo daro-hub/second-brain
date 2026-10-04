@@ -1,18 +1,4 @@
-async function getAccessToken(): Promise<string> {
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID!,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-      refresh_token: process.env.GOOGLE_REFRESH_TOKEN!,
-      grant_type: "refresh_token",
-    }),
-  });
-  const data = await res.json();
-  if (!data.access_token) throw new Error("Impossibile ottenere access token Google");
-  return data.access_token as string;
-}
+import { getGoogleAccessToken } from "./googleAuth";
 
 export interface CalendarEvent {
   summary: string;
@@ -22,7 +8,7 @@ export interface CalendarEvent {
 }
 
 export async function getEventsForDate(date: Date): Promise<CalendarEvent[]> {
-  const token = await getAccessToken();
+  const token = await getGoogleAccessToken();
   const startOfDay = new Date(date);
   startOfDay.setHours(0, 0, 0, 0);
   const endOfDay = new Date(date);
@@ -53,7 +39,7 @@ export async function createEvent(params: {
   location?: string;
   recurrence?: string[]; // es. ["RRULE:FREQ=WEEKLY;BYDAY=MO"]
 }): Promise<CalendarEvent> {
-  const token = await getAccessToken();
+  const token = await getGoogleAccessToken();
   const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -76,7 +62,7 @@ export async function createEvent(params: {
 }
 
 export async function getUpcomingEvents(maxResults = 10, windowDays = 30): Promise<CalendarEvent[]> {
-  const token = await getAccessToken();
+  const token = await getGoogleAccessToken();
   const timeMax = new Date();
   timeMax.setDate(timeMax.getDate() + windowDays);
 
