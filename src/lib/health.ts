@@ -19,6 +19,16 @@ export interface HealthExportPayload {
   };
 }
 
+/**
+ * Fase di scoperta: salva il body grezzo di ogni richiesta a /api/health così com'è,
+ * a prescindere dal formato — serve a vedere cosa manda davvero l'automazione di Daro
+ * prima di dare per scontato lo schema documentato di Health Auto Export.
+ */
+export async function saveRawDebugPayload(body: unknown): Promise<void> {
+  const { error } = await supabase.from("health_debug_raw").insert({ body: body ?? {} });
+  if (error) throw error;
+}
+
 // Health Auto Export usa "yyyy-MM-dd HH:mm:ss Z" (es. "2026-10-04 14:30:00 -0700") — non è
 // ISO 8601 diretto per via dello spazio al posto della "T" e dell'offset senza ":", va
 // normalizzato prima di passarlo a Date.
