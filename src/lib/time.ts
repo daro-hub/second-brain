@@ -85,3 +85,12 @@ export function weekdayShort(key: string): string {
   const [y, m, d] = key.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString("it-IT", { timeZone: "UTC", weekday: "short" });
 }
+
+/**
+ * Il "giorno percepito" da chi scrive al bot: di notte (prima delle 5) "oggi/domani" si riferiscono
+ * ancora alla giornata che sta finendo, non a quella appena scattata a mezzanotte. Se alle 00:30 di
+ * lunedì scrive "domani", intende lunedì. Va usato solo per interpretare le richieste, non per i dati.
+ */
+export function perceivedTodayKey(now: Date = new Date()): string {
+  return localHourDecimal(now) < 5 ? addDays(dateKey(now), -1) : dateKey(now);
+}

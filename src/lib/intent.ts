@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { formatHistory, type Turn } from "./chatHistory";
-import { todayKey } from "./time";
+import { perceivedTodayKey } from "./time";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -46,7 +46,7 @@ export type MessageIntent =
   | { type: "none"; save: boolean };
 
 export async function classifyMessage(text: string, history: Turn[] = []): Promise<MessageIntent> {
-  const today = todayKey(); // YYYY-MM-DD in ora italiana (il server gira in UTC)
+  const today = perceivedTodayKey(); // YYYY-MM-DD in ora italiana (il server gira in UTC), di notte ancora il giorno che finisce
   const res = await openai.chat.completions.create({
     model: "gpt-6-luna",
     response_format: { type: "json_object" },

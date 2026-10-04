@@ -9,7 +9,7 @@ import { ingest } from "./ingest";
 import { classifyMessage } from "./intent";
 import { searchIssues } from "./linear";
 import { searchSemantic } from "./search";
-import { addDays, dateKey, dayRangeUtc, formatDayLong, localHHMM, todayKey, weekdayOf } from "./time";
+import { addDays, dateKey, dayRangeUtc, formatDayLong, localHHMM, perceivedTodayKey, todayKey, weekdayOf } from "./time";
 import { SOURCE_LABELS, type Source, type SourceId, type Trace } from "./trace";
 import { getRunningStats } from "./dashboard";
 import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList } from "./shoppingList";
@@ -61,7 +61,7 @@ async function respondConversationally(text: string, trace?: Trace, history: Tur
     messages: [
       {
         role: "system",
-        content: `Adesso è ${formatDayLong(todayKey())}, ore ${localHHMM(new Date())} (Europe/Rome).\n\nSei Aira, l'assistente personale di Daro su Telegram — una specie di Jarvis al femminile: lo conosci bene, gli fai da segretaria, lo aiuti a tenere insieme lavoro, università, allenamenti e vita privata. Non sei un assistente AI generico né un bot che legge dati — sei una presenza amichevole e competente con cui ha una conversazione normale, non formale.
+        content: `Adesso è ${formatDayLong(perceivedTodayKey())}, ore ${localHHMM(new Date())} (Europe/Rome).\n\nSei Aira, l'assistente personale di Daro su Telegram — una specie di Jarvis al femminile: lo conosci bene, gli fai da segretaria, lo aiuti a tenere insieme lavoro, università, allenamenti e vita privata. Non sei un assistente AI generico né un bot che legge dati — sei una presenza amichevole e competente con cui ha una conversazione normale, non formale.
 
 Regole di conversazione:
 - Rispondi sempre in italiano.
@@ -107,7 +107,7 @@ async function answerFromData(text: string, context: string, extraGuidance?: str
     messages: [
       {
         role: "system",
-        content: `Adesso è ${formatDayLong(todayKey())}, ore ${localHHMM(new Date())} (Europe/Rome): "oggi", "domani" e simili si riferiscono a questa data.\n\nSei Aira, l'assistente personale di Daro. Rispondi alla sua domanda usando SOLO i dati reali sotto — non inventare nulla che non c'è. Se la domanda è una richiesta semplice di elenco/riepilogo, rispondi in modo diretto; se invece richiede un'analisi, un confronto, una risposta puntuale o un consiglio (es. "ho tempo libero venerdì?", "qual è la più urgente?", "a che velocità posso correre oggi?"), ragiona sui dati sotto e rispondi specificamente a quello che ha chiesto, non limitarti a ripetere l'elenco.
+        content: `Adesso è ${formatDayLong(perceivedTodayKey())}, ore ${localHHMM(new Date())} (Europe/Rome): "oggi", "domani" e simili si riferiscono a questa data.\n\nSei Aira, l'assistente personale di Daro. Rispondi alla sua domanda usando SOLO i dati reali sotto — non inventare nulla che non c'è. Se la domanda è una richiesta semplice di elenco/riepilogo, rispondi in modo diretto; se invece richiede un'analisi, un confronto, una risposta puntuale o un consiglio (es. "ho tempo libero venerdì?", "qual è la più urgente?", "a che velocità posso correre oggi?"), ragiona sui dati sotto e rispondi specificamente a quello che ha chiesto, non limitarti a ripetere l'elenco.
 
 I dati sotto arrivano da una ricerca che può restituire risultati non pertinenti (es. corrispondenze deboli su una parola chiave). Prima di rispondere, valuta se i dati sotto rispondono davvero alla domanda: se sembrano chiaramente scorrelati, dillo esplicitamente ("non ho trovato nulla che corrisponda davvero a...") invece di presentarli come se fossero la risposta.${extraGuidance ? `\n\n${extraGuidance}` : ""}
 
@@ -412,7 +412,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
       // Periodo richiesto (es. "domani"): si leggono ESATTAMENTE quei giorni, con confini in ora italiana.
       // Senza periodo: prossimi impegni da adesso. Prima il modello riceveva solo date senza giorno della
       // settimana e non sapeva che giorno fosse oggi, quindi "domani" diventava il primo giorno della lista.
-      const today = todayKey();
+      const today = perceivedTodayKey();
       const rangeStart = intent.startDate ?? today;
       const rangeEnd = intent.startDate && intent.endDate ? intent.endDate : addDays(today, 6);
       const hasRange = Boolean(intent.startDate && intent.endDate);
