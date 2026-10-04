@@ -1,4 +1,5 @@
 import { getEventsForDate } from "./calendar";
+import { bold, BULLET, escapeHtml } from "./format";
 import { getNextRoutineToTrain, getScheduleForDay, markRestDay } from "./workouts";
 
 export async function buildEveningDigest(): Promise<string> {
@@ -13,28 +14,36 @@ export async function buildEveningDigest(): Promise<string> {
 
   const scheduleText = schedule.length
     ? schedule
-        .map((s) => `- ${s.startTime}-${s.endTime} ${s.type}: ${s.subject}`)
+        .map((s) => `${BULLET} ${s.startTime}-${s.endTime} ${s.type}: ${escapeHtml(s.subject)}`)
         .join("\n")
-    : "- Nessun impegno di studio.";
+    : `${BULLET} Nessun impegno di studio.`;
 
   const eventsText = events.length
     ? events
         .map(
           (e) =>
-            `- ${new Date(e.start).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })} ${e.summary}`,
+            `${BULLET} ${bold(new Date(e.start).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }))} ${escapeHtml(e.summary)}`,
         )
         .join("\n")
-    : "- Nessun impegno.";
+    : `${BULLET} Nessun impegno.`;
 
   let trainingText: string;
   if (nextRoutine === "riposo") {
     await markRestDay(tomorrow);
-    trainingText = "Riposo";
+    trainingText = bold("Riposo");
   } else {
-    trainingText = nextRoutine;
+    trainingText = bold(escapeHtml(nextRoutine));
   }
 
   const dateLabel = tomorrow.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
 
-  return `🌙 Programma di domani (${dateLabel}):\n\n📚 Studio:\n${scheduleText}\n\n📅 Impegni:\n${eventsText}\n\n🏋️ Allenamento: ${trainingText}`;
+  return `🌙 ${bold(`Programma di domani (${dateLabel})`)}
+
+📚 ${bold("Studio")}
+${scheduleText}
+
+📅 ${bold("Impegni")}
+${eventsText}
+
+🏋️ Allenamento: ${trainingText}`;
 }

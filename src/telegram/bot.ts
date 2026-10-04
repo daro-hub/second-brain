@@ -2,6 +2,7 @@ import "dotenv/config";
 import { Bot, InputFile } from "grammy";
 import { getPassword } from "../lib/bitwarden";
 import { isDuplicateUpdate } from "../lib/dedup";
+import { bold, BULLET, escapeHtml } from "../lib/format";
 import { getExerciseHistory, getPR } from "../lib/workouts";
 import { ingest } from "../lib/ingest";
 import { handleMessage } from "../lib/respond";
@@ -33,9 +34,9 @@ bot.command("search", async (ctx) => {
     return;
   }
   const text = results
-    .map((r, i) => `${i + 1}. (${r.source}) ${r.content.slice(0, 200)}`)
+    .map((r, i) => `${BULLET} ${bold(escapeHtml(r.source))}: ${escapeHtml(r.content.slice(0, 200))}`)
     .join("\n\n");
-  await ctx.reply(text);
+  await ctx.reply(text, { parse_mode: "HTML" });
 });
 
 bot.command("storico", async (ctx) => {
@@ -52,10 +53,10 @@ bot.command("storico", async (ctx) => {
   const text = history
     .map(
       (h) =>
-        `${new Date(h.performed_at).toLocaleDateString("it-IT")}: ${h.weight_kg}kg x${h.reps}`,
+        `${BULLET} ${bold(new Date(h.performed_at).toLocaleDateString("it-IT"))}: ${h.weight_kg}kg x${h.reps}`,
     )
     .join("\n");
-  await ctx.reply(text);
+  await ctx.reply(`${bold(escapeHtml(exercise))} — storico\n\n${text}`, { parse_mode: "HTML" });
 });
 
 bot.command("pr", async (ctx) => {
@@ -70,7 +71,8 @@ bot.command("pr", async (ctx) => {
     return;
   }
   await ctx.reply(
-    `PR stimato per ${exercise}: ${pr.weight_kg}kg x${pr.reps} (1RM stimato ${pr.estimatedOneRm.toFixed(1)}kg) il ${new Date(pr.performed_at).toLocaleDateString("it-IT")}`,
+    `🏆 PR stimato per ${bold(escapeHtml(exercise))}\n${BULLET} ${pr.weight_kg}kg x${pr.reps} (1RM stimato ${bold(`${pr.estimatedOneRm.toFixed(1)}kg`)})\n${BULLET} ${new Date(pr.performed_at).toLocaleDateString("it-IT")}`,
+    { parse_mode: "HTML" },
   );
 });
 
@@ -86,6 +88,7 @@ bot.command("pw", async (ctx) => {
       await ctx.reply(`Nessuna voce trovata per "${itemName}".`);
       return;
     }
+    // Testo semplice, niente parse_mode: una password è un dato letterale.
     await ctx.reply(password);
   } catch {
     await ctx.reply("Errore nel recupero da Bitwarden.");
@@ -101,12 +104,12 @@ bot.command("note", async (ctx) => {
   const [exercise, ...rest] = text.split(":");
   const note = rest.join(":").trim();
   await ingest(note, "fitness_note", { exercise: exercise.trim().toLowerCase() });
-  await ctx.reply(`Nota salvata per ${exercise.trim()} ✅`);
+  await ctx.reply(`✅ Nota salvata per ${bold(escapeHtml(exercise.trim()))}`, { parse_mode: "HTML" });
 });
 
 bot.on("message:text", async (ctx) => {
   const reply = await handleMessage(ctx.message.text);
-  await ctx.reply(reply);
+  await ctx.reply(reply, { parse_mode: "HTML" });
 });
 
 bot.on("message:voice", async (ctx) => {
