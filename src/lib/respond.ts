@@ -1,13 +1,14 @@
 import OpenAI from "openai";
 import { getPassword } from "./bitwarden";
 import { createEvent, getUpcomingEvents } from "./calendar";
+import { bold, BULLET, escapeHtml } from "./format";
 import { getRepoInfo } from "./github";
 import { ingest } from "./ingest";
 import { classifyMessage } from "./intent";
 import { searchIssues } from "./linear";
 import { searchSemantic } from "./search";
+import { getRunningStats } from "./dashboard";
 import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList } from "./shoppingList";
-import { getRecentActivities } from "./strava";
 import {
   findMatchingRoutine,
   getLastSession,
@@ -37,21 +38,22 @@ async function respondConversationally(text: string): Promise<string> {
 
 Regole di conversazione:
 - Rispondi sempre in italiano.
-- Calibra la lunghezza della risposta alla domanda: a una domanda breve e informale ("come stai", "ciao") rispondi in una frase o due, non di più. Allunga la risposta solo quando la domanda richiede davvero dettaglio o elenco di informazioni.
+- Calibra la lunghezza della risposta alla domanda: a una domanda breve e informale ("come stai", "ciao") rispondi in una frase o due, non di più.
 - Non ripetere la domanda, non riassumere quello che ti ha appena detto prima di rispondere.
-- Non usare elenchi puntati o struttura formale nella chiacchiera normale — quelli servono solo quando stai davvero elencando dati (orari, prezzi, risultati). In una conversazione normale scrivi come parli.
+- Non scrivere mai un paragrafo lungo e compatto: se la risposta ha più di un punto, o rischia di diventare un muro di testo, spezzala in una lista breve (ogni riga comincia con "${BULLET} ") o in righe corte — più facile da leggere su Telegram che un blocco di prosa.
+- Puoi usare la formattazione HTML di Telegram per dare risalto: <b>testo</b> per grassetto, <i>testo</i> per corsivo — con moderazione, solo dove aiuta davvero la leggibilità (es. il nome di un esercizio, un dato numerico importante).
 - Se non sai qualcosa, dillo chiaramente invece di inventare — meglio "non lo so" che un'informazione falsa su di lui.
 - Puoi avere un tono leggero, simpatico, con qualche emoji con moderazione — non essere né robotica né eccessivamente formale/burocratica.
 - Se nel contesto sotto c'è un'informazione davvero pertinente alla domanda, usala per rispondere; altrimenti rispondi in modo conversazionale senza inventare fatti su di lui che non conosci.
 
-Se Daro ti chiede chi sei, cosa sai fare o quali sono le tue funzionalità, NON rispondere con capacità generiche da assistente AI (scrivere/rivedere testi, tradurre, fare ricerche, spiegare argomenti) — quello non è il tuo ruolo qui. Rispondi invece in modo naturale e discorsivo descrivendo le tue capacità reali e concrete su questo bot:
-- hai una knowledge base personale su di lui (progetti, interessi, competenze, note che ti dice di ricordare) da cui attingi per rispondere
-- vedi il suo calendario Google (impegni, puoi anche aggiungere eventi) e il suo orario di lezioni/studio universitario
-- tieni traccia dei suoi allenamenti in palestra (serie, pesi, PR, routine) e delle sue corse/attività su Strava
-- gestisci la sua lista della spesa (aggiungere articoli, segnarli comprati, vederla)
-- recuperi le sue password salvate, informazioni sui suoi repository GitHub e le sue issue Linear
-- capisci sia messaggi scritti che vocali
-- ogni mattina gli mandi un riassunto delle notizie principali, ogni sera il programma del giorno dopo, in automatico
+Se Daro ti chiede chi sei, cosa sai fare o quali sono le tue funzionalità, NON rispondere con capacità generiche da assistente AI (scrivere/rivedere testi, tradurre, fare ricerche, spiegare argomenti) — quello non è il tuo ruolo qui. Rispondi invece in modo naturale e discorsivo (o con una breve lista, se più chiara) descrivendo le tue capacità reali e concrete su questo bot:
+${BULLET} hai una knowledge base personale su di lui (progetti, interessi, competenze, note che ti dice di ricordare) da cui attingi per rispondere
+${BULLET} vedi il suo calendario Google (impegni, puoi anche aggiungere eventi) e il suo orario di lezioni/studio universitario
+${BULLET} tieni traccia dei suoi allenamenti in palestra (serie, pesi, PR, routine) e delle sue corse/attività su Strava
+${BULLET} gestisci la sua lista della spesa (aggiungere articoli, segnarli comprati, vederla)
+${BULLET} recuperi le sue password salvate, informazioni sui suoi repository GitHub e le sue issue Linear
+${BULLET} capisci sia messaggi scritti che vocali
+${BULLET} ogni mattina gli mandi un riassunto delle notizie principali, ogni sera il programma del giorno dopo, in automatico
 
 Contesto dalla knowledge base:
 ${contextText}`,
@@ -60,6 +62,14 @@ ${contextText}`,
     ],
   });
   return res.choices[0].message.content ?? "Non so cosa risponderti.";
+}
+
+function formatPace(distanceKm: number, movingTimeMin: number): string {
+  if (distanceKm <= 0) return "N/D";
+  const paceMinPerKm = movingTimeMin / distanceKm;
+  const minutes = Math.floor(paceMinPerKm);
+  const seconds = Math.round((paceMinPerKm - minutes) * 60);
+  return `${minutes}:${String(seconds).padStart(2, "0")}/km`;
 }
 
 function addOneHour(time: string): string {
@@ -71,22 +81,23 @@ function addOneHour(time: string): string {
 async function replyWithGymPlan(): Promise<string> {
   const routine = await getNextRoutineToTrain();
   if (routine === "riposo") {
-    return "🛋️ Oggi riposo, nessun allenamento in programma.";
+    return `🛋️ ${bold("Oggi riposo")}, nessun allenamento in programma.`;
   }
   const preview = await getRoutinePreview(routine);
-  if (!preview) return `Nessun esercizio definito per "${routine}".`;
+  if (!preview) return `Nessun esercizio definito per "${escapeHtml(routine)}".`;
   const previewText = preview
-    .map((p, i) => {
-      if (!p.last) return `${i + 1}. ${p.exercise} — nessun dato registrato`;
-      return `${i + 1}. ${p.exercise} — ${p.last.weight_kg}kg x${p.last.reps}`;
+    .map((p) => {
+      const name = escapeHtml(p.exercise);
+      if (!p.last) return `${BULLET} ${name} — nessun dato registrato`;
+      return `${BULLET} ${name} — ${bold(`${p.last.weight_kg}kg x${p.last.reps}`)}`;
     })
     .join("\n");
-  return `🏋️ Allenamento di oggi: ${routine}\n\n${previewText}`;
+  return `🏋️ ${bold(`Allenamento di oggi: ${escapeHtml(routine)}`)}\n\n${previewText}`;
 }
 
 function formatShoppingList(list: { item: string }[]): string {
   if (!list.length) return "La lista della spesa è vuota 🛒";
-  return `Lista della spesa:\n${list.map((l) => `- ${l.item}`).join("\n")}`;
+  return `${bold("Lista della spesa")}\n${list.map((l) => `${BULLET} ${escapeHtml(l.item)}`).join("\n")}`;
 }
 
 async function replyWithShoppingList(): Promise<string> {
@@ -112,14 +123,15 @@ export async function handleMessage(text: string): Promise<string> {
   const routineName = await findMatchingRoutine(text);
   if (routineName) {
     const preview = await getRoutinePreview(routineName);
-    if (!preview) return `Nessun esercizio definito per "${routineName}".`;
+    if (!preview) return `Nessun esercizio definito per "${escapeHtml(routineName)}".`;
     const previewText = preview
-      .map((p, i) => {
-        if (!p.last) return `${i + 1}. ${p.exercise} — nessun dato registrato`;
-        return `${i + 1}. ${p.exercise}: ${p.last.weight_kg}kg x${p.last.reps}`;
+      .map((p) => {
+        const name = escapeHtml(p.exercise);
+        if (!p.last) return `${BULLET} ${name} — nessun dato registrato`;
+        return `${BULLET} ${name}: ${bold(`${p.last.weight_kg}kg x${p.last.reps}`)}`;
       })
       .join("\n");
-    return `${routineName} — ultimi pesi registrati:\n${previewText}`;
+    return `${bold(escapeHtml(routineName))} — ultimi pesi registrati\n\n${previewText}`;
   }
 
   const intent = await classifyMessage(text);
@@ -127,22 +139,24 @@ export async function handleMessage(text: string): Promise<string> {
   if (intent.type === "workout") {
     const result = await logWorkout(intent.entry);
     const prText = result.isPR ? " 🏆 Nuovo PR!" : "";
-    return `Salvato: ${intent.entry.exercise} ${intent.entry.weightKg}kg x${intent.entry.reps}.${prText}`;
+    return `✅ Salvato: ${bold(escapeHtml(intent.entry.exercise))} ${intent.entry.weightKg}kg x${intent.entry.reps}.${prText}`;
   }
 
   if (intent.type === "session_query") {
     const session = await getLastSession(intent.muscleGroup);
-    if (!session || !session.length) return `Nessun allenamento registrato per ${intent.muscleGroup}.`;
+    if (!session || !session.length) return `Nessun allenamento registrato per ${escapeHtml(intent.muscleGroup)}.`;
     const date = new Date(session[0].performed_at).toLocaleDateString("it-IT");
     const sessionText = session
-      .map((s, i) => `${i + 1}. ${s.exercise} ${s.weight_kg}kg x${s.reps}`)
+      .map((s) => `${BULLET} ${escapeHtml(s.exercise)}: ${bold(`${s.weight_kg}kg x${s.reps}`)}`)
       .join("\n");
-    return `Ultimo allenamento ${intent.muscleGroup} (${date}):\n${sessionText}`;
+    return `${bold(`Ultimo allenamento ${escapeHtml(intent.muscleGroup)} (${date})`)}\n\n${sessionText}`;
   }
 
   if (intent.type === "password_request") {
     try {
       const password = await getPassword(intent.itemName);
+      // Testo semplice, mai HTML: una password è un dato letterale, non va mai
+      // interpretato/escapato come markup.
       return password ?? `Nessuna voce trovata per "${intent.itemName}".`;
     } catch {
       return "Errore nel recupero da Bitwarden.";
@@ -152,9 +166,13 @@ export async function handleMessage(text: string): Promise<string> {
   if (intent.type === "github_query") {
     try {
       const repo = await getRepoInfo(intent.repoName);
-      if (!repo) return `Nessun repository trovato per "${intent.repoName}".`;
-      const parts = [repo.name, repo.description ?? "(nessuna descrizione)", repo.url];
-      if (repo.readmeExcerpt) parts.push(`\n${repo.readmeExcerpt}`);
+      if (!repo) return `Nessun repository trovato per "${escapeHtml(intent.repoName)}".`;
+      const parts = [
+        bold(escapeHtml(repo.name)),
+        escapeHtml(repo.description ?? "(nessuna descrizione)"),
+        repo.url,
+      ];
+      if (repo.readmeExcerpt) parts.push(`\n${escapeHtml(repo.readmeExcerpt)}`);
       return parts.join("\n");
     } catch {
       return "Errore nel recupero da GitHub.";
@@ -164,8 +182,10 @@ export async function handleMessage(text: string): Promise<string> {
   if (intent.type === "linear_query") {
     try {
       const issues = await searchIssues(intent.term);
-      if (!issues.length) return `Nessuna issue trovata per "${intent.term}".`;
-      return issues.map((i) => `${i.identifier} [${i.state}] ${i.title}\n${i.url}`).join("\n\n");
+      if (!issues.length) return `Nessuna issue trovata per "${escapeHtml(intent.term)}".`;
+      return issues
+        .map((i) => `${BULLET} ${bold(escapeHtml(i.identifier))} [${escapeHtml(i.state)}] ${escapeHtml(i.title)}\n${i.url}`)
+        .join("\n\n");
     } catch {
       return "Errore nel recupero da Linear.";
     }
@@ -176,7 +196,11 @@ export async function handleMessage(text: string): Promise<string> {
       const events = await getUpcomingEvents(10);
       if (!events.length) return "Nessun evento in programma.";
       return events
-        .map((e) => `${new Date(e.start).toLocaleString("it-IT")} — ${e.summary}${e.location ? ` (${e.location})` : ""}`)
+        .map((e) => {
+          const when = new Date(e.start).toLocaleString("it-IT");
+          const where = e.location ? ` (${escapeHtml(e.location)})` : "";
+          return `${BULLET} ${bold(when)} — ${escapeHtml(e.summary)}${where}`;
+        })
         .join("\n");
     } catch {
       return "Errore nel recupero da Google Calendar.";
@@ -201,7 +225,7 @@ export async function handleMessage(text: string): Promise<string> {
         hour: "2-digit",
         minute: "2-digit",
       });
-      return `📅 Evento creato: ${event.summary} — ${label}`;
+      return `📅 Evento creato: ${bold(escapeHtml(event.summary))} — ${label}`;
     } catch {
       return "Errore nella creazione dell'evento su Google Calendar.";
     }
@@ -214,9 +238,9 @@ export async function handleMessage(text: string): Promise<string> {
       const dateLabel = dateObj.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
       if (!schedule.length) return `Nessun impegno di studio per ${dateLabel}.`;
       const scheduleText = schedule
-        .map((s) => `- ${s.startTime}-${s.endTime} ${s.type}: ${s.subject}`)
+        .map((s) => `${BULLET} ${s.startTime}-${s.endTime} ${s.type}: ${escapeHtml(s.subject)}`)
         .join("\n");
-      return `📚 Studio (${dateLabel}):\n${scheduleText}`;
+      return `📚 ${bold(`Studio (${dateLabel})`)}\n${scheduleText}`;
     } catch {
       return "Errore nel recupero dell'orario di studio.";
     }
@@ -224,11 +248,34 @@ export async function handleMessage(text: string): Promise<string> {
 
   if (intent.type === "strava_query") {
     try {
-      const activities = await getRecentActivities(10);
-      if (!activities.length) return "Nessuna attività trovata.";
-      return activities
-        .map((a) => `${new Date(a.startDate).toLocaleDateString("it-IT")} — ${a.name} (${a.type}): ${a.distanceKm}km, ${a.movingTimeMin}min`)
+      const stats = await getRunningStats(30);
+      if (!stats.recentRuns.length) return "Nessuna corsa trovata su Strava.";
+      const runsText = stats.recentRuns
+        .slice(0, 10)
+        .map((r) => {
+          const date = new Date(r.date).toLocaleDateString("it-IT");
+          return `${BULLET} ${bold(date)} — ${escapeHtml(r.name)}: ${r.distanceKm}km in ${r.movingTimeMin}min (passo ${formatPace(r.distanceKm, r.movingTimeMin)})`;
+        })
         .join("\n");
+
+      const res = await openai.chat.completions.create({
+        model: "gpt-6-luna",
+        messages: [
+          {
+            role: "system",
+            content: `Sei Aira, l'assistente personale di Daro. Rispondi alla sua domanda sulle corse usando SOLO i dati reali sotto — il passo (min/km) è già calcolato, non ricalcolarlo tu e non inventare numeri che non ci sono.
+
+Se chiede un consiglio su ritmo/velocità da tenere in un allenamento, guarda l'andamento recente (passo costante, in miglioramento, distanze tipiche) e proponi un ritmo target concreto in min/km con una breve motivazione basata sui dati. Se chiede solo un riepilogo/elenco, rispondi in modo diretto.
+
+Per dare risalto a numeri/ritmi importanti usa SOLO tag HTML <b>testo</b> — mai markdown con asterischi (**testo**), il bot invia messaggi in modalità HTML e gli asterischi comparirebbero letteralmente. Tono naturale, in italiano, breve (max 4-5 righe) a meno che non serva davvero più dettaglio.
+
+Corse recenti (dalla più recente), passo medio ${formatPace(stats.totalDistanceKm, stats.totalMovingTimeMin)}:
+${runsText}`,
+          },
+          { role: "user", content: text },
+        ],
+      });
+      return res.choices[0].message.content ?? runsText;
     } catch {
       return "Errore nel recupero da Strava.";
     }
@@ -238,7 +285,7 @@ export async function handleMessage(text: string): Promise<string> {
     try {
       await addShoppingItems(intent.items);
       const list = await getActiveShoppingList();
-      return `Aggiornato ✅\n\n${formatShoppingList(list)}`;
+      return `✅ Aggiornato\n\n${formatShoppingList(list)}`;
     } catch {
       return "Errore nel salvare la lista della spesa.";
     }
@@ -249,7 +296,7 @@ export async function handleMessage(text: string): Promise<string> {
       const matched = await checkOffShoppingItemsByName(intent.items);
       if (!matched.length) return "Non ho trovato questi articoli nella lista.";
       const list = await getActiveShoppingList();
-      return `Aggiornato ✅\n\n${formatShoppingList(list)}`;
+      return `✅ Aggiornato\n\n${formatShoppingList(list)}`;
     } catch {
       return "Errore nell'aggiornare la lista della spesa.";
     }
