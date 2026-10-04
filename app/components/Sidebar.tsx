@@ -46,6 +46,12 @@ const ICONS = {
       <circle cx="17" cy="19" r="1.3" />
     </>,
   ),
+  costs: I(
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7v10M14.5 9.5c0-1.4-1.2-2-2.5-2s-2.5.7-2.5 2 1.2 1.8 2.5 2 2.5.6 2.5 2-1.2 2-2.5 2-2.5-.6-2.5-2" />
+    </>,
+  ),
 };
 
 const GROUPS = [
@@ -63,6 +69,10 @@ const GROUPS = [
       { href: "/insights", label: "Incroci", icon: ICONS.insights },
       { href: "/spesa", label: "Spesa", icon: ICONS.shop },
     ],
+  },
+  {
+    label: "SISTEMA",
+    items: [{ href: "/costi", label: "Costi AI", icon: ICONS.costs }],
   },
 ];
 
