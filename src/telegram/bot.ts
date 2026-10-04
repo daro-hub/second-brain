@@ -116,6 +116,12 @@ bot.on("message:voice", async (ctx) => {
   const audioBuffer = Buffer.from(await audioRes.arrayBuffer());
 
   const transcript = await transcribe(audioBuffer);
+
+  if (!transcript.trim()) {
+    await ctx.reply("Non ho capito, puoi ripetere? 🎤");
+    return;
+  }
+
   const reply = await handleMessage(transcript);
 
   try {
