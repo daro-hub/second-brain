@@ -59,8 +59,8 @@ export async function createEvent(params: {
     body: JSON.stringify({
       summary: params.summary,
       location: params.location,
-      start: { dateTime: params.start },
-      end: { dateTime: params.end },
+      start: { dateTime: params.start, timeZone: "Europe/Rome" },
+      end: { dateTime: params.end, timeZone: "Europe/Rome" },
     }),
   });
   if (!res.ok) throw new Error(`Google Calendar API error: ${res.status}`);

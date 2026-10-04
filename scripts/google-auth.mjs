@@ -3,7 +3,7 @@ import http from "node:http";
 
 const PORT = 3051;
 const REDIRECT_URI = `http://localhost:${PORT}/oauth/callback`;
-const SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+const SCOPE = "https://www.googleapis.com/auth/calendar";
 
 const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
 authUrl.searchParams.set("client_id", process.env.GOOGLE_CLIENT_ID);
