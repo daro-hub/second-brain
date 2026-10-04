@@ -1,5 +1,5 @@
-import { supabase } from "./supabase.js";
-import { embed } from "./embeddings.js";
+import { supabase } from "./supabase";
+import { embed } from "./embeddings";
 
 export async function ingest(
   content: string,

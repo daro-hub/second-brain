@@ -1,71 +1,119 @@
 # second-brain
 
-Knowledge base personale con due canali di ingresso (Telegram, MCP) e un unico
-backend (Supabase + pgvector). Pattern RAG: ogni contenuto viene trasformato
-in embedding e salvato insieme al testo; le query usano ricerca semantica
-(coseno su `pgvector`) e/o ricerca full-text (`tsvector`, italiano).
+Segretario personale: knowledge base RAG (Supabase + pgvector), tracking
+allenamenti, e integrazioni live (Bitwarden, GitHub, Linear, Google Calendar,
+Strava) — interrogabile su Telegram in linguaggio naturale (testo o vocale,
+nessun comando richiesto per l'uso normale) o da Claude Code/Cursor via MCP.
+Deployato come webhook su Vercel: funziona ovunque, non richiede il PC acceso.
 
 ## Architettura
 
 ```
-Telegram bot ──┐
-MCP server ─────┼──► lib/ingest.ts, lib/search.ts ──► Supabase (pgvector + full-text)
-(futuro) tl;dv ─┘
+Telegram (testo/voce) ──┐
+MCP server (Claude Code) ┼──► src/lib/respond.ts (classificazione intent, gpt-6-luna)
+                         │         │
+                         │         ├─► documents (Supabase pgvector + full-text) — note generiche
+                         │         ├─► workout_logs / workout_routines — allenamenti strutturati
+                         │         ├─► Bitwarden CLI — password (locale, mai via OpenAI)
+                         │         ├─► GitHub REST API — repo live
+                         │         ├─► Linear GraphQL API — issue live
+                         │         ├─► Google Calendar API — eventi live
+                         │         └─► Strava API — attività live
+                         │
+Dashboard (Next.js, /palestra /bot) ──► stesso Supabase, letture dirette
 ```
 
-- `src/lib/supabase.ts` — client Supabase (service role key, solo uso server-side)
-- `src/lib/embeddings.ts` — wrapper OpenAI `text-embedding-3-small` (1536 dim).
-  Isolato apposta: per passare a embeddings locali (Ollama) in futuro basta
-  riscrivere questo file, nessun altro modulo lo sa.
-- `src/lib/ingest.ts` / `src/lib/search.ts` — logica condivisa, usata sia dal
-  bot che dal server MCP
-- `src/telegram/bot.ts` — bot long-polling (grammY), accesso riservato a un
-  solo `TELEGRAM_ALLOWED_USER_ID`
-- `src/mcp/server.ts` — server MCP stdio con 3 tool: `kb_ingest`,
-  `kb_search_semantic`, `kb_search_filter`
+Nessuna di queste integrazioni duplica dati nella KB: sono interrogate dal
+vivo ad ogni richiesta, zero staleness, zero costo di embedding per dati già
+strutturati altrove.
+
+### Moduli principali (`src/lib/`)
+
+- `supabase.ts` / `embeddings.ts` — client Supabase + wrapper OpenAI
+  `text-embedding-3-small` (isolato per poter passare a locale in futuro)
+- `ingest.ts` / `search.ts` — KB generica (RAG)
+- `workouts.ts` — log allenamenti, PR (formula di Epley), routine predefinite
+- `intent.ts` — classificatore unico (`gpt-6-luna`) che smista ogni messaggio
+  tra le categorie sopra
+- `respond.ts` — orchestratore condiviso tra bot Telegram e (in futuro) altri
+  canali: testo in input, testo in output, usato sia per messaggi scritti che
+  per trascrizioni vocali
+- `voice.ts` — trascrizione (`gpt-4o-mini-transcribe`) e sintesi vocale
+  (`gpt-4o-mini-tts`, formato Opus nativo Telegram)
+- `bitwarden.ts` — CLI Bitwarden via `child_process`, mai tramite OpenAI
+- `github.ts`, `linear.ts`, `calendar.ts`, `strava.ts` — client diretti alle
+  rispettive API, nessuna dipendenza tra loro
+
+### Entry point
+
+- `src/telegram/bot.ts` — definizione bot (grammY), nessun `.start()` qui
+- `src/telegram/dev.ts` — long-polling locale, per test (`npm run bot`)
+- `app/api/telegram/route.ts` — webhook Vercel (produzione reale)
+- `src/mcp/server.ts` — server MCP stdio, un tool per ogni capacità
+- `app/palestra/page.tsx`, `app/bot/page.tsx` — dashboard Next.js (grafici
+  progressione, mappa PCA 2D della KB per somiglianza semantica reale)
 
 ## Setup
 
-1. **Supabase**: crea un nuovo progetto (separato da quelli AmuseUp — questo
-   è un progetto personale). Nel SQL editor esegui
-   `supabase/migrations/0001_init.sql`.
-2. **Telegram bot**: parla con [@BotFather](https://t.me/BotFather) su
-   Telegram, `/newbot`, copia il token. Poi parla con
-   [@userinfobot](https://t.me/userinfobot) per avere il tuo user id numerico
-   (serve per `TELEGRAM_ALLOWED_USER_ID`, così il bot ignora chiunque altro).
-3. **OpenAI**: serve una API key per generare gli embeddings
-   (`text-embedding-3-small`, costo minimo — frazioni di centesimo per nota).
-4. Copia `.env.example` in `.env` e riempi tutti i valori.
-5. `npm install`
-6. `npm run bot` — avvia il bot Telegram (lascialo girare, es. in un terminale
-   dedicato o come servizio in background)
-7. Per MCP: aggiungi questo server alla configurazione MCP di Claude
-   Code/Cursor puntando a `npm run mcp` (o `tsx src/mcp/server.ts`) con le
-   stesse variabili d'ambiente.
+1. **Supabase**: progetto dedicato, esegui le migration in
+   `supabase/migrations/`
+2. **Telegram**: token da [@BotFather](https://t.me/BotFather), user id da
+   [@userinfobot](https://t.me/userinfobot)
+3. **OpenAI**: una chiave per embeddings, classificazione (`gpt-6-luna`),
+   trascrizione e sintesi vocale
+4. **Bitwarden**: chiave API personale (Impostazioni → Sicurezza → Chiavi) +
+   master password — vedi `src/lib/bitwarden.ts` per il flusso
+   login→unlock→sync→get→lock
+5. **GitHub**: Personal Access Token fine-grained, read-only (Contents +
+   Metadata)
+6. **Linear**: chiave API personale (Impostazioni → Account → Sicurezza)
+7. **Google Calendar**: OAuth client (Google Cloud Console) + refresh token
+   — vedi `scripts/google-auth.mjs` per il flusso di autorizzazione una
+   tantum
+8. **Strava**: Client ID/Secret dall'app Strava + refresh token con scope
+   `activity:read_all` — vedi `scripts/strava-auth.mjs` (il token di default
+   generato da Strava ha solo scope `read`, insufficiente)
+9. Copia `.env.example` in `.env`, riempi tutto
+10. `npm install`
+11. Deploy: `vercel --prod` (richiede account Vercel personale, non quello
+    aziendale — occhio allo scope). Imposta tutte le env var anche su
+    Vercel, non solo in locale. **Disabilita la Deployment Protection
+    (SSO)** del progetto, altrimenti Telegram non riesce a chiamare il
+    webhook. Registra il webhook: `curl
+    "https://api.telegram.org/bot<TOKEN>/setWebhook?url=<URL>/api/telegram"`
 
-## Uso
+## Uso (Telegram, linguaggio naturale)
 
-- **Telegram**: manda un messaggio di testo qualsiasi → viene salvato nella
-  KB con fonte `telegram`. `/search <domanda>` fa una ricerca semantica e
-  mostra i risultati più vicini.
-- **MCP (Claude Code/Cursor)**: l'agente ha accesso ai tool `kb_ingest`,
-  `kb_search_semantic`, `kb_search_filter` e li invoca da solo quando serve
-  salvare o recuperare informazioni dalla KB.
+Scrivi normalmente, nessun comando necessario — il classificatore capisce da
+solo l'intento:
 
-## Roadmap (fase 2, non ancora implementata)
+- **"panca piana 80 per 6"** → log allenamento, segnala se è un PR
+- **"leg day" / "braccia" / "petto e schiena"** → anteprima routine con
+  l'ultimo peso per ogni esercizio
+- **"oggi faccio petto"** → cosa hai fatto l'ultima volta per quel gruppo
+  muscolare
+- **"password di Supabase"** → recupero da Bitwarden
+- **"parlami del progetto Orbis"** → info live da GitHub
+- **"a che punto è l'issue sull'audio?"** → ricerca su Linear
+- **"cosa ho in agenda?"** → prossimi eventi Google Calendar
+- **"le mie ultime attività"** → attività Strava
+- **nota vocale** → trascritta, elaborata come sopra, risposta sia testuale
+  che vocale
+- qualsiasi altro messaggio → salvato come nota generica nella KB
 
-- **Embeddings locali** — sostituire `lib/embeddings.ts` con un modello via
-  Ollama (es. `nomic-embed-text`). Nota: cambiare modello di embedding con
-  dimensioni diverse da 1536 richiede aggiornare la colonna `vector(1536)`
-  nella migration.
-- **Privacy gate locale** — un modello 7-8B via Ollama che valuta un
-  contenuto prima che venga inviato a OpenAI/Claude, per filtrare dati
-  sensibili.
-- **Trascrizione vocale locale** — whisper.cpp per note vocali Telegram.
-- **Pull automatico da tl;dv** — cron che importa periodicamente le
-  trascrizioni delle riunioni.
-- **Retrieval agentico** — invece di una singola ricerca a scatto fisso,
-  lasciare che l'agente MCP combini `kb_search_semantic` e
-  `kb_search_filter` in più passi quando la domanda lo richiede (già
-  possibile oggi, visto che sono due tool separati — da verificare quanto
-  l'agente lo fa bene in pratica).
+Comandi espliciti rimasti (per i casi dove serve precisione):
+`/search`, `/storico <esercizio>`, `/pr <esercizio>`, `/pw <voce>`,
+`/note <esercizio>: <testo>`
+
+## Roadmap (non ancora implementata)
+
+- **Chiamate telefoniche vere** — richiede un progetto a parte: Twilio Voice
+  (numero + streaming audio) + un hosting con connessioni persistenti (non
+  Vercel/serverless) + OpenAI Realtime API per il loop voce↔voce in tempo
+  reale. Costo per minuto non trascurabile, da scopare separatamente.
+- **Embeddings/privacy gate locali** — modello via Ollama per ridurre
+  dipendenza da OpenAI sui dati più sensibili
+- **Pull automatico da tl;dv** — trascrizioni riunioni importate in automatico
+- **Slack / Notion** — stesse credenziali da raccogliere, non ancora
+  costruite
+- **Diario alimentare** — stesso pattern di `workout_logs`, non iniziato

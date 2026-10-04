@@ -5,3 +5,5 @@ dist/
 
 .vercel
 .env*
+.next/
+next-env.d.ts

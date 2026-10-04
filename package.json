@@ -6,17 +6,26 @@
   "scripts": {
     "bot": "tsx src/telegram/dev.ts",
     "mcp": "tsx src/mcp/server.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
   },
   "dependencies": {
+    "@bitwarden/cli": "^2026.9.1",
     "@modelcontextprotocol/sdk": "^1.0.4",
     "@supabase/supabase-js": "^2.45.4",
     "dotenv": "^16.4.5",
     "grammy": "^1.30.0",
-    "openai": "^4.63.0"
+    "next": "^15.5.27",
+    "openai": "^4.63.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@types/node": "^22.5.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "tsx": "^4.19.1",
     "typescript": "^5.6.2"
   }
