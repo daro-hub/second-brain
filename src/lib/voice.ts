@@ -12,14 +12,14 @@ export async function transcribe(audioBuffer: Buffer, filename = "voice.ogg"): P
   return res.text;
 }
 
-export async function textToSpeech(text: string): Promise<Buffer> {
+export async function textToSpeech(text: string, format: "opus" | "mp3" = "opus"): Promise<Buffer> {
   const res = await openai.audio.speech.create({
     model: "gpt-4o-mini-tts",
     voice: "marin",
     input: text,
     instructions:
       "Voce femminile. Parla in italiano, con un accento italiano naturale (madrelingua). Tono caldo, rilassato e genuinamente amichevole, come un'amica che ti parla — non forzato, non da annuncio, non impostato. Ritmo naturale di conversazione.",
-    response_format: "opus",
+    response_format: format,
   });
   const arrayBuffer = await res.arrayBuffer();
   return Buffer.from(arrayBuffer);

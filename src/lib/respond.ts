@@ -8,6 +8,7 @@ import { ingest } from "./ingest";
 import { classifyMessage } from "./intent";
 import { searchIssues } from "./linear";
 import { searchSemantic } from "./search";
+import { SOURCE_LABELS, type Source, type SourceId, type Trace } from "./trace";
 import { getRunningStats } from "./dashboard";
 import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList } from "./shoppingList";
 import { getMetricSummary, type MetricSummary } from "./health";
@@ -24,7 +25,11 @@ import {
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-async function respondConversationally(text: string): Promise<string> {
+function src(trace: Trace | undefined, id: SourceId, summary: string, extra: Partial<Source> = {}) {
+  trace?.source({ id, label: SOURCE_LABELS[id], summary, ...extra });
+}
+
+async function respondConversationally(text: string, trace?: Trace): Promise<string> {
   // Niente soglia numerica sulla similarity: con text-embedding-3-small, risposte
   // corrette su fatti personali spesso cadono a 0.3-0.45 (osservato con "dove lavoro?",
   // "con chi vivo?", "quanto peso ora?" — tutte scartate da una soglia 0.5, con risposta
@@ -32,6 +37,13 @@ async function respondConversationally(text: string): Promise<string> {
   // proxy affidabile di pertinenza su testi brevi: si passano sempre i top-3 risultati e
   // si lascia che sia l'istruzione nel prompt sotto a giudicare cosa è davvero pertinente.
   const results = await searchSemantic(text, 3);
+  src(trace, "kb", results.length ? `${results.length} voci più simili alla domanda` : "Nessuna voce pertinente", {
+    href: "/bot",
+    items: results.map((r) => ({
+      text: r.content.length > 140 ? `${r.content.slice(0, 140)}…` : r.content,
+      meta: `${r.source}${r.similarity !== undefined ? ` · ${Math.round(r.similarity * 100)}%` : ""}`,
+    })),
+  });
   const contextText = results.length
     ? results.map((r) => `- (${r.source}) ${r.content}`).join("\n")
     : "Nessuna informazione pertinente trovata nella knowledge base.";
@@ -120,8 +132,9 @@ function addOneHour(time: string): string {
   return `${String(next).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-async function replyWithGymPlan(): Promise<string> {
+async function replyWithGymPlan(trace?: Trace): Promise<string> {
   const routine = await getNextRoutineToTrain();
+  src(trace, "gym", routine === "riposo" ? "Giorno di riposo" : `Routine di oggi: ${routine}`, { href: "/palestra" });
   if (routine === "riposo") {
     return `🛋️ ${bold("Oggi riposo")}, nessun allenamento in programma.`;
   }
@@ -142,29 +155,43 @@ function formatShoppingList(list: { item: string }[]): string {
   return `🛒 ${bold("Lista della spesa")}\n${list.map((l) => `${BULLET} ${escapeHtml(l.item)}`).join("\n")}`;
 }
 
-async function replyWithShoppingList(): Promise<string> {
+async function replyWithShoppingList(trace?: Trace): Promise<string> {
   try {
-    return formatShoppingList(await getActiveShoppingList());
+    const list = await getActiveShoppingList();
+    src(trace, "shopping", `${list.length} articoli da comprare`, { href: "/spesa", items: list.map((l) => ({ text: l.item })) });
+    return formatShoppingList(list);
   } catch {
     return "Errore nel recupero della lista della spesa.";
   }
 }
 
 export async function handleMessage(text: string): Promise<string> {
+  return handleMessageTraced(text);
+}
+
+/** Come handleMessage, ma notifica tipo di richiesta e fonti consultate (usato dall'interfaccia web). */
+export async function handleMessageTraced(text: string, trace?: Trace): Promise<string> {
   // Parola d'ordine: "spesa" da sola risponde subito con la lista, senza passare dal
   // classificatore LLM — zero costo/latenza per il caso d'uso più comune.
   if (text.trim().toLowerCase() === "spesa") {
-    return replyWithShoppingList();
+    trace?.intent("shopping_query");
+    return replyWithShoppingList(trace);
   }
 
   // Stesso principio: "gym" da sola -> piano di oggi, solo Supabase + calcoli, zero LLM.
   if (text.trim().toLowerCase() === "gym") {
-    return replyWithGymPlan();
+    trace?.intent("gym_plan");
+    return replyWithGymPlan(trace);
   }
 
   const routineName = await findMatchingRoutine(text);
   if (routineName) {
+    trace?.intent("routine_preview");
     const preview = await getRoutinePreview(routineName);
+    src(trace, "gym", `Ultimi pesi registrati per ${routineName}`, {
+      href: "/palestra",
+      items: (preview ?? []).map((p) => ({ text: p.exercise, meta: p.last ? `${p.last.weight_kg}kg x${p.last.reps}` : "nessun dato" })),
+    });
     if (!preview) return `Nessun esercizio definito per "${escapeHtml(routineName)}".`;
     const previewText = preview
       .map((p) => {
@@ -177,9 +204,11 @@ export async function handleMessage(text: string): Promise<string> {
   }
 
   const intent = await classifyMessage(text);
+  trace?.intent(intent.type);
 
   if (intent.type === "workout") {
     const result = await logWorkout(intent.entry);
+    src(trace, "gym", `Serie salvata: ${intent.entry.exercise} ${intent.entry.weightKg}kg x${intent.entry.reps}`, { href: "/palestra" });
     const prText = result.isPR ? " 🏆 Nuovo PR!" : "";
     return `✅ Salvato: ${bold(escapeHtml(intent.entry.exercise))} ${intent.entry.weightKg}kg x${intent.entry.reps}.${prText}`;
   }
@@ -190,6 +219,10 @@ export async function handleMessage(text: string): Promise<string> {
       if (!session || !session.length) return `Nessun allenamento registrato per ${escapeHtml(intent.muscleGroup)}.`;
       const date = new Date(session[0].performed_at).toLocaleDateString("it-IT");
       const sessionText = session.map((s) => `${s.exercise}: ${s.weight_kg}kg x${s.reps}`).join("\n");
+      src(trace, "gym", `Ultima sessione ${intent.muscleGroup} (${date})`, {
+        href: "/palestra",
+        items: session.map((s) => ({ text: s.exercise, meta: `${s.weight_kg}kg x${s.reps}` })),
+      });
       return await answerFromData(text, `Ultimo allenamento ${intent.muscleGroup} (${date}):\n${sessionText}`);
     } catch {
       return "Errore nel recupero dell'allenamento.";
@@ -199,6 +232,7 @@ export async function handleMessage(text: string): Promise<string> {
   if (intent.type === "password_request") {
     try {
       const password = await getPassword(intent.itemName);
+      src(trace, "bitwarden", password ? `Voce "${intent.itemName}" trovata nel vault` : `Nessuna voce "${intent.itemName}"`);
       // Il chiamante (bot.ts) invia sempre con parse_mode HTML: va escapata
       // per sicurezza (round-trip identico, nessuna interpretazione come markup).
       return password ? escapeHtml(password) : `Nessuna voce trovata per "${intent.itemName}".`;
@@ -211,6 +245,7 @@ export async function handleMessage(text: string): Promise<string> {
     try {
       const repo = await getRepoInfo(intent.repoName);
       if (!repo) return `Nessun repository trovato per "${escapeHtml(intent.repoName)}".`;
+      src(trace, "github", `Repository ${repo.name}`, { href: repo.url, items: [{ text: repo.description ?? repo.name, href: repo.url }] });
       const context = [
         `Repository: ${repo.name}`,
         `Descrizione: ${repo.description ?? "(nessuna descrizione)"}`,
@@ -237,6 +272,10 @@ export async function handleMessage(text: string): Promise<string> {
       const relevant = termWords.length
         ? issues.filter((i) => termWords.some((w) => i.title.toLowerCase().includes(w)))
         : issues;
+      src(trace, "linear", `${relevant.length} issue per "${intent.term}"`, {
+        href: "https://linear.app",
+        items: relevant.map((i) => ({ text: `${i.identifier} ${i.title}`, href: i.url, meta: i.state })),
+      });
       if (!relevant.length) return `Nessuna issue trovata per "${escapeHtml(intent.term)}".`;
       const context = relevant.map((i) => `${i.identifier} [${i.state}] ${i.title} — ${i.url}`).join("\n");
       return await answerFromData(text, `Issue Linear trovate per "${intent.term}":\n${context}`);
@@ -277,6 +316,17 @@ export async function handleMessage(text: string): Promise<string> {
         })
         .join("\n") || "Nessuna lezione/studio in programma questa settimana";
 
+      src(trace, "calendar", `${events.length} prossimi eventi`, {
+        href: "/",
+        items: events.map((e) => ({ text: e.summary, meta: new Date(e.start).toLocaleString("it-IT", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) })),
+      });
+      src(trace, "study", "Lezioni e studio dei prossimi 7 giorni", {
+        href: "/",
+        items: weekSchedule
+          .flatMap((d) => d.slots.map((s) => ({ text: s.subject, meta: `${d.date.toLocaleDateString("it-IT", { weekday: "short", day: "numeric" })} ${s.startTime}-${s.endTime}` })))
+          .slice(0, 8),
+      });
+      src(trace, "gym", `Prossima routine: ${nextRoutine}`, { href: "/palestra" });
       const context = `Eventi in calendario (entro 30 giorni):\n${eventsText}\n\nOrario di studio/lezioni dei prossimi 7 giorni:\n${scheduleText}\n\nAllenamento: prossima routine in programma è "${nextRoutine}"`;
       return await answerFromData(
         text,
@@ -306,6 +356,7 @@ export async function handleMessage(text: string): Promise<string> {
         hour: "2-digit",
         minute: "2-digit",
       });
+      src(trace, "calendar", `Evento creato: ${event.summary}`, { href: "/" });
       return `📅 Evento creato: ${bold(escapeHtml(event.summary))} — ${label}`;
     } catch {
       return "Errore nella creazione dell'evento su Google Calendar.";
@@ -317,6 +368,10 @@ export async function handleMessage(text: string): Promise<string> {
       const dateObj = new Date(`${intent.date}T00:00:00`);
       const schedule = await getScheduleForDay(dateObj.getDay());
       const dateLabel = dateObj.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
+      src(trace, "study", `Orario di studio per ${dateLabel}`, {
+        href: "/",
+        items: schedule.map((s) => ({ text: s.subject, meta: `${s.startTime}-${s.endTime} ${s.type}` })),
+      });
       if (!schedule.length) return `Nessun impegno di studio per ${dateLabel}.`;
       const scheduleText = schedule.map((s) => `${s.startTime}-${s.endTime} ${s.type}: ${s.subject}`).join("\n");
       return await answerFromData(text, `Orario di studio per ${dateLabel}:\n${scheduleText}`);
@@ -328,6 +383,10 @@ export async function handleMessage(text: string): Promise<string> {
   if (intent.type === "strava_query") {
     try {
       const stats = await getRunningStats(30);
+      src(trace, "strava", `${stats.recentRuns.length} corse recenti`, {
+        href: "/",
+        items: stats.recentRuns.slice(0, 5).map((r) => ({ text: r.name, meta: `${r.distanceKm}km · ${new Date(r.date).toLocaleDateString("it-IT")}` })),
+      });
       if (!stats.recentRuns.length) return "Nessuna corsa trovata su Strava.";
       const runsText = stats.recentRuns
         .slice(0, 10)
@@ -351,6 +410,7 @@ export async function handleMessage(text: string): Promise<string> {
     try {
       await addShoppingItems(intent.items);
       const list = await getActiveShoppingList();
+      src(trace, "shopping", `Aggiunti: ${intent.items.join(", ")}`, { href: "/spesa", items: list.map((l) => ({ text: l.item })) });
       return `✅ Aggiornato\n\n${formatShoppingList(list)}`;
     } catch {
       return "Errore nel salvare la lista della spesa.";
@@ -362,6 +422,7 @@ export async function handleMessage(text: string): Promise<string> {
       const matched = await checkOffShoppingItemsByName(intent.items);
       if (!matched.length) return "Non ho trovato questi articoli nella lista.";
       const list = await getActiveShoppingList();
+      src(trace, "shopping", `Tolti dalla lista: ${matched.join(", ")}`, { href: "/spesa", items: list.map((l) => ({ text: l.item })) });
       return `✅ Aggiornato\n\n${formatShoppingList(list)}`;
     } catch {
       return "Errore nell'aggiornare la lista della spesa.";
@@ -369,12 +430,16 @@ export async function handleMessage(text: string): Promise<string> {
   }
 
   if (intent.type === "shopping_query") {
-    return replyWithShoppingList();
+    return replyWithShoppingList(trace);
   }
 
   if (intent.type === "steps_query") {
     try {
       const stats = await getStepsStats(intent.startDate, intent.endDate);
+      src(trace, "health", `Passi dal ${intent.startDate} al ${intent.endDate}`, {
+        href: "/salute",
+        items: stats.days.slice(-5).map((d) => ({ text: `${d.steps} passi`, meta: d.date })),
+      });
       if (!stats.days.length) return "Nessun dato sui passi per questo periodo — controlla che l'automazione su iPhone sia attiva.";
       const daysText = stats.days
         .map((d) => `${new Date(`${d.date}T00:00:00`).toLocaleDateString("it-IT")}: ${d.steps} passi`)
@@ -393,6 +458,13 @@ export async function handleMessage(text: string): Promise<string> {
         intent.metricNames.map((m) => getMetricSummary(m, intent.startDate, intent.endDate)),
       );
       const withData = summaries.filter((s) => s.pointCount > 0);
+      src(trace, "health", `${intent.metricNames.join(", ")} · ${intent.startDate} → ${intent.endDate}`, {
+        href: `/salute?date=${intent.endDate}`,
+        items: withData.map(energyInKcal).map((s) => ({
+          text: s.metricName,
+          meta: `${s.pointCount} punti${s.sum !== null ? ` · tot ${s.sum.toFixed(s.units === "kcal" ? 0 : 1)}` : s.avg !== null ? ` · media ${s.avg.toFixed(1)}` : ""}${s.units ? ` ${s.units}` : ""}`,
+        })),
+      });
       if (!withData.length) {
         return "Nessun dato trovato per questo periodo — controlla che l'automazione Apple Health sia attiva e abbia già sincronizzato.";
       }
@@ -420,6 +492,9 @@ export async function handleMessage(text: string): Promise<string> {
   if (intent.type === "email_query") {
     try {
       const emails = await searchEmails(intent.query);
+      src(trace, "gmail", `${emails.length} email per "${intent.query}"`, {
+        items: emails.map((e) => ({ text: e.subject, meta: e.from })),
+      });
       if (!emails.length) return `Nessuna email trovata per "${escapeHtml(intent.query)}".`;
       const context = emails
         .map((e) => {
@@ -438,9 +513,10 @@ export async function handleMessage(text: string): Promise<string> {
   }
 
   if (!intent.save) {
-    return respondConversationally(text);
+    return respondConversationally(text, trace);
   }
 
   const id = await ingest(text, "telegram");
+  src(trace, "kb", "Nuova nota salvata", { href: "/bot" });
   return `Salvato ✅ (${id})`;
 }
