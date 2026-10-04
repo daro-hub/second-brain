@@ -84,7 +84,7 @@ async function answerFromData(text: string, context: string, extraGuidance?: str
 
 I dati sotto arrivano da una ricerca che può restituire risultati non pertinenti (es. corrispondenze deboli su una parola chiave). Prima di rispondere, valuta se i dati sotto rispondono davvero alla domanda: se sembrano chiaramente scorrelati, dillo esplicitamente ("non ho trovato nulla che corrisponda davvero a...") invece di presentarli come se fossero la risposta.${extraGuidance ? `\n\n${extraGuidance}` : ""}
 
-Per dare risalto a numeri/dati importanti usa SOLO tag HTML <b>testo</b> — mai markdown con asterischi (**testo**), il bot invia messaggi in modalità HTML e gli asterischi comparirebbero letteralmente. Tono naturale, in italiano, breve (max 4-5 righe) a meno che non serva davvero più dettaglio.
+Per dare risalto a numeri/dati importanti usa SOLO tag HTML <b>testo</b> — mai markdown con asterischi (**testo**), il bot invia messaggi in modalità HTML e gli asterischi comparirebbero letteralmente. Tono naturale, in italiano, breve (max 4-5 righe) a meno che non serva davvero più dettaglio. Ogni tanto, dove calza col contenuto, usa un'emoji pertinente per dare un po' di movimento al messaggio — senza esagerare e senza metterne una per forza in ogni risposta.
 
 ${context}`,
       },
@@ -127,7 +127,7 @@ async function replyWithGymPlan(): Promise<string> {
 
 function formatShoppingList(list: { item: string }[]): string {
   if (!list.length) return "La lista della spesa è vuota 🛒";
-  return `${bold("Lista della spesa")}\n${list.map((l) => `${BULLET} ${escapeHtml(l.item)}`).join("\n")}`;
+  return `🛒 ${bold("Lista della spesa")}\n${list.map((l) => `${BULLET} ${escapeHtml(l.item)}`).join("\n")}`;
 }
 
 async function replyWithShoppingList(): Promise<string> {
@@ -235,14 +235,44 @@ export async function handleMessage(text: string): Promise<string> {
 
   if (intent.type === "calendar_query") {
     try {
-      const events = await getUpcomingEvents(10);
-      if (!events.length) return "Nessun evento in programma nei prossimi 30 giorni.";
-      const context = events
-        .map((e) => `${new Date(e.start).toLocaleString("it-IT")} — ${e.summary}${e.location ? ` (${e.location})` : ""}`)
-        .join("\n");
-      return await answerFromData(text, `Prossimi eventi in calendario (entro 30 giorni):\n${context}`);
+      // Una domanda generica tipo "cosa devo fare questa settimana?" riguarda tutta la
+      // vita di Daro, non solo Google Calendar: senza studio/palestra la risposta è
+      // incompleta anche se tecnicamente corretta sui soli eventi di calendario.
+      const [events, weekSchedule, nextRoutine] = await Promise.all([
+        getUpcomingEvents(10),
+        Promise.all(
+          Array.from({ length: 7 }, (_, i) => {
+            const d = new Date();
+            d.setDate(d.getDate() + i);
+            return getScheduleForDay(d.getDay()).then((slots) => ({ date: d, slots }));
+          }),
+        ),
+        getNextRoutineToTrain(),
+      ]);
+
+      const eventsText = events.length
+        ? events
+            .map((e) => `${new Date(e.start).toLocaleString("it-IT")} — ${e.summary}${e.location ? ` (${e.location})` : ""}`)
+            .join("\n")
+        : "Nessuno";
+
+      const scheduleText = weekSchedule
+        .filter((d) => d.slots.length)
+        .map((d) => {
+          const label = d.date.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
+          const slots = d.slots.map((s) => `${s.startTime}-${s.endTime} ${s.type}: ${s.subject}`).join(", ");
+          return `${label}: ${slots}`;
+        })
+        .join("\n") || "Nessuna lezione/studio in programma questa settimana";
+
+      const context = `Eventi in calendario (entro 30 giorni):\n${eventsText}\n\nOrario di studio/lezioni dei prossimi 7 giorni:\n${scheduleText}\n\nAllenamento: prossima routine in programma è "${nextRoutine}"`;
+      return await answerFromData(
+        text,
+        context,
+        'Se la domanda è generica (es. "cosa devo fare questa settimana?"), dai un quadro completo usando tutte e tre le fonti sopra (calendario, studio, allenamento); se è specifica su una sola di queste, rispondi solo su quella.',
+      );
     } catch {
-      return "Errore nel recupero da Google Calendar.";
+      return "Errore nel recupero del calendario.";
     }
   }
 
