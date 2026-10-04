@@ -132,6 +132,9 @@ export async function createEvent(params: {
   start: string; // ISO 8601, es. 2026-10-06T18:00:00
   end: string;
   location?: string;
+  description?: string;
+  /** link mostrato come allegato dell'evento (es. la issue Linear collegata) */
+  source?: { title: string; url: string };
   recurrence?: string[]; // es. ["RRULE:FREQ=WEEKLY;BYDAY=MO"]
 }): Promise<CalendarEvent> {
   const token = await getGoogleAccessToken();
@@ -141,6 +144,8 @@ export async function createEvent(params: {
     body: JSON.stringify({
       summary: params.summary,
       location: params.location,
+      description: params.description,
+      source: params.source,
       start: { dateTime: params.start, timeZone: "Europe/Rome" },
       end: { dateTime: params.end, timeZone: "Europe/Rome" },
       recurrence: params.recurrence,
