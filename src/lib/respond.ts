@@ -38,8 +38,9 @@ async function respondConversationally(text: string, trace?: Trace): Promise<str
   // si lascia che sia l'istruzione nel prompt sotto a giudicare cosa è davvero pertinente.
   const results = await searchSemantic(text, 3);
   src(trace, "kb", results.length ? `${results.length} voci più simili alla domanda` : "Nessuna voce pertinente", {
-    href: "/bot",
+    href: "/aira?view=brain",
     items: results.map((r) => ({
+      id: r.id,
       text: r.content.length > 140 ? `${r.content.slice(0, 140)}…` : r.content,
       meta: `${r.source}${r.similarity !== undefined ? ` · ${Math.round(r.similarity * 100)}%` : ""}`,
     })),
@@ -517,6 +518,6 @@ export async function handleMessageTraced(text: string, trace?: Trace): Promise<
   }
 
   const id = await ingest(text, "telegram");
-  src(trace, "kb", "Nuova nota salvata", { href: "/bot" });
+  src(trace, "kb", "Nuova nota salvata", { href: "/aira?view=brain" });
   return `Salvato ✅ (${id})`;
 }

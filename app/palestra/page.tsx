@@ -6,7 +6,10 @@ import { getActivityCalendar, isSeededLog } from "../../src/lib/overview";
 import { getAllActivities } from "../../src/lib/strava";
 import { supabase } from "../../src/lib/supabase";
 import { addDays, formatDayShort, todayKey } from "../../src/lib/time";
+import { getTrainingOverview } from "../../src/lib/training";
 import { ActivityHeatmap, AreaLine } from "../components/viz/charts";
+import { BodyStage } from "./BodyStage";
+import { Radar } from "./Radar";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +21,8 @@ export default async function PalestraPage({ searchParams }: { searchParams: Pro
   const today = todayKey();
   const since = addDays(today, -29);
 
-  const [activities, strength, cal, recentLogsRaw] = await Promise.all([
+  const [overview, activities, strength, cal, recentLogsRaw] = await Promise.all([
+    getTrainingOverview(),
     getAllActivities().catch(() => []),
     getStrengthLeaderboard().catch(() => []),
     getActivityCalendar(12),
@@ -55,30 +59,76 @@ export default async function PalestraPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <div className="eyebrow">Palestra e corsa</div>
-      <h2>Allenamento</h2>
-      <p className="page-sub">Sessioni e orari reali da Strava; pesi e ripetizioni dai log del bot.</p>
+      <div className="eyebrow">Allenamento</div>
+      <h2>Centro prestazioni</h2>
+      <p className="page-sub">
+        Il tuo corpo, gruppo per gruppo: massimali stimati e progressione dai log del bot, battito da Apple Health, sessioni e orari reali da Strava.
+        Passa sopra una zona o una scheda per il dettaglio; tocca FRONTE/RETRO per girare l&apos;avatar.
+      </p>
 
-      <div className="grid grid-kpi">
-        <div className="card kpi" style={{ ["--kpi" as string]: "var(--c-weights)" }}>
-          <div className="kpi-top"><span>🏋️ Pesi · 30 giorni</span></div>
-          <div className="kpi-value">{weights30.length}<small>sessioni</small></div>
-          <div className="kpi-sub">{int(weights30.reduce((s, a) => s + a.movingTimeMin, 0))} minuti totali</div>
+      <BodyStage muscles={overview.muscles} heart={overview.heart} />
+
+      <div className="hud-tiles">
+        <div className="tile" style={{ ["--t" as string]: "#4de1ff" }}>
+          <div className="t-lbl">Pesi · 30 giorni</div>
+          <div className="t-val">{weights30.length}<small>sessioni</small></div>
+          <div className="t-sub">{int(weights30.reduce((s, a) => s + a.movingTimeMin, 0))} minuti totali</div>
         </div>
-        <div className="card kpi" style={{ ["--kpi" as string]: "var(--c-run)" }}>
-          <div className="kpi-top"><span>🏃 Corsa · 30 giorni</span></div>
-          <div className="kpi-value">{dec(runKm)}<small>km</small></div>
-          <div className="kpi-sub">{runs30.length} {runs30.length === 1 ? "uscita" : "uscite"}{runKm > 0 ? ` · passo medio ${pace(runMin / runKm)} /km` : ""}</div>
+        <div className="tile" style={{ ["--t" as string]: "#b78cff" }}>
+          <div className="t-lbl">Corsa · 30 giorni</div>
+          <div className="t-val">{dec(runKm)}<small>km</small></div>
+          <div className="t-sub">{runs30.length} {runs30.length === 1 ? "uscita" : "uscite"}{runKm > 0 ? ` · ${pace(runMin / runKm)} /km` : ""}</div>
         </div>
-        <div className="card kpi" style={{ ["--kpi" as string]: "var(--c-steps)" }}>
-          <div className="kpi-top"><span>🗓 Costanza · 28 giorni</span></div>
-          <div className="kpi-value">{activeDays28}<small>giorni attivi</small></div>
-          <div className="kpi-sub">su 28 · almeno un&apos;attività su Strava</div>
+        <div className="tile" style={{ ["--t" as string]: "#3ecf8e" }}>
+          <div className="t-lbl">Costanza · 28 giorni</div>
+          <div className="t-val">{activeDays28}<small>/ 28 giorni</small></div>
+          <div className="t-sub">almeno un&apos;attività su Strava</div>
         </div>
-        <div className="card kpi" style={{ ["--kpi" as string]: "var(--c-nutrition)" }}>
-          <div className="kpi-top"><span>📈 Miglior progresso</span></div>
-          <div className="kpi-value" style={{ fontSize: 24, textTransform: "capitalize" }}>{strength[0]?.exercise ?? "—"}</div>
-          <div className="kpi-sub">{strength[0] ? `+${int(strength[0].deltaPct)}% di massimale stimato in ${strength[0].logs} sessioni` : "Servono almeno 3 sessioni per esercizio"}</div>
+        <div className="tile" style={{ ["--t" as string]: "#f5a524" }}>
+          <div className="t-lbl">Volume sollevato</div>
+          <div className="t-val">{dec(overview.totalVolumeKg / 1000)}<small>tonnellate</small></div>
+          <div className="t-sub">{int(overview.totalSets)} serie · {int(overview.totalLogs)} log</div>
+        </div>
+        <div className="tile" style={{ ["--t" as string]: "#ff5d73" }}>
+          <div className="t-lbl">Battito in allenamento</div>
+          <div className="t-val">{overview.heart.sessionAvg !== null ? int(overview.heart.sessionAvg) : "—"}<small>bpm medi</small></div>
+          <div className="t-sub">{overview.heart.sessionMax ? `picco ${int(overview.heart.sessionMax)} bpm` : "nessun dato nelle sessioni"}</div>
+        </div>
+        <div className="tile" style={{ ["--t" as string]: "#ff7ad9" }}>
+          <div className="t-lbl">Miglior progresso</div>
+          <div className="t-val" style={{ fontSize: 18, textTransform: "capitalize" }}>{strength[0]?.exercise ?? "—"}</div>
+          <div className="t-sub">{strength[0] ? `+${int(strength[0].deltaPct)}% di massimale stimato` : "servono 3 sessioni per esercizio"}</div>
+        </div>
+      </div>
+
+      <div className="grid grid-3" style={{ marginBottom: 18 }}>
+        <div className="card">
+          <div className="card-head"><h3>Bilanciamento muscolare</h3></div>
+          <Radar muscles={overview.muscles} />
+          <p className="muted small" style={{ textAlign: "center", marginBottom: 0 }}>quota di volume per gruppo · tratteggio = equilibrio ideale</p>
+        </div>
+        <div className="card">
+          <div className="card-head"><h3>Insight</h3><span className="muted small">calcolati sui tuoi dati</span></div>
+          <ul className="insight-list">
+            {overview.insights.map((i, k) => (
+              <li key={k} className={i.tone}><span className="ic">{i.icon}</span><span>{i.text}</span></li>
+            ))}
+          </ul>
+        </div>
+        <div className="card">
+          <div className="card-head"><h3>Carico settimanale</h3><span className="muted small">minuti · 8 settimane</span></div>
+          <div className="load-bars">
+            {(() => {
+              const peak = Math.max(1, ...overview.weekly.map((w) => w.minutes));
+              return overview.weekly.map((w, i) => (
+                <div key={w.weekStart} className={`bar${i === overview.weekly.length - 1 ? " now" : ""}`}>
+                  <span className="v">{w.minutes}</span>
+                  <div className="fill" style={{ height: `${Math.max(2, (w.minutes / peak) * 100)}%` }} title={`${w.sessions} sessioni`} />
+                  <span className="d">{formatDayShort(w.weekStart).split(" ").slice(0, 2).join(" ")}</span>
+                </div>
+              ));
+            })()}
+          </div>
         </div>
       </div>
 

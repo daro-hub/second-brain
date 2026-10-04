@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Source, SourceId } from "../../src/lib/trace";
+import type { BrainSnapshot } from "../../src/lib/brain";
+import { BrainView } from "./BrainView";
 import { Orb, type Phase } from "./Orb";
 import "./aira.css";
 
@@ -77,7 +79,8 @@ function pickMime(): string | undefined {
   return ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"].find((m) => MediaRecorder.isTypeSupported(m));
 }
 
-export function AiraConsole() {
+export function AiraConsole({ brain, initialView = "console" }: { brain: BrainSnapshot; initialView?: "console" | "brain" }) {
+  const [view, setView] = useState<"console" | "brain">(initialView);
   const [messages, setMessages] = useState<Msg[]>([
     {
       id: 0,
@@ -452,6 +455,8 @@ export function AiraConsole() {
   const lastAira = [...messages].reverse().find((m) => m.role === "aira" && (m.sources.length || m.pending || m.intent));
   const shown = messages.find((m) => m.id === selectedId) ?? lastAira;
   const shownSources = shown?.sources ?? [];
+  // note della KB usate dalla risposta selezionata: la mappa del cervello le illumina
+  const litDocs = new Set(shownSources.filter((x) => x.id === "kb").flatMap((x) => (x.items ?? []).map((i) => i.id).filter((v): v is string => Boolean(v))));
 
   return (
     <div className="aira-root">
@@ -460,6 +465,14 @@ export function AiraConsole() {
         <Link href="/" className="aira-back">
           ← Dashboard
         </Link>
+        <nav className="aira-tabs" role="tablist">
+          <button role="tab" aria-selected={view === "console"} className={view === "console" ? "on" : ""} onClick={() => setView("console")}>
+            Console
+          </button>
+          <button role="tab" aria-selected={view === "brain"} className={view === "brain" ? "on" : ""} onClick={() => setView("brain")}>
+            Cervello <span className="count">{brain.totalDocuments}</span>
+          </button>
+        </nav>
         <div className="aira-title">
           <span className="aira-title-mark" />
           A·I·R·A
@@ -467,7 +480,13 @@ export function AiraConsole() {
         <div className="aira-clock">{clock}</div>
       </header>
 
-      <section className="aira-log" ref={logRef} aria-live="polite">
+      {view === "brain" && (
+        <section className="aira-brain">
+          <BrainView brain={brain} lit={litDocs} />
+        </section>
+      )}
+
+      <section className="aira-log" ref={logRef} aria-live="polite" hidden={view === "brain"}>
         <div className="hud-label">CONVERSAZIONE</div>
         {messages.map((m) => (
           <div
@@ -539,7 +558,7 @@ export function AiraConsole() {
         )}
       </section>
 
-      <section className="aira-core">
+      <section className="aira-core" hidden={view === "brain"}>
         <div className="orb-wrap">
           <Orb
             phase={phase}
@@ -560,7 +579,7 @@ export function AiraConsole() {
         {notice && <div className="notice">{notice}</div>}
       </section>
 
-      <aside className="aira-sources">
+      <aside className="aira-sources" hidden={view === "brain"}>
         <div className="hud-label">
           FONTI DATI
           {shown?.intent && <span className="intent-tag">{INTENT_LABELS[shown.intent] ?? shown.intent}</span>}

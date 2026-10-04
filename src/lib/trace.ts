@@ -17,6 +17,8 @@ export type SourceId =
   | "bitwarden";
 
 export interface SourceItem {
+  /** id del documento nella knowledge base (per illuminarlo sulla mappa del cervello) */
+  id?: string;
   text: string;
   href?: string;
   meta?: string;

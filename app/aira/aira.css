@@ -584,3 +584,225 @@
 .hud-label {
   flex-shrink: 0;
 }
+
+.aira-root [hidden] {
+  display: none !important;
+}
+
+/* ───── tab Console / Cervello ───── */
+.aira-tabs {
+  display: flex;
+  gap: 2px;
+  margin-left: 14px;
+  margin-right: auto;
+}
+.aira-tabs button {
+  font: inherit;
+  font-size: 12.5px;
+  letter-spacing: 1px;
+  padding: 7px 14px;
+  background: transparent;
+  color: rgba(216, 243, 255, 0.6);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.aira-tabs button:hover {
+  color: #fff;
+}
+.aira-tabs button.on {
+  color: #fff;
+  border-bottom-color: var(--a-rose);
+}
+.aira-tabs .count {
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(77, 225, 255, 0.14);
+  font-size: 11px;
+}
+.aira-top {
+  position: relative;
+}
+.aira-title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* ───── vista Cervello ───── */
+.aira-brain {
+  overflow-x: hidden;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-height: 0;
+  overflow-y: auto;
+}
+.brain-grid {
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr) 300px;
+  gap: 18px;
+  min-height: 100%;
+}
+.brain-col,
+.brain-map {
+  padding: 16px;
+  background: var(--a-panel);
+  border: 1px solid var(--a-line);
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
+  min-width: 0;
+}
+.brain-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bs {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--a-line);
+  background: rgba(77, 225, 255, 0.05);
+}
+.bs b {
+  display: block;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 26px;
+  letter-spacing: -1px;
+  color: #fff;
+  text-shadow: 0 0 18px rgba(77, 225, 255, 0.6);
+}
+.bs b.ok {
+  color: #3ecf8e;
+  text-shadow: 0 0 18px rgba(62, 207, 142, 0.6);
+  font-size: 20px;
+}
+.bs b.ko {
+  color: #ff5d73;
+  font-size: 20px;
+}
+.bs span {
+  font-size: 12px;
+  color: rgba(216, 243, 255, 0.6);
+}
+.integrations {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.integrations li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 13px;
+}
+.integrations i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.integrations i.ok {
+  background: #3ecf8e;
+  box-shadow: 0 0 10px #3ecf8e;
+}
+.integrations i.ko {
+  background: #ff5d73;
+  box-shadow: 0 0 10px #ff5d73;
+}
+.integrations em {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  color: rgba(216, 243, 255, 0.5);
+}
+.brain-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.brain-svg .edge {
+  stroke: rgba(77, 225, 255, 0.14);
+  stroke-width: 1;
+}
+.brain-svg .beam {
+  stroke: var(--a-rose);
+  stroke-width: 1.4;
+  stroke-dasharray: 4 5;
+  animation: beam 1s linear infinite;
+  filter: drop-shadow(0 0 4px var(--a-rose));
+}
+@keyframes beam {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+.brain-svg .node {
+  cursor: pointer;
+  transition: r 0.15s;
+}
+.brain-svg .node-ping {
+  fill: none;
+  stroke-width: 1.5;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ping-node 1.5s ease-out infinite;
+}
+@keyframes ping-node {
+  0% {
+    transform: scale(0.6);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+.brain-svg .core-lbl {
+  font-size: 10px;
+  letter-spacing: 3px;
+  fill: var(--a-rose);
+}
+.doc-text {
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.aira-root .legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: rgba(216, 243, 255, 0.55);
+}
+.aira-root .legend-row span::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: rgb(var(--c));
+  box-shadow: 0 0 8px rgb(var(--c) / 0.8);
+}
+
+@media (max-width: 980px) {
+  .brain-grid {
+    grid-template-columns: 1fr;
+  }
+  .aira-brain {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .aira-title {
+    display: none;
+  }
+}
