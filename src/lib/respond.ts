@@ -62,7 +62,7 @@ async function replyWithGymPlan(): Promise<string> {
   const previewText = preview
     .map((p, i) => {
       if (!p.last) return `${i + 1}. ${p.exercise} — nessun dato registrato`;
-      return `${i + 1}. ${p.exercise} — ${p.last.weight_kg}kg x${p.last.reps} (${p.last.sets} set)`;
+      return `${i + 1}. ${p.exercise} — ${p.last.weight_kg}kg x${p.last.reps}`;
     })
     .join("\n");
   return `🏋️ Allenamento di oggi: ${routine}\n\n${previewText}`;
@@ -97,7 +97,7 @@ export async function handleMessage(text: string): Promise<string> {
     const previewText = preview
       .map((p, i) => {
         if (!p.last) return `${i + 1}. ${p.exercise} — nessun dato registrato`;
-        return `${i + 1}. ${p.exercise}: ${p.last.weight_kg}kg x${p.last.reps} (${p.last.sets} set)`;
+        return `${i + 1}. ${p.exercise}: ${p.last.weight_kg}kg x${p.last.reps}`;
       })
       .join("\n");
     return `${routineName} — ultimi pesi registrati:\n${previewText}`;
@@ -108,7 +108,7 @@ export async function handleMessage(text: string): Promise<string> {
   if (intent.type === "workout") {
     const result = await logWorkout(intent.entry);
     const prText = result.isPR ? " 🏆 Nuovo PR!" : "";
-    return `Salvato: ${intent.entry.exercise} ${intent.entry.weightKg}kg x${intent.entry.reps} (${intent.entry.sets} set).${prText}`;
+    return `Salvato: ${intent.entry.exercise} ${intent.entry.weightKg}kg x${intent.entry.reps}.${prText}`;
   }
 
   if (intent.type === "session_query") {
@@ -116,7 +116,7 @@ export async function handleMessage(text: string): Promise<string> {
     if (!session || !session.length) return `Nessun allenamento registrato per ${intent.muscleGroup}.`;
     const date = new Date(session[0].performed_at).toLocaleDateString("it-IT");
     const sessionText = session
-      .map((s, i) => `${i + 1}. ${s.exercise} ${s.weight_kg}kg x${s.reps} (${s.sets} set)`)
+      .map((s, i) => `${i + 1}. ${s.exercise} ${s.weight_kg}kg x${s.reps}`)
       .join("\n");
     return `Ultimo allenamento ${intent.muscleGroup} (${date}):\n${sessionText}`;
   }

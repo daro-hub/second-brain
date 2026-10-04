@@ -52,7 +52,7 @@ bot.command("storico", async (ctx) => {
   const text = history
     .map(
       (h) =>
-        `${new Date(h.performed_at).toLocaleDateString("it-IT")}: ${h.weight_kg}kg x${h.reps} (${h.sets} set)`,
+        `${new Date(h.performed_at).toLocaleDateString("it-IT")}: ${h.weight_kg}kg x${h.reps}`,
     )
     .join("\n");
   await ctx.reply(text);
