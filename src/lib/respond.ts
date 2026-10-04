@@ -9,6 +9,7 @@ import { searchIssues } from "./linear";
 import { searchSemantic } from "./search";
 import { getRunningStats } from "./dashboard";
 import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList } from "./shoppingList";
+import { getStepsStats } from "./steps";
 import {
   findMatchingRoutine,
   getLastSession,
@@ -358,6 +359,21 @@ export async function handleMessage(text: string): Promise<string> {
 
   if (intent.type === "shopping_query") {
     return replyWithShoppingList();
+  }
+
+  if (intent.type === "steps_query") {
+    try {
+      const stats = await getStepsStats(intent.startDate, intent.endDate);
+      if (!stats.days.length) return "Nessun dato sui passi per questo periodo — controlla che l'automazione su iPhone sia attiva.";
+      const daysText = stats.days
+        .map((d) => `${new Date(`${d.date}T00:00:00`).toLocaleDateString("it-IT")}: ${d.steps} passi`)
+        .join("\n");
+      const bestLabel = stats.best ? new Date(`${stats.best.date}T00:00:00`).toLocaleDateString("it-IT") : "N/D";
+      const context = `Passi dal ${intent.startDate} al ${intent.endDate} (totale ${stats.total}, media giornaliera ${stats.average}, giorno migliore ${bestLabel} con ${stats.best?.steps ?? 0} passi):\n${daysText}`;
+      return await answerFromData(text, context);
+    } catch {
+      return "Errore nel recupero dei dati sui passi.";
+    }
   }
 
   if (!intent.save) {

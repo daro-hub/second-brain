@@ -20,12 +20,17 @@ MCP server (Claude Code) ┼──► src/lib/respond.ts (classificazione intent
                          │         ├─► Google Calendar API — eventi live
                          │         └─► Strava API — attività live
                          │
+Automazione Apple Shortcuts (iPhone) ──► POST /api/steps ──► daily_steps
+                         │
 Dashboard (Next.js, /palestra /bot) ──► stesso Supabase, letture dirette
 ```
 
 Nessuna di queste integrazioni duplica dati nella KB: sono interrogate dal
 vivo ad ogni richiesta, zero staleness, zero costo di embedding per dati già
-strutturati altrove.
+strutturati altrove. Eccezione: i passi (`daily_steps`) non hanno un'API da
+interrogare dal vivo (Apple HealthKit non ha API server-side pubbliche) — li
+riceve via push da un'Automazione Shortcuts sul telefono, protetta da
+`STEPS_INGEST_SECRET`.
 
 ### Moduli principali (`src/lib/`)
 
