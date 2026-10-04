@@ -1,3 +1,4 @@
+import OpenAI from "openai";
 import { getPassword } from "./bitwarden";
 import { getUpcomingEvents } from "./calendar";
 import { getRepoInfo } from "./github";
@@ -7,6 +8,42 @@ import { searchIssues } from "./linear";
 import { searchSemantic } from "./search";
 import { getRecentActivities } from "./strava";
 import { findMatchingRoutine, getLastSession, getRoutinePreview, logWorkout } from "./workouts";
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const RELEVANCE_THRESHOLD = 0.5;
+
+async function respondConversationally(text: string): Promise<string> {
+  const results = await searchSemantic(text, 3);
+  const relevant = results.filter((r) => (r.similarity ?? 0) > RELEVANCE_THRESHOLD);
+  const contextText = relevant.length
+    ? relevant.map((r) => `- (${r.source}) ${r.content}`).join("\n")
+    : "Nessuna informazione pertinente trovata nella knowledge base.";
+
+  const res = await openai.chat.completions.create({
+    model: "gpt-6-luna",
+    messages: [
+      {
+        role: "system",
+        content: `Sei Aira, l'assistente personale di Daro su Telegram. Non sei un bot che legge dati — sei un vero segretario/a con cui ha una conversazione normale.
+
+Regole di conversazione:
+- Rispondi sempre in italiano.
+- Calibra la lunghezza della risposta alla domanda: a una domanda breve e informale ("come stai", "ciao") rispondi in una frase o due, non di più. Allunga la risposta solo quando la domanda richiede davvero dettaglio o elenco di informazioni.
+- Non ripetere la domanda, non riassumere quello che ti ha appena detto prima di rispondere.
+- Non usare elenchi puntati o struttura formale nella chiacchiera normale — quelli servono solo quando stai davvero elencando dati (orari, prezzi, risultati). In una conversazione normale scrivi come parli.
+- Se non sai qualcosa, dillo chiaramente invece di inventare — meglio "non lo so" che un'informazione falsa su di lui.
+- Puoi avere un tono leggero, simpatico, con qualche emoji con moderazione — non essere né robotico né eccessivamente formale/burocratico.
+- Se nel contesto sotto c'è un'informazione davvero pertinente alla domanda, usala per rispondere; altrimenti rispondi in modo conversazionale senza inventare fatti su di lui che non conosci.
+
+Contesto dalla knowledge base:
+${contextText}`,
+      },
+      { role: "user", content: text },
+    ],
+  });
+  return res.choices[0].message.content ?? "Non so cosa risponderti.";
+}
 
 export async function handleMessage(text: string): Promise<string> {
   const routineName = await findMatchingRoutine(text);
@@ -96,11 +133,7 @@ export async function handleMessage(text: string): Promise<string> {
   }
 
   if (!intent.save) {
-    const results = await searchSemantic(text, 3);
-    if (results.length) {
-      return results.map((r) => `(${r.source}) ${r.content.slice(0, 200)}`).join("\n\n");
-    }
-    return "Non ho informazioni su questo, e non mi sembra un'informazione da salvare.";
+    return respondConversationally(text);
   }
 
   const id = await ingest(text, "telegram");

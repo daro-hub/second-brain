@@ -118,14 +118,14 @@ bot.on("message:voice", async (ctx) => {
   const transcript = await transcribe(audioBuffer);
   const reply = await handleMessage(transcript);
 
-  await ctx.reply(`🎤 "${transcript}"\n\n${reply}`);
-
   try {
     const voiceReply = await textToSpeech(reply);
     await ctx.replyWithVoice(new InputFile(voiceReply, "reply.ogg"));
   } catch {
-    // la risposta testuale è già stata inviata, la voce è un extra
+    // se la sintesi vocale fallisce, arriva comunque la risposta testuale sotto
   }
+
+  await ctx.reply(reply);
 });
 
 export { bot };

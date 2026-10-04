@@ -145,6 +145,37 @@ export async function getRoutinePreview(routineName: string): Promise<RoutinePre
   return results;
 }
 
+/**
+ * Suggerisce la prossima routine da allenare: quella la cui data più recente
+ * tra i suoi esercizi è la più vecchia (euristica "meno allenata di recente"),
+ * non un calendario fisso — Daro non ha indicato un giorno fisso per routine.
+ */
+export async function getNextRoutineToTrain(): Promise<string | null> {
+  const { data: routines, error } = await supabase.from("workout_routines").select("routine_name, exercise");
+  if (error) throw error;
+  const routineNames = [...new Set((routines ?? []).map((r) => r.routine_name as string))];
+  if (!routineNames.length) return null;
+
+  let best: { name: string; lastTrained: number } | null = null;
+  for (const name of routineNames) {
+    const exercises = (routines ?? [])
+      .filter((r) => r.routine_name === name)
+      .map((r) => r.exercise as string);
+    const { data: logs, error: logsError } = await supabase
+      .from("workout_logs")
+      .select("performed_at")
+      .in("exercise", exercises)
+      .order("performed_at", { ascending: false })
+      .limit(1);
+    if (logsError) throw logsError;
+    const lastTrained = logs?.[0]?.performed_at ? new Date(logs[0].performed_at).getTime() : 0;
+    if (!best || lastTrained < best.lastTrained) {
+      best = { name, lastTrained };
+    }
+  }
+  return best?.name ?? null;
+}
+
 export async function getPR(exercise: string) {
   const { data, error } = await supabase
     .from("workout_logs")
