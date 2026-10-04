@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDailyNewsDigest } from "../../../../src/lib/news";
 import { sendTelegramMessage } from "../../../../src/lib/telegramSend";
+import { formatAiBreakthroughMessage, formatNewsMessage } from "../../../../src/lib/telegramFormat";
 
 export const maxDuration = 60;
 
@@ -20,9 +21,9 @@ export async function GET(req: NextRequest) {
 
   const sent = { general: false, aiBreakthrough: false };
 
-  if (digest.generalSummary) {
+  if (digest.newsItems.length > 0) {
     try {
-      await sendTelegramMessage(`📰 Le notizie di oggi:\n\n${digest.generalSummary}`);
+      await sendTelegramMessage(formatNewsMessage(digest.newsItems), { html: true });
       sent.general = true;
     } catch (err) {
       console.error("[morning-news] errore nell'invio del riassunto generale:", err);
@@ -31,9 +32,7 @@ export async function GET(req: NextRequest) {
 
   if (digest.aiBreakthrough) {
     try {
-      await sendTelegramMessage(
-        `🤖 Novità AI: ${digest.aiBreakthrough.title}\n\n${digest.aiBreakthrough.description}`,
-      );
+      await sendTelegramMessage(formatAiBreakthroughMessage(digest.aiBreakthrough), { html: true });
       sent.aiBreakthrough = true;
     } catch (err) {
       console.error("[morning-news] errore nell'invio della novità AI:", err);
