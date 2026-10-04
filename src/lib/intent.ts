@@ -11,7 +11,7 @@ export type MessageIntent =
   | { type: "linear_query"; term: string }
   | { type: "calendar_query" }
   | { type: "strava_query" }
-  | { type: "none" };
+  | { type: "none"; save: boolean };
 
 export async function classifyMessage(text: string): Promise<MessageIntent> {
   const res = await openai.chat.completions.create({
@@ -28,7 +28,7 @@ export async function classifyMessage(text: string): Promise<MessageIntent> {
 5. Domanda su issue/task di lavoro Linear (es. "a che punto è l'issue sull'audio?", "ci sono task aperti su AMU-803?"): {"intent": "linear_query", "term": string}
 6. Domanda sul calendario/agenda/impegni (es. "cosa ho in agenda?", "quali sono i prossimi impegni?"): {"intent": "calendar_query"}
 7. Domanda sulle attività sportive/corse/allenamenti tracciati su Strava (es. "quanto ho corso questa settimana?", "le mie ultime attività Strava"): {"intent": "strava_query"}
-8. Nessuno dei precedenti (nota generica, domanda, altro): {"intent": "none"}
+8. Nessuno dei precedenti. Qui devi anche decidere se il messaggio contiene un'informazione/fatto che vale la pena ricordare per il futuro (es. una nota, un pensiero, un dato su di sé) oppure se è solo una domanda, una richiesta, un commento di passaggio o un testo senza vero valore informativo da conservare (es. trascrizione vocale rumorosa, "ciao", "ok", una domanda retorica): {"intent": "none", "save": boolean}
 "muscleGroup" è una tra: petto, schiena, spalle, bicipiti, tricipiti, gambe, addome. Normalizza "exercise" in minuscolo. Se "sets" non è specificato, usa 1. "itemName" è il nome breve della voce da cercare nel vault (es. "Supabase", "Longevity"). "repoName" è il nome breve del repository (es. "Orbis", "Scolastica", "second-brain"). "term" è il testo/termine chiave da cercare su Linear.`,
       },
       { role: "user", content: text },
@@ -66,5 +66,5 @@ export async function classifyMessage(text: string): Promise<MessageIntent> {
   if (parsed.intent === "strava_query") {
     return { type: "strava_query" };
   }
-  return { type: "none" };
+  return { type: "none", save: Boolean(parsed.save) };
 }

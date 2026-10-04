@@ -4,6 +4,7 @@ import { getRepoInfo } from "./github";
 import { ingest } from "./ingest";
 import { classifyMessage } from "./intent";
 import { searchIssues } from "./linear";
+import { searchSemantic } from "./search";
 import { getRecentActivities } from "./strava";
 import { findMatchingRoutine, getLastSession, getRoutinePreview, logWorkout } from "./workouts";
 
@@ -92,6 +93,14 @@ export async function handleMessage(text: string): Promise<string> {
     } catch {
       return "Errore nel recupero da Strava.";
     }
+  }
+
+  if (!intent.save) {
+    const results = await searchSemantic(text, 3);
+    if (results.length) {
+      return results.map((r) => `(${r.source}) ${r.content.slice(0, 200)}`).join("\n\n");
+    }
+    return "Non ho informazioni su questo, e non mi sembra un'informazione da salvare.";
   }
 
   const id = await ingest(text, "telegram");

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { Bot, InputFile } from "grammy";
 import { getPassword } from "../lib/bitwarden";
+import { isDuplicateUpdate } from "../lib/dedup";
 import { getExerciseHistory, getPR } from "../lib/workouts";
 import { ingest } from "../lib/ingest";
 import { handleMessage } from "../lib/respond";
@@ -12,6 +13,11 @@ const allowedUserId = Number(process.env.TELEGRAM_ALLOWED_USER_ID);
 
 bot.use(async (ctx, next) => {
   if (ctx.from?.id !== allowedUserId) return;
+  await next();
+});
+
+bot.use(async (ctx, next) => {
+  if (await isDuplicateUpdate(ctx.update.update_id)) return;
   await next();
 });
 

@@ -5,7 +5,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 export async function transcribe(audioBuffer: Buffer, filename = "voice.ogg"): Promise<string> {
   const file = await OpenAI.toFile(audioBuffer, filename);
   const res = await openai.audio.transcriptions.create({
-    model: "gpt-4o-mini-transcribe",
+    model: "gpt-transcribe",
     file,
   });
   return res.text;
