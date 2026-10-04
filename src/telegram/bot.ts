@@ -36,7 +36,7 @@ bot.command("search", async (ctx) => {
   const text = results
     .map((r, i) => `${BULLET} ${bold(escapeHtml(r.source))}: ${escapeHtml(r.content.slice(0, 200))}`)
     .join("\n\n");
-  await ctx.reply(text, { parse_mode: "HTML" });
+  await ctx.reply(`🔍 ${text}`, { parse_mode: "HTML" });
 });
 
 bot.command("storico", async (ctx) => {
@@ -56,7 +56,7 @@ bot.command("storico", async (ctx) => {
         `${BULLET} ${bold(new Date(h.performed_at).toLocaleDateString("it-IT"))}: ${h.weight_kg}kg x${h.reps}`,
     )
     .join("\n");
-  await ctx.reply(`${bold(escapeHtml(exercise))} — storico\n\n${text}`, { parse_mode: "HTML" });
+  await ctx.reply(`📊 ${bold(escapeHtml(exercise))} — storico\n\n${text}`, { parse_mode: "HTML" });
 });
 
 bot.command("pr", async (ctx) => {
