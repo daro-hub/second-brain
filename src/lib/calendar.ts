@@ -88,3 +88,41 @@ export async function getUpcomingEvents(maxResults = 10, windowDays = 30): Promi
     location: e.location,
   }));
 }
+
+export interface CalendarEventDetailed extends CalendarEvent {
+  allDay: boolean;
+}
+
+/**
+ * Eventi in un intervallo esatto di istanti (usare dayRangeUtc per un giorno locale
+ * Europe/Rome). getEventsForDate calcola invece i confini del giorno nel fuso del server
+ * (UTC su Vercel), quindi sfasa di 1-2 ore gli eventi a cavallo della mezzanotte locale.
+ */
+export async function getEventsInRange(from: Date, to: Date): Promise<CalendarEventDetailed[]> {
+  const token = await getGoogleAccessToken();
+  const url = new URL("https://www.googleapis.com/calendar/v3/calendars/primary/events");
+  url.searchParams.set("timeMin", from.toISOString());
+  url.searchParams.set("timeMax", to.toISOString());
+  url.searchParams.set("singleEvents", "true");
+  url.searchParams.set("orderBy", "startTime");
+  url.searchParams.set("maxResults", "100");
+
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`Google Calendar API error: ${res.status}`);
+  const data = await res.json();
+
+  return (data.items ?? []).map(
+    (e: {
+      summary?: string;
+      start?: { dateTime?: string; date?: string };
+      end?: { dateTime?: string; date?: string };
+      location?: string;
+    }) => ({
+      summary: e.summary ?? "(senza titolo)",
+      start: e.start?.dateTime ?? e.start?.date ?? "",
+      end: e.end?.dateTime ?? e.end?.date ?? "",
+      location: e.location,
+      allDay: !e.start?.dateTime,
+    }),
+  );
+}

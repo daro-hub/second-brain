@@ -17,23 +17,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Fase di scoperta del formato reale dell'automazione di Daro: salva SEMPRE il corpo
-  // grezzo così com'è — anche se non è JSON valido — prima di provare a interpretarlo
-  // con lo schema assunto (quello documentato di Health Auto Export, mai verificato
-  // contro la sua automazione specifica, che potrebbe essere diversa).
   const rawText = await req.text();
   let parsed: unknown = null;
   try {
     parsed = JSON.parse(rawText);
   } catch {
-    // non JSON valido: salviamo comunque il testo grezzo qui sotto
+    // non JSON valido: finisce comunque nel salvataggio grezzo qui sotto
   }
-  await saveRawDebugPayload(parsed ?? { _raw_text: rawText }).catch((err) =>
-    console.error("[health] errore nel salvataggio raw:", err),
-  );
 
   const body = parsed as HealthExportPayload | null;
   if (!body?.data?.metrics) {
+    // Formato non riconosciuto: si conserva il corpo grezzo per poter adattare il parser.
+    // Per i payload validi NON si salva (ogni export ha migliaia di punti, riempirebbe il DB).
+    await saveRawDebugPayload(parsed ?? { _raw_text: rawText }).catch((err) =>
+      console.error("[health] errore nel salvataggio raw:", err),
+    );
     return NextResponse.json({ ok: true, note: "ricevuto e salvato grezzo, formato non ancora riconosciuto" });
   }
 

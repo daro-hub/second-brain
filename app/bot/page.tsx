@@ -2,6 +2,9 @@ import { getDocumentPoints, getWebhookStatus, getWorkoutStats } from "../../src/
 import { pca2d } from "../../src/lib/pca";
 import { ScatterChart } from "../components/ScatterChart";
 
+// Stato del webhook e contatori devono essere letti a ogni richiesta, non congelati al build.
+export const dynamic = "force-dynamic";
+
 export default async function BotPage() {
   const [docs, stats, webhook] = await Promise.all([
     getDocumentPoints(),
