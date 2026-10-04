@@ -1,4 +1,4 @@
-import { getHealthDaily, getHealthSeries } from "./health";
+import { getHealthDaily, getHealthSeries, getLatestWeightKg } from "./health";
 import { getNightRecovery, isSeededLog } from "./overview";
 import { mean } from "./stats";
 import { getAllActivities, type StravaActivityFull } from "./strava";
@@ -17,6 +17,36 @@ export const MUSCLE_LABEL: Record<MuscleGroup, string> = {
   tricipiti: "Tricipiti",
   gambe: "Gambe",
 };
+
+/**
+ * Rapporto massimale/peso corporeo corrispondente a un livello "intermedio" (50 punti) per gruppo.
+ * Valori indicativi da tabelle di forza comuni per un uomo: servono a confrontare i gruppi TRA LORO,
+ * non sono uno standard clinico. Con le macchine i carichi non sono confrontabili con i pesi liberi.
+ */
+const INTERMEDIATE_RATIO: Record<MuscleGroup, number> = {
+  petto: 1.0,
+  schiena: 0.9,
+  spalle: 0.55,
+  bicipiti: 0.45,
+  tricipiti: 0.5,
+  gambe: 1.5,
+  addome: 0.8,
+};
+
+/** Macchine e cavi: lo stack di carrucole/leve fa risultare carichi molto più alti dei pesi liberi. */
+const MACHINE = /machine|macchina|pulley|cable|cavi|pushdown|extension|fly|pec deck|leg press|lat /i;
+const MACHINE_FACTOR = 0.6;
+
+export type StrengthLevel = "Principiante" | "Novizio" | "Intermedio" | "Avanzato" | "Élite" | "n/d";
+
+function levelOf(rating: number | null): StrengthLevel {
+  if (rating === null) return "n/d";
+  if (rating < 20) return "Principiante";
+  if (rating < 40) return "Novizio";
+  if (rating < 60) return "Intermedio";
+  if (rating < 80) return "Avanzato";
+  return "Élite";
+}
 
 export interface ExerciseStat {
   name: string;
@@ -48,6 +78,14 @@ export interface MuscleStat {
   /** ultimo allenamento REALE del gruppo (log da REAL_GYM_LOGS_FROM in poi), se esiste */
   lastTrainedKey: string | null;
   verdict: string;
+  /** esercizio usato per il rating di potenza e rapporto 1RM / peso corporeo */
+  ratingExercise: string | null;
+  ratio: number | null;
+  /** 0..100 (50 = livello intermedio) */
+  rating: number | null;
+  level: StrengthLevel;
+  /** 1 = gruppo più forte, N = più carente (solo gruppi con rating) */
+  rank: number | null;
 }
 
 export interface SessionHr {
@@ -97,7 +135,7 @@ function trendOf(deltaPct: number | null): Trend {
   return "flat";
 }
 
-async function getMuscleStats(): Promise<{ muscles: MuscleStat[]; totalVolumeKg: number; totalSets: number; totalLogs: number }> {
+async function getMuscleStats(bodyKg: number): Promise<{ muscles: MuscleStat[]; totalVolumeKg: number; totalSets: number; totalLogs: number }> {
   const { data, error } = await supabase
     .from("workout_logs")
     .select("exercise, muscle_group, weight_kg, reps, sets, performed_at")
@@ -150,7 +188,19 @@ async function getMuscleStats(): Promise<{ muscles: MuscleStat[]; totalVolumeKg:
     else if (trend === "down") verdict = "In calo: controlla carico e recupero";
     else verdict = "Stabile";
 
+    // esercizio di riferimento: tra quelli con >= 3 sessioni il più pesante (evita che un carico
+    // isolato su una macchina falsi il rating); se non ce n'è, il più pesante in assoluto
+    const ratingPool = progressing.length ? progressing : exercises;
+    const ratingEx = ratingPool.slice().sort((a, b) => b.bestRm - a.bestRm)[0];
+    const ratio = ratingEx && rows.length >= 3 ? ((ratingEx.bestRm / bodyKg) * (MACHINE.test(ratingEx.name) ? MACHINE_FACTOR : 1)) : null;
+    const rating = ratio === null ? null : Math.min(100, Math.round((50 * ratio) / INTERMEDIATE_RATIO[group]));
+
     return {
+      ratingExercise: rating === null ? null : ratingEx.name,
+      ratio,
+      rating,
+      level: levelOf(rating),
+      rank: null,
       group,
       label: MUSCLE_LABEL[group],
       logs: rows.length,
@@ -167,6 +217,9 @@ async function getMuscleStats(): Promise<{ muscles: MuscleStat[]; totalVolumeKg:
       verdict,
     };
   });
+
+  const ranked = muscles.filter((m) => m.rating !== null).sort((a, b) => (b.rating as number) - (a.rating as number));
+  ranked.forEach((m, i) => (m.rank = i + 1));
 
   return { muscles, totalVolumeKg: totalVolume, totalSets: muscles.reduce((s, m) => s + m.sets, 0), totalLogs: muscles.reduce((s, m) => s + m.logs, 0) };
 }
@@ -234,6 +287,15 @@ function buildInsights(muscles: MuscleStat[], heart: HeartInsight, weekly: Weekl
   const out: TrainingOverview["insights"] = [];
   const withData = muscles.filter((m) => m.logs >= 3);
 
+  const rated = muscles.filter((m) => m.rating !== null).sort((a, b) => (b.rating as number) - (a.rating as number));
+  if (rated.length >= 3) {
+    const top = rated[0];
+    const low = rated[rated.length - 1];
+    out.push({ icon: "★", tone: "good", text: `Gruppo più forte: ${top.label} (rating ${top.rating}, ${top.level}) con ${top.ratingExercise}.` });
+    if ((top.rating as number) - (low.rating as number) >= 20) {
+      out.push({ icon: "⚠", tone: "warn", text: `Gruppo più carente: ${low.label} (rating ${low.rating}, ${low.level}), ${(top.rating as number) - (low.rating as number)} punti sotto ${top.label}: è lì che conviene insistere.` });
+    }
+  }
   const best = withData.filter((m) => m.deltaPct !== null).sort((a, b) => (b.deltaPct as number) - (a.deltaPct as number))[0];
   if (best && (best.deltaPct as number) > 4) {
     out.push({ icon: "▲", tone: "good", text: `${best.label} è il gruppo che cresce di più: massimale stimato +${Math.round(best.deltaPct as number)}% (${best.bestExercise}).` });
@@ -282,7 +344,8 @@ function buildInsights(muscles: MuscleStat[], heart: HeartInsight, weekly: Weekl
 }
 
 export async function getTrainingOverview(): Promise<TrainingOverview> {
-  const [stats, activities] = await Promise.all([getMuscleStats(), getAllActivities().catch(() => [] as StravaActivityFull[])]);
+  const [weight, activities] = await Promise.all([getLatestWeightKg().catch(() => null), getAllActivities().catch(() => [] as StravaActivityFull[])]);
+  const stats = await getMuscleStats(weight?.kg ?? 65);
   const [heart] = await Promise.all([getHeartInsight(activities)]);
   const weekly = weeklyLoad(activities);
   return { ...stats, heart, weekly, insights: buildInsights(stats.muscles, heart, weekly) };

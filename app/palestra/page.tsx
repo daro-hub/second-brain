@@ -132,6 +132,36 @@ export default async function PalestraPage({ searchParams }: { searchParams: Pro
         </div>
       </div>
 
+      <div className="card" style={{ marginBottom: 18 }}>
+        <div className="card-head">
+          <h3>Rating di potenza per gruppo</h3>
+          <span className="muted small">massimale stimato ÷ peso corporeo · la tacca è il livello intermedio</span>
+        </div>
+        {(() => {
+          const rated = overview.muscles.filter((m) => m.rating !== null).sort((a, b) => (b.rating as number) - (a.rating as number));
+          const weakest = rated.length >= 3 ? rated[rated.length - 1].group : null;
+          return (
+            <>
+              {rated.map((m) => (
+                <div key={m.group} className={`power-row${m.group === weakest ? " weak" : ""}`}>
+                  <b>{m.label}{m.rank === 1 ? " ★" : ""}{m.group === weakest ? " ⚠" : ""}</b>
+                  <div className="bar"><i style={{ width: `${m.rating}%` }} /></div>
+                  <span className="val"><b>{m.rating}</b> · {m.level}<br />{m.ratingExercise} · {dec(m.ratio ?? 0, 2)}× peso{/machine|macchina|pulley|cable|cavi|pushdown|extension|fly|pec deck|leg press|lat /i.test(m.ratingExercise ?? "") ? " (macchina ×0,6)" : ""}</span>
+                </div>
+              ))}
+              {overview.muscles.filter((m) => m.rating === null).length > 0 && (
+                <p className="muted small" style={{ marginBottom: 0 }}>
+                  Senza rating (servono almeno 3 serie): {overview.muscles.filter((m) => m.rating === null).map((m) => m.label).join(", ")}.
+                </p>
+              )}
+              <div className="note">
+                Indicativo: i riferimenti sono tabelle di forza generiche e le macchine non sono confrontabili con i pesi liberi (e hai cambiato palestra). Serve a confrontare i tuoi gruppi tra loro, non a misurarti contro altri.
+              </div>
+            </>
+          );
+        })()}
+      </div>
+
       <div className="card">
         <div className="card-head"><h3>Costanza — ultime 12 settimane</h3><Link href="/insights" className="muted small">tutti gli incroci →</Link></div>
         <ActivityHeatmap days={cal.days} />

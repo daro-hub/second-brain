@@ -11,6 +11,7 @@ import { searchSemantic } from "./search";
 import { SOURCE_LABELS, type Source, type SourceId, type Trace } from "./trace";
 import { getRunningStats } from "./dashboard";
 import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList } from "./shoppingList";
+import { getEnergyOverview, PROFILE } from "./energy";
 import { getMetricSummary, type MetricSummary } from "./health";
 import { kjToKcal } from "./stats";
 import { getStepsStats } from "./steps";
@@ -487,6 +488,32 @@ export async function handleMessageTraced(text: string, trace?: Trace): Promise<
       );
     } catch {
       return "Errore nel recupero dei dati di salute.";
+    }
+  }
+
+  if (intent.type === "energy_query") {
+    try {
+      const ov = await getEnergyOverview(30);
+      const t = ov.today;
+      const lines = [
+        `Fabbisogno stimato oggi: ${Math.round(t.expenditure)} kcal (mantenimento dichiarato ${PROFILE.maintenanceKcal}, passi ${Math.round(t.stepsAdj)}, allenamento ${Math.round(t.trainingAdj)}).`,
+        t.intake ? `Calorie mangiate oggi finora: ${Math.round(t.intake)} -> margine ${Math.round(t.expenditure - t.intake)} kcal (positivo = deficit se la giornata finisse ora).` : "Oggi non risultano pasti registrati.",
+        ov.week.days ? `Ultimi ${ov.week.days} giorni registrati: deficit totale ${Math.round(ov.week.deficit)} kcal (media ${Math.round(ov.week.avgDeficit as number)}/giorno). Positivo = deficit, negativo = surplus.` : "Nessun giorno completo registrato negli ultimi 7 giorni.",
+        ov.month.days ? `Media su ${ov.month.days} giorni: ${Math.round(ov.month.avgDeficit as number)} kcal/giorno di deficit.` : "",
+        ov.projection ? `Proiezione a 3 settimane mantenendo la media: da ${ov.currentKg.toFixed(1)} a ${ov.projection.endKg.toFixed(1)} kg (${(-ov.projection.lossKg).toFixed(1)} kg).` : "",
+        `Affidabilità della stima: ${ov.reliability} (${ov.month.days} giorni di dati).`,
+      ].filter(Boolean);
+      src(trace, "energy", `Deficit 7 giorni: ${Math.round(ov.week.deficit)} kcal · oggi ${t.deficit === null ? "n/d" : Math.round(t.deficit)}`, {
+        href: "/bilancio",
+        items: ov.insights.slice(0, 4).map((i) => ({ text: i.text })),
+      });
+      return await answerFromData(
+        text,
+        lines.join(String.fromCharCode(10)),
+        "I numeri sono già calcolati, non ricalcolarli. Deficit positivo = hai mangiato meno di quanto consumi. È una stima basata sul mantenimento dichiarato da Daro: ricordalo brevemente se l'affidabilità è bassa.",
+      );
+    } catch {
+      return "Errore nel calcolo del bilancio calorico.";
     }
   }
 

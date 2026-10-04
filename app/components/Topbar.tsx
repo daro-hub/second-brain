@@ -8,6 +8,7 @@ const TITLES: Record<string, string> = {
   "/": "oggi",
   "/salute": "salute",
   "/palestra": "allenamento",
+  "/bilancio": "bilancio",
   "/insights": "incroci",
   "/spesa": "spesa",
 };

@@ -22,15 +22,14 @@ export function BrainView({ brain, lit }: { brain: BrainSnapshot; lit: Set<strin
   const pad = 36;
 
   const { pts, edges, center } = useMemo(() => {
-    const xs = brain.docs.map((d) => d.x);
-    const ys = brain.docs.map((d) => d.y);
-    const minX = Math.min(...xs, 0);
-    const maxX = Math.max(...xs, 1);
-    const minY = Math.min(...ys, 0);
-    const maxY = Math.max(...ys, 1);
-    const sx = (x: number) => (maxX === minX ? W / 2 : pad + ((x - minX) / (maxX - minX)) * (W - 2 * pad));
-    const sy = (y: number) => (maxY === minY ? H / 2 : pad + ((y - minY) / (maxY - minY)) * (H - 2 * pad));
-    const pts = brain.docs.map((d) => ({ ...d, px: sx(d.x), py: sy(d.y) }));
+    // Scala UNIFORME attorno al baricentro (la forma resta fedele alla PCA) in modo che l'intera
+    // rete stia dentro un cerchio: così può ruotare senza uscire dai bordi.
+    const n = brain.docs.length || 1;
+    const mx = brain.docs.reduce((t, d) => t + d.x, 0) / n;
+    const my = brain.docs.reduce((t, d) => t + d.y, 0) / n;
+    const maxR = Math.max(1e-9, ...brain.docs.map((d) => Math.hypot(d.x - mx, d.y - my)));
+    const k = (H / 2 - pad) / maxR;
+    const pts = brain.docs.map((d) => ({ ...d, px: W / 2 + (d.x - mx) * k, py: H / 2 + (d.y - my) * k }));
     const edges: [number, number][] = [];
     pts.forEach((p, i) => {
       pts
@@ -41,9 +40,7 @@ export function BrainView({ brain, lit }: { brain: BrainSnapshot; lit: Set<strin
           if (!edges.some(([a, b]) => (a === i && b === j) || (a === j && b === i))) edges.push([i, j]);
         });
     });
-    const cx = pts.length ? pts.reduce((t, p) => t + p.px, 0) / pts.length : W / 2;
-    const cy = pts.length ? pts.reduce((t, p) => t + p.py, 0) / pts.length : H / 2;
-    return { pts, edges, center: [cx, cy] as [number, number] };
+    return { pts, edges, center: [W / 2, H / 2] as [number, number] };
   }, [brain.docs]);
 
   const active = pts.find((p) => p.id === hover) ?? pts.find((p) => lit.has(p.id)) ?? null;
@@ -97,6 +94,7 @@ export function BrainView({ brain, lit }: { brain: BrainSnapshot; lit: Set<strin
                 <stop offset="1" stopColor="#ff7ad9" stopOpacity="0" />
               </radialGradient>
             </defs>
+            <g className="rotor">
             {edges.map(([a, b], i) => (
               <line key={i} x1={pts[a].px} y1={pts[a].py} x2={pts[b].px} y2={pts[b].py} className="edge" />
             ))}
@@ -105,17 +103,19 @@ export function BrainView({ brain, lit }: { brain: BrainSnapshot; lit: Set<strin
               .map((p) => (
                 <line key={`l${p.id}`} x1={center[0]} y1={center[1]} x2={p.px} y2={p.py} className="beam" />
               ))}
+            {pts.map((p, i) => (
+              <g key={p.id} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)}>
+                {lit.has(p.id) && <circle cx={p.px} cy={p.py} r="10" className="node-ping" style={{ stroke: colorFor(p.source) }} />}
+                <circle cx={p.px} cy={p.py} r={lit.has(p.id) || hover === p.id ? 6.5 : 4.5} fill={colorFor(p.source)} className="node" style={{ animationDelay: `${(i % 9) * -0.7}s` }} opacity={lit.size && !lit.has(p.id) ? 0.4 : 0.95} />
+              </g>
+            ))}
+            </g>
             <circle cx={center[0]} cy={center[1]} r="26" fill="url(#core-glow)" />
             <circle cx={center[0]} cy={center[1]} r="5" fill="#fff" />
             <text x={center[0]} y={center[1] + 22} className="core-lbl" textAnchor="middle">
               AIRA
             </text>
-            {pts.map((p) => (
-              <g key={p.id} onMouseEnter={() => setHover(p.id)} onMouseLeave={() => setHover(null)}>
-                {lit.has(p.id) && <circle cx={p.px} cy={p.py} r="10" className="node-ping" style={{ stroke: colorFor(p.source) }} />}
-                <circle cx={p.px} cy={p.py} r={lit.has(p.id) || hover === p.id ? 6.5 : 4.5} fill={colorFor(p.source)} className="node" opacity={lit.size && !lit.has(p.id) ? 0.4 : 0.95} />
-              </g>
-            ))}
+
           </svg>
         )}
         <div className="legend-row" style={{ justifyContent: "flex-start" }}>

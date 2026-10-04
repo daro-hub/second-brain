@@ -10,6 +10,7 @@ export type SourceId =
   | "gym"
   | "strava"
   | "health"
+  | "energy"
   | "shopping"
   | "github"
   | "linear"
@@ -46,6 +47,7 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   gym: "Allenamenti",
   strava: "Strava",
   health: "Apple Health",
+  energy: "Bilancio energetico",
   shopping: "Lista della spesa",
   github: "GitHub",
   linear: "Linear",

@@ -6,6 +6,8 @@ import { getDayBundle, getWeekStrip } from "../src/lib/overview";
 import { formatDayLong, localHourDecimal, todayKey, weekdayShort } from "../src/lib/time";
 import { getNextRoutineToTrain } from "../src/lib/workouts";
 import { DayTimeline } from "./components/viz/DayTimeline";
+import { getLifeBalance } from "../src/lib/balance";
+import { RadarChart } from "./components/viz/RadarChart";
 import { Ring, Sparkline } from "./components/viz/small";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +23,8 @@ const swatch = { studio: "var(--c-study)", lezione: "var(--c-lesson)" } as const
 
 export default async function OggiPage() {
   const today = todayKey();
-  const [bundle, week, weight, routine, strength, hours, nights] = await Promise.all([
+  const [balance, bundle, week, weight, routine, strength, hours, nights] = await Promise.all([
+    getLifeBalance().catch(() => null),
     getDayBundle(today),
     getWeekStrip(today, 7),
     getLatestWeightKg().catch(() => null),
@@ -158,6 +161,28 @@ export default async function OggiPage() {
         </div>
         <DayTimeline bundle={bundle} />
       </div>
+
+      {balance && (
+        <div className="card">
+          <div className="card-head">
+            <h3>⚖ Equilibrio della settimana</h3>
+            <Link href="/bilancio" className="muted small">
+              {balance.index !== null ? `indice ${balance.index}/100 · ` : ""}dettagli →
+            </Link>
+          </div>
+          <div className="grid grid-2" style={{ alignItems: "center" }}>
+            <RadarChart axes={balance.axes.map((a) => ({ label: a.label, value: a.score }))} />
+            <div>
+              <ul className="insight-list">
+                {balance.insights.map((i, k) => (
+                  <li key={k} className={i.tone}><span className="ic">{i.icon}</span><span>{i.text}</span></li>
+                ))}
+              </ul>
+              <p className="muted small" style={{ marginBottom: 0 }}>Cinque assi su una scala 0-100 (tratteggio = 70): se uno si stacca dagli altri, stai spingendo troppo su una cosa.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-2" style={{ marginBottom: 18 }}>
         <div className="card">

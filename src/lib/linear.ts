@@ -47,3 +47,25 @@ export async function searchIssues(term: string, limit = 5): Promise<LinearIssue
     assignee: n.assignee?.name ?? null,
   }));
 }
+
+export interface WorkActivity {
+  updated: number;
+  completed: number;
+}
+
+/** Issue assegnate a me aggiornate / completate negli ultimi N giorni (proxy dell'attività di lavoro). */
+export async function getMyRecentActivity(days = 7): Promise<WorkActivity> {
+  const since = new Date(Date.now() - days * 86400_000).toISOString();
+  const data = await query<{ viewer: { assignedIssues: { nodes: Array<{ completedAt: string | null }> } } }>(
+    `query($since: DateTimeOrDuration!) {
+      viewer {
+        assignedIssues(first: 100, filter: { updatedAt: { gte: $since } }) {
+          nodes { completedAt }
+        }
+      }
+    }`,
+    { since },
+  );
+  const nodes = data.viewer.assignedIssues.nodes;
+  return { updated: nodes.length, completed: nodes.filter((n) => n.completedAt && n.completedAt >= since).length };
+}

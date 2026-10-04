@@ -24,6 +24,12 @@ const ICONS = {
     </>,
   ),
   health: I(<path d="M3 12h4l2-6 4 12 2-6h6" />),
+  balance: I(
+    <>
+      <path d="M12 3v18M5 7h14" />
+      <path d="M5 7l-3 7a3 3 0 006 0zM19 7l-3 7a3 3 0 006 0z" />
+    </>,
+  ),
   gym: I(<path d="M6 7v10M3 9v6M18 7v10M21 9v6M6 12h12" />),
   insights: I(
     <>
@@ -52,6 +58,7 @@ const GROUPS = [
     items: [
       { href: "/", label: "Oggi", icon: ICONS.today },
       { href: "/salute", label: "Salute", icon: ICONS.health },
+      { href: "/bilancio", label: "Bilancio", icon: ICONS.balance },
       { href: "/palestra", label: "Allenamento", icon: ICONS.gym },
       { href: "/insights", label: "Incroci", icon: ICONS.insights },
       { href: "/spesa", label: "Spesa", icon: ICONS.shop },

@@ -806,3 +806,43 @@
     display: none;
   }
 }
+
+/* la rete ruota lentamente attorno al nucleo e i nodi "respirano"; si ferma quando ci passi sopra */
+.brain-svg .rotor {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  animation: rotor 90s linear infinite;
+}
+.brain-svg:hover .rotor,
+.brain-svg:hover .node {
+  animation-play-state: paused;
+}
+.brain-svg .node {
+  animation: drift 4.5s ease-in-out infinite;
+}
+@keyframes rotor {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(1.6px, -1.2px);
+  }
+  50% {
+    transform: translate(0, 1.8px);
+  }
+  75% {
+    transform: translate(-1.6px, -0.8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brain-svg .rotor,
+  .brain-svg .node {
+    animation: none;
+  }
+}

@@ -367,6 +367,12 @@ export function BodyStage({ muscles, heart }: { muscles: MuscleStat[]; heart: He
           <small>kg · 1RM stimato</small>
         </div>
         <Spark values={m.spark} color={color} />
+        <div className="n-rate" title={m.ratingExercise ? `Riferimento: ${m.ratingExercise} · ${fmt(m.ratio ?? 0, 2)}× il peso corporeo` : "servono almeno 3 serie"}>
+          <span>POTENZA</span>
+          <div className="n-rate-bar"><i style={{ width: `${m.rating ?? 0}%` }} /></div>
+          <b>{m.rating ?? "—"}</b>
+          <em>{m.level}{m.rank ? ` · #${m.rank}` : ""}</em>
+        </div>
         <div className="n-sub">
           {m.bestExercise ? `${m.bestExercise} · ` : ""}
           {fmt(m.sets)} serie · {fmt(m.share * 100)}% volume
