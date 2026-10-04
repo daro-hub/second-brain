@@ -6,6 +6,7 @@ import { ingest } from "./ingest";
 import { classifyMessage } from "./intent";
 import { searchIssues } from "./linear";
 import { searchSemantic } from "./search";
+import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList } from "./shoppingList";
 import { getRecentActivities } from "./strava";
 import { findMatchingRoutine, getLastSession, getRoutinePreview, logWorkout } from "./workouts";
 
@@ -129,6 +130,35 @@ export async function handleMessage(text: string): Promise<string> {
         .join("\n");
     } catch {
       return "Errore nel recupero da Strava.";
+    }
+  }
+
+  if (intent.type === "shopping_add") {
+    try {
+      await addShoppingItems(intent.items);
+      return `Aggiunto alla lista della spesa: ${intent.items.join(", ")} 🛒`;
+    } catch {
+      return "Errore nel salvare la lista della spesa.";
+    }
+  }
+
+  if (intent.type === "shopping_done") {
+    try {
+      const matched = await checkOffShoppingItemsByName(intent.items);
+      if (!matched.length) return "Non ho trovato questi articoli nella lista.";
+      return `Segnato come comprato: ${matched.join(", ")} ✅`;
+    } catch {
+      return "Errore nell'aggiornare la lista della spesa.";
+    }
+  }
+
+  if (intent.type === "shopping_query") {
+    try {
+      const list = await getActiveShoppingList();
+      if (!list.length) return "La lista della spesa è vuota 🛒";
+      return `Lista della spesa:\n${list.map((l) => `- ${l.item}`).join("\n")}`;
+    } catch {
+      return "Errore nel recupero della lista della spesa.";
     }
   }
 

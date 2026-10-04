@@ -5,6 +5,7 @@ export function Sidebar() {
     <nav className="sidebar">
       <h1>Second Brain</h1>
       <Link href="/palestra">Palestra</Link>
+      <Link href="/spesa">Spesa</Link>
       <Link href="/bot">Bot</Link>
     </nav>
   );

@@ -146,34 +146,86 @@ export async function getRoutinePreview(routineName: string): Promise<RoutinePre
 }
 
 /**
- * Suggerisce la prossima routine da allenare: quella la cui data più recente
- * tra i suoi esercizi è la più vecchia (euristica "meno allenata di recente"),
- * non un calendario fisso — Daro non ha indicato un giorno fisso per routine.
+ * Ciclo fisso di Daro: petto e schiena -> braccia -> leg day -> riposo -> ripete.
+ * Non e' legato al calendario: se salta un giorno il flusso si posticipa (resta
+ * fermo sulla prossima tappa finche' non viene davvero allenata), quindi si guarda
+ * SOLO l'ultimo gruppo muscolare realmente loggato, non le date.
  */
-export async function getNextRoutineToTrain(): Promise<string | null> {
-  const { data: routines, error } = await supabase.from("workout_routines").select("routine_name, exercise");
-  if (error) throw error;
-  const routineNames = [...new Set((routines ?? []).map((r) => r.routine_name as string))];
-  if (!routineNames.length) return null;
+const TRAINING_CYCLE = ["petto e schiena", "braccia", "leg day", "riposo"];
 
-  let best: { name: string; lastTrained: number } | null = null;
-  for (const name of routineNames) {
-    const exercises = (routines ?? [])
-      .filter((r) => r.routine_name === name)
-      .map((r) => r.exercise as string);
-    const { data: logs, error: logsError } = await supabase
-      .from("workout_logs")
-      .select("performed_at")
-      .in("exercise", exercises)
-      .order("performed_at", { ascending: false })
-      .limit(1);
-    if (logsError) throw logsError;
-    const lastTrained = logs?.[0]?.performed_at ? new Date(logs[0].performed_at).getTime() : 0;
-    if (!best || lastTrained < best.lastTrained) {
-      best = { name, lastTrained };
+const MUSCLE_GROUP_TO_ROUTINE: Record<string, string> = {
+  petto: "petto e schiena",
+  schiena: "petto e schiena",
+  spalle: "braccia",
+  bicipiti: "braccia",
+  tricipiti: "braccia",
+  gambe: "leg day",
+};
+
+export async function getNextRoutineToTrain(): Promise<string> {
+  const { data, error } = await supabase
+    .from("workout_logs")
+    .select("muscle_group, performed_at")
+    .order("performed_at", { ascending: false })
+    .limit(50);
+  if (error) throw error;
+
+  let lastPosition = -1; // niente di tracciabile ancora -> si parte dall'inizio del ciclo
+  for (const row of data ?? []) {
+    if (row.muscle_group === "riposo") {
+      lastPosition = TRAINING_CYCLE.indexOf("riposo");
+      break;
     }
+    const routine = MUSCLE_GROUP_TO_ROUTINE[row.muscle_group as string];
+    if (routine) {
+      lastPosition = TRAINING_CYCLE.indexOf(routine);
+      break;
+    }
+    // addome (o altro non mappato) viene allenato in ogni routine: non e' indicativo,
+    // si continua a guardare indietro nello storico
   }
-  return best?.name ?? null;
+
+  const nextPosition = (lastPosition + 1) % TRAINING_CYCLE.length;
+  return TRAINING_CYCLE[nextPosition];
+}
+
+/**
+ * Registra un giorno di riposo (nessun esercizio) cosi' il ciclo avanza
+ * correttamente il giorno dopo, invece di risuggerire "riposo" di nuovo
+ * (su un giorno di riposo non c'e' nulla da loggare, quindi va marcato esplicitamente).
+ */
+export async function markRestDay(date: Date): Promise<void> {
+  const { error } = await supabase.from("workout_logs").insert({
+    exercise: "riposo",
+    weight_kg: 0,
+    reps: 0,
+    sets: 0,
+    muscle_group: "riposo",
+    performed_at: date.toISOString(),
+  });
+  if (error) throw error;
+}
+
+export interface ScheduleSlot {
+  startTime: string;
+  endTime: string;
+  type: "studio" | "lezione";
+  subject: string;
+}
+
+export async function getScheduleForDay(dayOfWeek: number): Promise<ScheduleSlot[]> {
+  const { data, error } = await supabase
+    .from("weekly_schedule")
+    .select("start_time, end_time, type, subject")
+    .eq("day_of_week", dayOfWeek)
+    .order("order_index", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    startTime: r.start_time,
+    endTime: r.end_time,
+    type: r.type as "studio" | "lezione",
+    subject: r.subject,
+  }));
 }
 
 export async function getPR(exercise: string) {

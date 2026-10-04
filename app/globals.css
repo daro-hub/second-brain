@@ -124,3 +124,54 @@ select {
   background: #3a1f1f;
   color: #e76e6e;
 }
+
+input[type="text"] {
+  background: #1a1e26;
+  color: #e6e6e6;
+  border: 1px solid #272b35;
+  border-radius: 6px;
+  padding: 6px 10px;
+  flex: 1;
+}
+
+button {
+  background: #1f3a5a;
+  color: #8ab4f8;
+  border: 1px solid #272b35;
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #272b35;
+}
+
+.checklist-item:last-child {
+  border-bottom: none;
+}
+
+.checkbox-btn {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border-radius: 5px;
+  border: 1px solid #3a3f4a;
+  background: transparent;
+  padding: 0;
+}
+
+.checkbox-btn:hover {
+  background: #1f3a2a;
+  border-color: #6ee7a0;
+}

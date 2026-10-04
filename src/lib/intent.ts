@@ -11,6 +11,9 @@ export type MessageIntent =
   | { type: "linear_query"; term: string }
   | { type: "calendar_query" }
   | { type: "strava_query" }
+  | { type: "shopping_add"; items: string[] }
+  | { type: "shopping_done"; items: string[] }
+  | { type: "shopping_query" }
   | { type: "none"; save: boolean };
 
 export async function classifyMessage(text: string): Promise<MessageIntent> {
@@ -28,8 +31,11 @@ export async function classifyMessage(text: string): Promise<MessageIntent> {
 5. Domanda su issue/task di lavoro Linear (es. "a che punto è l'issue sull'audio?", "ci sono task aperti su AMU-803?"): {"intent": "linear_query", "term": string}
 6. Domanda sul calendario/agenda/impegni (es. "cosa ho in agenda?", "quali sono i prossimi impegni?"): {"intent": "calendar_query"}
 7. Domanda sulle attività sportive/corse/allenamenti tracciati su Strava (es. "quanto ho corso questa settimana?", "le mie ultime attività Strava"): {"intent": "strava_query"}
-8. Nessuno dei precedenti. Qui devi anche decidere se il messaggio contiene un'informazione/fatto che vale la pena ricordare per il futuro (es. una nota, un pensiero, un dato su di sé) oppure se è solo una domanda, una richiesta, un commento di passaggio o un testo senza vero valore informativo da conservare (es. trascrizione vocale rumorosa, "ciao", "ok", una domanda retorica): {"intent": "none", "save": boolean}
-"muscleGroup" è una tra: petto, schiena, spalle, bicipiti, tricipiti, gambe, addome. Normalizza "exercise" in minuscolo. Se "sets" non è specificato, usa 1. "itemName" è il nome breve della voce da cercare nel vault (es. "Supabase", "Longevity"). "repoName" è il nome breve del repository (es. "Orbis", "Scolastica", "second-brain"). "term" è il testo/termine chiave da cercare su Linear.`,
+8. Aggiunta di uno o più articoli alla lista della spesa (es. "compra latte", "aggiungi pane e uova alla lista", "manca il detersivo", "finito il caffè" = è terminato, va comprato): {"intent": "shopping_add", "items": string[]}
+9. Articoli comprati/da togliere dalla lista della spesa (es. "ho preso il latte", "ho comprato pane e uova", "togli il detersivo dalla lista"): {"intent": "shopping_done", "items": string[]}
+10. Domanda sulla lista della spesa attuale (es. "cosa devo comprare?", "lista della spesa", "cosa manca?"): {"intent": "shopping_query"}
+11. Nessuno dei precedenti. Qui devi anche decidere se il messaggio contiene un'informazione/fatto che vale la pena ricordare per il futuro (es. una nota, un pensiero, un dato su di sé) oppure se è solo una domanda, una richiesta, un commento di passaggio o un testo senza vero valore informativo da conservare (es. trascrizione vocale rumorosa, "ciao", "ok", una domanda retorica): {"intent": "none", "save": boolean}
+"muscleGroup" è una tra: petto, schiena, spalle, bicipiti, tricipiti, gambe, addome. Normalizza "exercise" in minuscolo. Se "sets" non è specificato, usa 1. "itemName" è il nome breve della voce da cercare nel vault (es. "Supabase", "Longevity"). "repoName" è il nome breve del repository (es. "Orbis", "Scolastica", "second-brain"). "term" è il testo/termine chiave da cercare su Linear. Per "shopping_add"/"shopping_done", "items" è l'elenco dei nomi degli articoli in minuscolo, al singolare dove ha senso (es. "uova" resta "uova").`,
       },
       { role: "user", content: text },
     ],
@@ -65,6 +71,15 @@ export async function classifyMessage(text: string): Promise<MessageIntent> {
   }
   if (parsed.intent === "strava_query") {
     return { type: "strava_query" };
+  }
+  if (parsed.intent === "shopping_add" && Array.isArray(parsed.items) && parsed.items.length) {
+    return { type: "shopping_add", items: parsed.items.map((i: string) => String(i).trim()) };
+  }
+  if (parsed.intent === "shopping_done" && Array.isArray(parsed.items) && parsed.items.length) {
+    return { type: "shopping_done", items: parsed.items.map((i: string) => String(i).trim()) };
+  }
+  if (parsed.intent === "shopping_query") {
+    return { type: "shopping_query" };
   }
   return { type: "none", save: Boolean(parsed.save) };
 }
