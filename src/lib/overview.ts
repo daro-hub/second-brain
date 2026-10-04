@@ -187,7 +187,7 @@ export async function getDayBundle(dayKey: string): Promise<DayBundle> {
       // "studio" li mostra già, qui sarebbero un doppione.
       .filter((e) => !/^[📚🎓]/u.test(e.summary))
       .map((e) => ({
-        summary: e.summary,
+        summary: e.calendar ? `${e.summary} · ${e.calendar}` : e.summary,
         startH: e.allDay ? 0 : localHourDecimal(e.start),
         endH: e.allDay ? 24 : localHourDecimal(e.end),
         location: e.location,

@@ -26,7 +26,7 @@ export async function buildEveningDigest(): Promise<string> {
 
   const eventsText = events.length
     ? events
-        .map((e) => `${BULLET} ${bold(e.allDay ? "tutto il giorno" : localHHMM(e.start))} ${escapeHtml(e.summary)}`)
+        .map((e) => `${BULLET} ${bold(e.allDay ? "tutto il giorno" : localHHMM(e.start))} ${escapeHtml(e.summary)}${e.calendar ? ` (${escapeHtml(e.calendar)})` : ""}`)
         .join("\n")
     : `${BULLET} Nessun impegno.`;
 

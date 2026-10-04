@@ -424,7 +424,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
       const events = allEvents.filter((e) => !isStudySyncEvent(e.summary)).slice(0, 10);
       const eventsText = events.length
         ? events
-            .map((e) => `${new Date(e.start).toLocaleString("it-IT", { timeZone: "Europe/Rome" })} — ${e.summary}${e.location ? ` (${e.location})` : ""}`)
+            .map((e) => `${new Date(e.start).toLocaleString("it-IT", { timeZone: "Europe/Rome" })} — ${e.summary}${e.calendar ? ` [${e.calendar}]` : ""}${e.location ? ` (${e.location})` : ""}`)
             .join("\n")
         : "Nessuno";
 
@@ -439,7 +439,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
 
       src(trace, "calendar", `${events.length} prossimi eventi`, {
         href: "/",
-        items: events.map((e) => ({ text: e.summary, meta: new Date(e.start).toLocaleString("it-IT", { timeZone: "Europe/Rome", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) })),
+        items: events.map((e) => ({ text: e.calendar ? `${e.summary} · ${e.calendar}` : e.summary, meta: new Date(e.start).toLocaleString("it-IT", { timeZone: "Europe/Rome", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) })),
       });
       src(trace, "study", "Lezioni e studio dei prossimi 7 giorni", {
         href: "/",

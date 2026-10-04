@@ -3,7 +3,13 @@ import http from "node:http";
 
 const PORT = 3051;
 const REDIRECT_URI = `http://localhost:${PORT}/oauth/callback`;
-const SCOPE = "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.readonly";
+// Con --work si autorizza l'account di lavoro (francesco.darin@amuseapp.it): solo lettura del calendario,
+// il refresh token finisce in GOOGLE_REFRESH_TOKEN_WORK. Senza flag resta l'account personale di sempre.
+const WORK = process.argv.includes("--work");
+const TOKEN_VAR = WORK ? "GOOGLE_REFRESH_TOKEN_WORK" : "GOOGLE_REFRESH_TOKEN";
+const SCOPE = WORK
+  ? "https://www.googleapis.com/auth/calendar.readonly"
+  : "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.readonly";
 
 const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
 authUrl.searchParams.set("client_id", process.env.GOOGLE_CLIENT_ID);
@@ -12,6 +18,7 @@ authUrl.searchParams.set("response_type", "code");
 authUrl.searchParams.set("scope", SCOPE);
 authUrl.searchParams.set("access_type", "offline");
 authUrl.searchParams.set("prompt", "consent");
+if (WORK) authUrl.searchParams.set("login_hint", "francesco.darin@amuseapp.it");
 
 console.log("\nApri questo link, accedi e dai il consenso:\n");
 console.log(authUrl.toString());
@@ -48,10 +55,11 @@ const server = http.createServer(async (req, res) => {
     const fs = await import("node:fs");
     const envPath = new URL("../.env", import.meta.url);
     let envContent = fs.readFileSync(envPath, "utf-8");
-    if (envContent.includes("GOOGLE_REFRESH_TOKEN=")) {
-      envContent = envContent.replace(/GOOGLE_REFRESH_TOKEN=.*/, `GOOGLE_REFRESH_TOKEN=${tokens.refresh_token}`);
+    const line = new RegExp(`^${TOKEN_VAR}=.*`, "m");
+    if (line.test(envContent)) {
+      envContent = envContent.replace(line, `${TOKEN_VAR}=${tokens.refresh_token}`);
     } else {
-      envContent += `GOOGLE_REFRESH_TOKEN=${tokens.refresh_token}\n`;
+      envContent += `${envContent.endsWith("\n") ? "" : "\n"}${TOKEN_VAR}=${tokens.refresh_token}\n`;
     }
     fs.writeFileSync(envPath, envContent);
     console.log("Salvato in .env. Puoi chiudere questo script (Ctrl+C) e tornare alla chat.");
