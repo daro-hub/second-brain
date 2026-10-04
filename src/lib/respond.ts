@@ -8,7 +8,13 @@ import { searchIssues } from "./linear";
 import { searchSemantic } from "./search";
 import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList } from "./shoppingList";
 import { getRecentActivities } from "./strava";
-import { findMatchingRoutine, getLastSession, getRoutinePreview, logWorkout } from "./workouts";
+import {
+  findMatchingRoutine,
+  getLastSession,
+  getNextRoutineToTrain,
+  getRoutinePreview,
+  logWorkout,
+} from "./workouts";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -46,6 +52,22 @@ ${contextText}`,
   return res.choices[0].message.content ?? "Non so cosa risponderti.";
 }
 
+async function replyWithGymPlan(): Promise<string> {
+  const routine = await getNextRoutineToTrain();
+  if (routine === "riposo") {
+    return "🛋️ Oggi riposo, nessun allenamento in programma.";
+  }
+  const preview = await getRoutinePreview(routine);
+  if (!preview) return `Nessun esercizio definito per "${routine}".`;
+  const previewText = preview
+    .map((p, i) => {
+      if (!p.last) return `${i + 1}. ${p.exercise} — nessun dato registrato`;
+      return `${i + 1}. ${p.exercise} — ${p.last.weight_kg}kg x${p.last.reps} (${p.last.sets} set)`;
+    })
+    .join("\n");
+  return `🏋️ Allenamento di oggi: ${routine}\n\n${previewText}`;
+}
+
 async function replyWithShoppingList(): Promise<string> {
   try {
     const list = await getActiveShoppingList();
@@ -61,6 +83,11 @@ export async function handleMessage(text: string): Promise<string> {
   // classificatore LLM — zero costo/latenza per il caso d'uso più comune.
   if (text.trim().toLowerCase() === "spesa") {
     return replyWithShoppingList();
+  }
+
+  // Stesso principio: "gym" da sola -> piano di oggi, solo Supabase + calcoli, zero LLM.
+  if (text.trim().toLowerCase() === "gym") {
+    return replyWithGymPlan();
   }
 
   const routineName = await findMatchingRoutine(text);
