@@ -58,8 +58,14 @@ riceve via push da un'Automazione Shortcuts sul telefono, protetta da
 - `src/telegram/dev.ts` — long-polling locale, per test (`npm run bot`)
 - `app/api/telegram/route.ts` — webhook Vercel (produzione reale)
 - `src/mcp/server.ts` — server MCP stdio, un tool per ogni capacità
-- `app/palestra/page.tsx`, `app/bot/page.tsx` — dashboard Next.js (grafici
-  progressione, mappa PCA 2D della KB per somiglianza semantica reale)
+- `app/page.tsx` (Oggi), `app/salute`, `app/palestra`, `app/insights`
+  (Incroci), `app/spesa`, `app/bot` — dashboard Next.js. "Oggi" sovrappone
+  su un asse orario battito, passi, pasti, lezioni, calendario e
+  allenamenti; "Incroci" mette in relazione fonti diverse e dichiara quanti
+  dati servono prima di mostrare un risultato (sotto soglia mostra
+  l'avanzamento della raccolta, non correlazioni inventate)
+- `middleware.ts` — password (HTTP Basic) opzionale per le pagine della
+  dashboard, vedi sotto
 
 ## Setup
 
@@ -89,6 +95,14 @@ riceve via push da un'Automazione Shortcuts sul telefono, protetta da
     (SSO)** del progetto, altrimenti Telegram non riesce a chiamare il
     webhook. Registra il webhook: `curl
     "https://api.telegram.org/bot<TOKEN>/setWebhook?url=<URL>/api/telegram"`
+12. **Proteggi la dashboard.** Con la Deployment Protection disattivata (passo
+    11) le pagine sono pubbliche: chiunque conosca l'URL vede alimentazione,
+    battito, calendario e allenamenti. Imposta `DASHBOARD_PASSWORD` su Vercel
+    (`vercel env add DASHBOARD_PASSWORD production`) e rifai il deploy: le
+    pagine chiedono una password (HTTP Basic, il nome utente è ignorato). Le
+    route `/api/*` restano escluse perché hanno già i loro segreti (webhook
+    Telegram, cron, sincronizzazione Health). Senza la variabile non cambia
+    nulla.
 
 ## Uso (Telegram, linguaggio naturale)
 
