@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { formatHistory, type Turn } from "./chatHistory";
+import { todayKey } from "./time";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -24,7 +25,7 @@ export type MessageIntent =
   | { type: "password_request"; itemName: string }
   | { type: "github_query"; repoName: string }
   | { type: "linear_query"; term: string }
-  | { type: "calendar_query" }
+  | { type: "calendar_query"; startDate: string | null; endDate: string | null }
   | {
       type: "calendar_add";
       summary: string;
@@ -45,7 +46,7 @@ export type MessageIntent =
   | { type: "none"; save: boolean };
 
 export async function classifyMessage(text: string, history: Turn[] = []): Promise<MessageIntent> {
-  const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
+  const today = todayKey(); // YYYY-MM-DD in ora italiana (il server gira in UTC)
   const res = await openai.chat.completions.create({
     model: "gpt-6-luna",
     response_format: { type: "json_object" },
@@ -60,7 +61,7 @@ export async function classifyMessage(text: string, history: Turn[] = []): Promi
 3. Richiesta di recuperare una password salvata (es. "password di Supabase", "mi serve la password del progetto Longevity", "password wifi"): {"intent": "password_request", "itemName": string}
 4. Domanda su un repository GitHub/progetto di codice (es. "il link di Orbis", "cosa fa Scolastica", "parlami del progetto Longevity"): {"intent": "github_query", "repoName": string}
 5. Domanda su issue/task di lavoro Linear (es. "a che punto è l'issue sull'audio?", "ci sono task aperti su AMU-803?"): {"intent": "linear_query", "term": string}
-6. Domanda sul calendario/agenda/impegni generici, NON di studio (es. "cosa ho in agenda?", "quali sono i prossimi impegni?", "quando è il compleanno di papà?"): {"intent": "calendar_query"}
+6. Domanda sul calendario/agenda/impegni generici, NON di studio (es. "cosa ho in agenda?", "quali sono i prossimi impegni?", "quando è il compleanno di papà?", "domani cosa devo fare?", "che riunioni ho giovedì?"): {"intent": "calendar_query", "startDate": "YYYY-MM-DD oppure null", "endDate": "YYYY-MM-DD oppure null"} — se la domanda riguarda un giorno o un periodo preciso (domani, lunedì, questa settimana, nel weekend) risolvi tu le date assolute usando la data di oggi sopra (stesso giorno in startDate ed endDate per un giorno solo); se è generica (prossimi impegni) metti null in entrambi.
 6b. Richiesta di AGGIUNGERE un evento al calendario (es. "domani alle 18 ho il dentista", "venerdì alle 10 riunione con Marco", "aggiungi appuntamento alle 15:30"): {"intent": "calendar_add", "summary": string, "date": "YYYY-MM-DD" (risolvi tu la data assoluta da riferimenti relativi come "domani"/"venerdì" usando la data di oggi sopra), "startTime": "HH:MM", "endTime": "HH:MM oppure null se non specificato", "location": string oppure null}
 7. Domanda sulle attività sportive/corse/allenamenti tracciati su Strava (es. "quanto ho corso questa settimana?", "le mie ultime attività Strava"): {"intent": "strava_query"}
 7b. Domanda sull'orario di studio/lezioni universitarie per un giorno specifico (es. "domani cosa devo studiare?", "che lezioni ho lunedì?", "cosa ho di studio oggi?") — DIVERSA da una domanda sul calendario/agenda generica, è specifica sull'orario di studio/università: {"intent": "study_schedule_query", "date": "YYYY-MM-DD" (risolvi tu la data assoluta da riferimenti relativi come "domani"/"oggi"/"lunedì" usando la data di oggi sopra)}
@@ -122,7 +123,12 @@ export async function classifyMessage(text: string, history: Turn[] = []): Promi
     return { type: "linear_query", term: String(parsed.term).trim() };
   }
   if (parsed.intent === "calendar_query") {
-    return { type: "calendar_query" };
+    const ok = (v: unknown) => typeof v === "string" && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(v);
+    return {
+      type: "calendar_query",
+      startDate: ok(parsed.startDate) && ok(parsed.endDate) ? parsed.startDate : null,
+      endDate: ok(parsed.startDate) && ok(parsed.endDate) ? parsed.endDate : null,
+    };
   }
   if (parsed.intent === "calendar_add" && parsed.summary && parsed.date && parsed.startTime) {
     return {

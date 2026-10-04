@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { getPassword } from "./bitwarden";
-import { createEvent, getUpcomingEvents, isStudySyncEvent } from "./calendar";
+import { createEvent, getEventsInRange, getUpcomingEvents, isStudySyncEvent } from "./calendar";
 import { addTurns, formatHistory, recentTurns, toPlain, type Turn } from "./chatHistory";
 import { bold, BULLET, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
 import { getRepoInfo } from "./github";
@@ -9,6 +9,7 @@ import { ingest } from "./ingest";
 import { classifyMessage } from "./intent";
 import { searchIssues } from "./linear";
 import { searchSemantic } from "./search";
+import { addDays, dateKey, dayRangeUtc, formatDayLong, localHHMM, todayKey, weekdayOf } from "./time";
 import { SOURCE_LABELS, type Source, type SourceId, type Trace } from "./trace";
 import { getRunningStats } from "./dashboard";
 import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList } from "./shoppingList";
@@ -60,7 +61,7 @@ async function respondConversationally(text: string, trace?: Trace, history: Tur
     messages: [
       {
         role: "system",
-        content: `Sei Aira, l'assistente personale di Daro su Telegram — una specie di Jarvis al femminile: lo conosci bene, gli fai da segretaria, lo aiuti a tenere insieme lavoro, università, allenamenti e vita privata. Non sei un assistente AI generico né un bot che legge dati — sei una presenza amichevole e competente con cui ha una conversazione normale, non formale.
+        content: `Adesso è ${formatDayLong(todayKey())}, ore ${localHHMM(new Date())} (Europe/Rome).\n\nSei Aira, l'assistente personale di Daro su Telegram — una specie di Jarvis al femminile: lo conosci bene, gli fai da segretaria, lo aiuti a tenere insieme lavoro, università, allenamenti e vita privata. Non sei un assistente AI generico né un bot che legge dati — sei una presenza amichevole e competente con cui ha una conversazione normale, non formale.
 
 Regole di conversazione:
 - Rispondi sempre in italiano.
@@ -106,7 +107,7 @@ async function answerFromData(text: string, context: string, extraGuidance?: str
     messages: [
       {
         role: "system",
-        content: `Sei Aira, l'assistente personale di Daro. Rispondi alla sua domanda usando SOLO i dati reali sotto — non inventare nulla che non c'è. Se la domanda è una richiesta semplice di elenco/riepilogo, rispondi in modo diretto; se invece richiede un'analisi, un confronto, una risposta puntuale o un consiglio (es. "ho tempo libero venerdì?", "qual è la più urgente?", "a che velocità posso correre oggi?"), ragiona sui dati sotto e rispondi specificamente a quello che ha chiesto, non limitarti a ripetere l'elenco.
+        content: `Adesso è ${formatDayLong(todayKey())}, ore ${localHHMM(new Date())} (Europe/Rome): "oggi", "domani" e simili si riferiscono a questa data.\n\nSei Aira, l'assistente personale di Daro. Rispondi alla sua domanda usando SOLO i dati reali sotto — non inventare nulla che non c'è. Se la domanda è una richiesta semplice di elenco/riepilogo, rispondi in modo diretto; se invece richiede un'analisi, un confronto, una risposta puntuale o un consiglio (es. "ho tempo libero venerdì?", "qual è la più urgente?", "a che velocità posso correre oggi?"), ragiona sui dati sotto e rispondi specificamente a quello che ha chiesto, non limitarti a ripetere l'elenco.
 
 I dati sotto arrivano da una ricerca che può restituire risultati non pertinenti (es. corrispondenze deboli su una parola chiave). Prima di rispondere, valuta se i dati sotto rispondono davvero alla domanda: se sembrano chiaramente scorrelati, dillo esplicitamente ("non ho trovato nulla che corrisponda davvero a...") invece di presentarli come se fossero la risposta.${extraGuidance ? `\n\n${extraGuidance}` : ""}
 
@@ -408,47 +409,52 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
       // Una domanda generica tipo "cosa devo fare questa settimana?" riguarda tutta la
       // vita di Daro, non solo Google Calendar: senza studio/palestra la risposta è
       // incompleta anche se tecnicamente corretta sui soli eventi di calendario.
+      // Periodo richiesto (es. "domani"): si leggono ESATTAMENTE quei giorni, con confini in ora italiana.
+      // Senza periodo: prossimi impegni da adesso. Prima il modello riceveva solo date senza giorno della
+      // settimana e non sapeva che giorno fosse oggi, quindi "domani" diventava il primo giorno della lista.
+      const today = todayKey();
+      const rangeStart = intent.startDate ?? today;
+      const rangeEnd = intent.startDate && intent.endDate ? intent.endDate : addDays(today, 6);
+      const hasRange = Boolean(intent.startDate && intent.endDate);
+      const dayKeys: string[] = [];
+      for (let k = rangeStart; k <= rangeEnd && dayKeys.length < 14; k = addDays(k, 1)) dayKeys.push(k);
+
       const [allEvents, weekSchedule, nextRoutine] = await Promise.all([
-        getUpcomingEvents(14),
-        Promise.all(
-          Array.from({ length: 7 }, (_, i) => {
-            const d = new Date();
-            d.setDate(d.getDate() + i);
-            return getScheduleForDay(d.getDay()).then((slots) => ({ date: d, slots }));
-          }),
-        ),
+        hasRange ? getEventsInRange(dayRangeUtc(rangeStart).from, dayRangeUtc(rangeEnd).to) : getUpcomingEvents(30),
+        Promise.all(dayKeys.map((key) => getScheduleForDay(weekdayOf(key)).then((slots) => ({ key, slots })))),
         getNextRoutineToTrain(),
       ]);
 
       // gli eventi 📚/🎓 sono l'orario di studio sincronizzato su Calendar: già coperto da "Orario di studio"
-      const events = allEvents.filter((e) => !isStudySyncEvent(e.summary)).slice(0, 10);
+      const events = allEvents.filter((e) => !isStudySyncEvent(e.summary)).slice(0, 25);
+      const dayOf = (iso: string) => formatDayLong(dateKey(iso));
       const eventsText = events.length
         ? events
-            .map((e) => `${new Date(e.start).toLocaleString("it-IT", { timeZone: "Europe/Rome" })} — ${e.summary}${e.calendar ? ` [${e.calendar}]` : ""}${e.location ? ` (${e.location})` : ""}`)
+            .map((e) => {
+              const when = e.start.length <= 10 ? "tutto il giorno" : localHHMM(e.start);
+              return `${dayOf(e.start)} ${when} — ${e.summary}${e.calendar ? ` [${e.calendar}]` : ""}${e.location ? ` (${e.location})` : ""}`;
+            })
             .join("\n")
         : "Nessuno";
 
-      const scheduleText = weekSchedule
-        .filter((d) => d.slots.length)
-        .map((d) => {
-          const label = d.date.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
-          const slots = d.slots.map((s) => `${s.startTime}-${s.endTime} ${s.type}: ${s.subject}`).join(", ");
-          return `${label}: ${slots}`;
-        })
-        .join("\n") || "Nessuna lezione/studio in programma questa settimana";
+      const scheduleText =
+        weekSchedule
+          .filter((d) => d.slots.length)
+          .map((d) => `${formatDayLong(d.key)}: ${d.slots.map((s) => `${s.startTime}-${s.endTime} ${s.type}: ${s.subject}`).join(", ")}`)
+          .join("\n") || "Nessuna lezione/studio in programma nel periodo";
 
-      src(trace, "calendar", `${events.length} prossimi eventi`, {
+      src(trace, "calendar", `${events.length} eventi${hasRange ? ` dal ${rangeStart} al ${rangeEnd}` : " in arrivo"}`, {
         href: "/",
-        items: events.map((e) => ({ text: e.calendar ? `${e.summary} · ${e.calendar}` : e.summary, meta: new Date(e.start).toLocaleString("it-IT", { timeZone: "Europe/Rome", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) })),
+        items: events.map((e) => ({ text: e.calendar ? `${e.summary} · ${e.calendar}` : e.summary, meta: `${dayOf(e.start)} ${e.start.length <= 10 ? "" : localHHMM(e.start)}`.trim() })),
       });
-      src(trace, "study", "Lezioni e studio dei prossimi 7 giorni", {
+      src(trace, "study", "Lezioni e studio del periodo", {
         href: "/",
         items: weekSchedule
-          .flatMap((d) => d.slots.map((s) => ({ text: s.subject, meta: `${d.date.toLocaleDateString("it-IT", { weekday: "short", day: "numeric" })} ${s.startTime}-${s.endTime}` })))
+          .flatMap((d) => d.slots.map((s) => ({ text: s.subject, meta: `${formatDayLong(d.key)} ${s.startTime}-${s.endTime}` })))
           .slice(0, 8),
       });
       src(trace, "gym", `Prossima routine: ${nextRoutine}`, { href: "/palestra" });
-      const context = `Eventi in calendario (entro 30 giorni):\n${eventsText}\n\nOrario di studio/lezioni dei prossimi 7 giorni:\n${scheduleText}\n\nAllenamento: prossima routine in programma è "${nextRoutine}"`;
+      const context = `Periodo richiesto: ${hasRange ? (rangeStart === rangeEnd ? formatDayLong(rangeStart) : `dal ${formatDayLong(rangeStart)} al ${formatDayLong(rangeEnd)}`) : "prossimi giorni"}\n\nEventi in calendario:\n${eventsText}\n\nOrario di studio/lezioni:\n${scheduleText}\n\nAllenamento: prossima routine in programma è "${nextRoutine}"`;
       return await answerFromData(
         text,
         context,
