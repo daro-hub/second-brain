@@ -84,6 +84,13 @@ export interface HealthMetricPoint {
   payload: Record<string, unknown>;
 }
 
+// endDate è una data (YYYY-MM-DD): va estesa a fine giornata, altrimenti il confronto
+// con recorded_at (timestamp) la tratterebbe come mezzanotte ed escluderebbe tutto il
+// giorno stesso.
+function endOfDay(dateStr: string): string {
+  return `${dateStr}T23:59:59.999`;
+}
+
 export async function getMetricForRange(
   metricName: string,
   startDate: string,
@@ -94,7 +101,7 @@ export async function getMetricForRange(
     .select("recorded_at, value, units, payload")
     .eq("metric_name", metricName)
     .gte("recorded_at", startDate)
-    .lte("recorded_at", endDate)
+    .lte("recorded_at", endOfDay(endDate))
     .order("recorded_at", { ascending: true });
   if (error) throw error;
   return (data ?? []).map((r) => ({
@@ -109,4 +116,54 @@ export async function getDistinctMetricNames(): Promise<string[]> {
   const { data, error } = await supabase.from("health_metrics").select("metric_name");
   if (error) throw error;
   return [...new Set((data ?? []).map((r) => r.metric_name as string))];
+}
+
+export interface MetricSummary {
+  metricName: string;
+  units: string | null;
+  pointCount: number;
+  sum: number | null;
+  avg: number | null;
+  min: number | null;
+  max: number | null;
+}
+
+/**
+ * Aggrega i punti di una metrica in un periodo. Calcola i numeri in codice (mai
+ * lasciati all'LLM, stesso principio già usato per il passo delle corse Strava) —
+ * la sintesi in linguaggio naturale della risposta resta compito del modello.
+ * Gestisce le due forme più comuni: metriche con "qty" singolo (somma/media/min/max
+ * sul valore) e metriche Min/Avg/Max già aggregate come heart_rate (media degli Avg,
+ * min degli Min, max dei Max). Altre forme (es. sleep_analysis, blood_pressure) non
+ * hanno ancora un'aggregazione dedicata: tornano solo il conteggio punti.
+ */
+export async function getMetricSummary(
+  metricName: string,
+  startDate: string,
+  endDate: string,
+): Promise<MetricSummary> {
+  const points = await getMetricForRange(metricName, startDate, endDate);
+  const units = points[0]?.units ?? null;
+  const base: MetricSummary = { metricName, units, pointCount: points.length, sum: null, avg: null, min: null, max: null };
+  if (!points.length) return base;
+
+  const qtyValues = points.map((p) => p.value).filter((v): v is number => v !== null);
+  if (qtyValues.length) {
+    const sum = qtyValues.reduce((a, b) => a + b, 0);
+    return { ...base, sum, avg: sum / qtyValues.length, min: Math.min(...qtyValues), max: Math.max(...qtyValues) };
+  }
+
+  const avgs = points.map((p) => p.payload?.Avg).filter((v): v is number => typeof v === "number");
+  const mins = points.map((p) => p.payload?.Min).filter((v): v is number => typeof v === "number");
+  const maxs = points.map((p) => p.payload?.Max).filter((v): v is number => typeof v === "number");
+  if (avgs.length) {
+    return {
+      ...base,
+      avg: avgs.reduce((a, b) => a + b, 0) / avgs.length,
+      min: mins.length ? Math.min(...mins) : null,
+      max: maxs.length ? Math.max(...maxs) : null,
+    };
+  }
+
+  return base;
 }

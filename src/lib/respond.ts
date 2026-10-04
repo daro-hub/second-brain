@@ -9,6 +9,7 @@ import { searchIssues } from "./linear";
 import { searchSemantic } from "./search";
 import { getRunningStats } from "./dashboard";
 import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList } from "./shoppingList";
+import { getMetricSummary } from "./health";
 import { getStepsStats } from "./steps";
 import {
   findMatchingRoutine,
@@ -377,6 +378,34 @@ export async function handleMessage(text: string): Promise<string> {
       return await answerFromData(text, context);
     } catch {
       return "Errore nel recupero dei dati sui passi.";
+    }
+  }
+
+  if (intent.type === "health_query") {
+    try {
+      const summaries = await Promise.all(
+        intent.metricNames.map((m) => getMetricSummary(m, intent.startDate, intent.endDate)),
+      );
+      const withData = summaries.filter((s) => s.pointCount > 0);
+      if (!withData.length) {
+        return "Nessun dato trovato per questo periodo — controlla che l'automazione Apple Health sia attiva e abbia già sincronizzato.";
+      }
+      const context = withData
+        .map((s) => {
+          const unit = s.units ? ` ${s.units}` : "";
+          const parts = [`Metrica: ${s.metricName}`, `Punti registrati: ${s.pointCount}`];
+          if (s.sum !== null) parts.push(`Totale: ${s.sum.toFixed(1)}${unit}`, `Media per punto: ${s.avg?.toFixed(1)}${unit}`);
+          else if (s.avg !== null) parts.push(`Media: ${s.avg.toFixed(1)}${unit}`, `Min: ${s.min}${unit}`, `Max: ${s.max}${unit}`);
+          return parts.join(", ");
+        })
+        .join("\n");
+      return await answerFromData(
+        text,
+        `Dati Apple Health dal ${intent.startDate} al ${intent.endDate}:\n${context}`,
+        "I numeri (totale/media/min/max) sono già calcolati, non ricalcolarli tu. Se una metrica richiesta non compare nei dati sopra, significa che non c'è ancora stato sincronizzato nulla per quel periodo — dillo invece di inventare un valore.",
+      );
+    } catch {
+      return "Errore nel recupero dei dati di salute.";
     }
   }
 
