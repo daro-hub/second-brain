@@ -20,13 +20,16 @@ import {
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const RELEVANCE_THRESHOLD = 0.5;
-
 async function respondConversationally(text: string): Promise<string> {
+  // Niente soglia numerica sulla similarity: con text-embedding-3-small, risposte
+  // corrette su fatti personali spesso cadono a 0.3-0.45 (osservato con "dove lavoro?",
+  // "con chi vivo?", "quanto peso ora?" — tutte scartate da una soglia 0.5, con risposta
+  // falsa "non lo so" nonostante il dato fosse presente). La similarity assoluta non è un
+  // proxy affidabile di pertinenza su testi brevi: si passano sempre i top-3 risultati e
+  // si lascia che sia l'istruzione nel prompt sotto a giudicare cosa è davvero pertinente.
   const results = await searchSemantic(text, 3);
-  const relevant = results.filter((r) => (r.similarity ?? 0) > RELEVANCE_THRESHOLD);
-  const contextText = relevant.length
-    ? relevant.map((r) => `- (${r.source}) ${r.content}`).join("\n")
+  const contextText = results.length
+    ? results.map((r) => `- (${r.source}) ${r.content}`).join("\n")
     : "Nessuna informazione pertinente trovata nella knowledge base.";
 
   const res = await openai.chat.completions.create({
@@ -41,10 +44,10 @@ Regole di conversazione:
 - Calibra la lunghezza della risposta alla domanda: a una domanda breve e informale ("come stai", "ciao") rispondi in una frase o due, non di più.
 - Non ripetere la domanda, non riassumere quello che ti ha appena detto prima di rispondere.
 - Non scrivere mai un paragrafo lungo e compatto: se la risposta ha più di un punto, o rischia di diventare un muro di testo, spezzala in una lista breve (ogni riga comincia con "${BULLET} ") o in righe corte — più facile da leggere su Telegram che un blocco di prosa.
-- Puoi usare la formattazione HTML di Telegram per dare risalto: <b>testo</b> per grassetto, <i>testo</i> per corsivo — con moderazione, solo dove aiuta davvero la leggibilità (es. il nome di un esercizio, un dato numerico importante).
+- Puoi usare la formattazione HTML di Telegram per dare risalto: <b>testo</b> per grassetto, <i>testo</i> per corsivo — con moderazione, solo dove aiuta davvero la leggibilità (es. il nome di un esercizio, un dato numerico importante). MAI markdown con asterischi (**testo**): il bot invia in modalità HTML, gli asterischi comparirebbero letteralmente.
 - Se non sai qualcosa, dillo chiaramente invece di inventare — meglio "non lo so" che un'informazione falsa su di lui.
 - Puoi avere un tono leggero, simpatico, con qualche emoji con moderazione — non essere né robotica né eccessivamente formale/burocratica.
-- Se nel contesto sotto c'è un'informazione davvero pertinente alla domanda, usala per rispondere; altrimenti rispondi in modo conversazionale senza inventare fatti su di lui che non conosci.
+- Il contesto sotto è il risultato di una ricerca per similarità e può includere voci non pertinenti alla domanda — valutale tu una per una: se qualcosa risponde davvero alla domanda usalo per rispondere, anche se è solo una delle voci; se nulla nel contesto risponde davvero, dillo chiaramente invece di usare un dato non correlato o inventare.
 
 Se Daro ti chiede chi sei, cosa sai fare o quali sono le tue funzionalità, NON rispondere con capacità generiche da assistente AI (scrivere/rivedere testi, tradurre, fare ricerche, spiegare argomenti) — quello non è il tuo ruolo qui. Rispondi invece in modo naturale e discorsivo (o con una breve lista, se più chiara) descrivendo le tue capacità reali e concrete su questo bot:
 ${BULLET} hai una knowledge base personale su di lui (progetti, interessi, competenze, note che ti dice di ricordare) da cui attingi per rispondere
