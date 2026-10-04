@@ -46,7 +46,23 @@ ${contextText}`,
   return res.choices[0].message.content ?? "Non so cosa risponderti.";
 }
 
+async function replyWithShoppingList(): Promise<string> {
+  try {
+    const list = await getActiveShoppingList();
+    if (!list.length) return "La lista della spesa è vuota 🛒";
+    return `Lista della spesa:\n${list.map((l) => `- ${l.item}`).join("\n")}`;
+  } catch {
+    return "Errore nel recupero della lista della spesa.";
+  }
+}
+
 export async function handleMessage(text: string): Promise<string> {
+  // Parola d'ordine: "spesa" da sola risponde subito con la lista, senza passare dal
+  // classificatore LLM — zero costo/latenza per il caso d'uso più comune.
+  if (text.trim().toLowerCase() === "spesa") {
+    return replyWithShoppingList();
+  }
+
   const routineName = await findMatchingRoutine(text);
   if (routineName) {
     const preview = await getRoutinePreview(routineName);
@@ -153,13 +169,7 @@ export async function handleMessage(text: string): Promise<string> {
   }
 
   if (intent.type === "shopping_query") {
-    try {
-      const list = await getActiveShoppingList();
-      if (!list.length) return "La lista della spesa è vuota 🛒";
-      return `Lista della spesa:\n${list.map((l) => `- ${l.item}`).join("\n")}`;
-    } catch {
-      return "Errore nel recupero della lista della spesa.";
-    }
+    return replyWithShoppingList();
   }
 
   if (!intent.save) {
