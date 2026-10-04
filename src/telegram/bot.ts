@@ -33,4 +33,4 @@ bot.on("message:text", async (ctx) => {
   await ctx.reply(`Salvato ✅ (${id})`);
 });
 
-bot.start();
+export { bot };

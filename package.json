@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "bot": "tsx src/telegram/bot.ts",
+    "bot": "tsx src/telegram/dev.ts",
     "mcp": "tsx src/mcp/server.ts",
-    "build": "tsc"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
