@@ -104,6 +104,21 @@ riceve via push da un'Automazione Shortcuts sul telefono, protetta da
     Telegram, cron, sincronizzazione Health). Senza la variabile non cambia
     nulla.
 
+## Aira sul web (`/aira`)
+
+Interfaccia a schermo intero in stile Jarvis per parlare o scrivere ad Aira dal browser: stessa
+pipeline del bot Telegram (`handleMessageTraced` in `src/lib/respond.ts`, stesso classificatore e
+stesse integrazioni), più un pannello **Fonti dati** che mostra in tempo reale da quali sorgenti
+arriva la risposta (calendario, Apple Health, Strava, KB, Linear…) con link alla dashboard dedicata.
+
+- **Testo**: scrivi nella barra in basso. **Live**: il bottone 🎙 attiva l'ascolto a mani libere
+  (rilevamento del parlato nel browser → `/api/aira/transcribe` → chat → `/api/aira/speak`).
+  Toccando l'orb mentre Aira parla la interrompi.
+- Le API `/api/aira/*` (chat in streaming NDJSON, trascrizione, voce) leggono password, calendario
+  ed email: **richiedono `DASHBOARD_PASSWORD`**; in produzione, senza, rispondono 503 (fail closed).
+- Le risposte con password non vengono mai lette ad alta voce e restano mascherate finché non
+  premi "Mostra".
+
 ## Uso (Telegram, linguaggio naturale)
 
 Scrivi normalmente, nessun comando necessario — il classificatore capisce da
