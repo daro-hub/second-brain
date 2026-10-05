@@ -50,3 +50,38 @@ describe("formatWhen / describeOverlap", () => {
     expect(describeOverlap(o)).toContain("30 minuti in comune");
   });
 });
+
+import { addMinutes, matchEvents, normTime, parseCalendarOps } from "../src/lib/agenda";
+
+describe("parseCalendarOps", () => {
+  it("accetta più operazioni e scarta quelle incomplete", () => {
+    const ops = parseCalendarOps([
+      { op: "update", match: "assemblea", date: "2026-10-05", startTime: "20:00", endTime: null },
+      { op: "add", summary: "Passare da Nicole", date: "2026-10-05", startTime: "19:45", endTime: null, location: null },
+      { op: "add", summary: "senza orario", date: "2026-10-05" },
+      { op: "update", date: "2026-10-05", startTime: "20:00" },
+      { op: "boh", summary: "x", date: "2026-10-05", startTime: "10:00" },
+    ]);
+    expect(ops.map((o) => o.op)).toEqual(["update", "add"]);
+  });
+  it("normalizza gli orari e scarta quelli impossibili", () => {
+    expect(normTime("9:05")).toBe("09:05");
+    expect(normTime("25:00")).toBeNull();
+    expect(normTime("ciao")).toBeNull();
+  });
+  it("input non array → nessuna operazione", () => expect(parseCalendarOps(undefined)).toEqual([]));
+});
+
+describe("matchEvents / addMinutes", () => {
+  const evs = [{ summary: "Assemblea di ESN" }, { summary: "Passare da Nicole" }];
+  it("trova per parola chiave senza badare a maiuscole e accenti", () => {
+    expect(matchEvents(evs, "assemblea")).toHaveLength(1);
+    expect(matchEvents(evs, "NICOLE")).toHaveLength(1);
+    expect(matchEvents(evs, "riunione")).toHaveLength(0);
+    expect(matchEvents(evs, "da")).toHaveLength(0); // parole troppo corte: nessun match casuale
+  });
+  it("somma minuti senza uscire dal giorno", () => {
+    expect(addMinutes("19:30", 60)).toBe("20:30");
+    expect(addMinutes("23:30", 120)).toBe("23:59");
+  });
+});

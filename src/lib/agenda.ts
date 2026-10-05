@@ -50,3 +50,59 @@ export function findOverlaps(events: AgendaEvent[]): Overlap[] {
 
 export const describeOverlap = (o: Overlap): string =>
   `${dateKey(o.b.start)}: "${o.a.summary}" (${formatWhen(o.a)}) e "${o.b.summary}" (${formatWhen(o.b)}) hanno ${o.minutes} minuti in comune`;
+
+/* ───────── modifiche al calendario da messaggio ───────── */
+
+export type CalendarOp =
+  | { op: "add"; summary: string; date: string; startTime: string; endTime: string | null; location: string | null }
+  | { op: "update"; match: string; date: string; startTime: string; endTime: string | null };
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** "9:00" → "09:00"; qualunque cosa che non sia un orario valido → null. */
+export function normTime(v: unknown): string | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(v ?? "").trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  return h <= 23 && min <= 59 ? `${String(h).padStart(2, "0")}:${m[2]}` : null;
+}
+
+/** Valida le operazioni restituite dal classificatore: quelle incomplete o malformate si scartano. */
+export function parseCalendarOps(raw: unknown): CalendarOp[] {
+  if (!Array.isArray(raw)) return [];
+  const ops: CalendarOp[] = [];
+  for (const r of raw as Record<string, unknown>[]) {
+    const date = String(r?.date ?? "").trim();
+    const startTime = normTime(r?.startTime);
+    if (!DATE_RE.test(date) || !startTime) continue;
+    const endTime = r.endTime ? normTime(r.endTime) : null;
+    if (r.op === "add" && r.summary) {
+      ops.push({ op: "add", summary: String(r.summary).trim(), date, startTime, endTime, location: r.location ? String(r.location).trim() : null });
+    } else if (r.op === "update" && r.match) {
+      ops.push({ op: "update", match: String(r.match).trim(), date, startTime, endTime });
+    }
+  }
+  return ops;
+}
+
+const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+/** Eventi il cui titolo contiene tutte le parole (≥3 lettere) di `query`, senza badare ad accenti e maiuscole. */
+export function matchEvents<T extends { summary: string }>(events: T[], query: string): T[] {
+  const tokens = norm(query).split(/[^a-z0-9]+/).filter((t) => t.length >= 3);
+  if (!tokens.length) return [];
+  return events.filter((e) => {
+    const s = norm(e.summary);
+    return tokens.every((t) => s.includes(t));
+  });
+}
+
+/** Somma minuti a un orario "HH:MM" senza uscire dal giorno (oltre la mezzanotte si ferma a 23:59). */
+export function addMinutes(hhmm: string, minutes: number): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const total = Math.min(23 * 60 + 59, Math.max(0, h * 60 + m + Math.round(minutes)));
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+export const minutesBetween = (startIso: string, endIso: string): number => Math.round((Date.parse(endIso) - Date.parse(startIso)) / 60_000);

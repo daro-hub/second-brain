@@ -13,6 +13,10 @@ export interface CalendarEventDetailed extends CalendarEvent {
   allDay: boolean;
   /** identificativo stabile dell evento (iCalUID), per deduplicare e ricordare gli avvisi già inviati */
   uid?: string;
+  /** per modificarlo: id dell'evento, calendario e account a cui appartiene */
+  id?: string;
+  calendarId?: string;
+  account?: GoogleAccount;
 }
 
 interface RawEvent {
@@ -20,6 +24,7 @@ interface RawEvent {
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
   location?: string;
+  id?: string;
   iCalUID?: string;
   status?: string;
 }
@@ -100,6 +105,9 @@ async function fetchFrom(ref: CalendarRef, params: Record<string, string>): Prom
       location: e.location,
       allDay: !e.start?.dateTime,
       calendar: ref.label ?? undefined,
+      id: e.id,
+      calendarId: ref.id,
+      account: ref.account,
       uid: e.iCalUID ?? `${ref.id}|${e.summary}|${e.start?.dateTime ?? e.start?.date}`,
     }));
 }
@@ -161,6 +169,23 @@ export async function createEvent(params: {
     end: e.end?.dateTime ?? e.end?.date ?? "",
     location: e.location,
   };
+}
+
+/**
+ * Sposta un evento esistente (PATCH solo di inizio e fine: titolo, luogo, invitati restano intatti).
+ * Lancia "read_only" se il calendario non è modificabile da questo account (es. calendario condiviso in sola lettura).
+ */
+export async function updateEventTime(ev: { id: string; calendarId: string; account: GoogleAccount }, start: string, end: string): Promise<CalendarEvent> {
+  const token = await getGoogleAccessToken(ev.account);
+  const res = await fetch(`${API}/calendars/${encodeURIComponent(ev.calendarId)}/events/${encodeURIComponent(ev.id)}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ start: { dateTime: start, timeZone: "Europe/Rome" }, end: { dateTime: end, timeZone: "Europe/Rome" } }),
+  });
+  if (res.status === 403 || res.status === 404) throw new Error("read_only");
+  if (!res.ok) throw new Error(`Google Calendar API error: ${res.status}`);
+  const e = await res.json();
+  return { summary: e.summary ?? "(senza titolo)", start: e.start?.dateTime ?? e.start?.date ?? "", end: e.end?.dateTime ?? e.end?.date ?? "", location: e.location };
 }
 
 export async function getUpcomingEvents(maxResults = 10, windowDays = 30): Promise<CalendarEvent[]> {

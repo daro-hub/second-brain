@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { formatHistory, type Turn } from "./chatHistory";
+import { parseCalendarOps, type CalendarOp } from "./agenda";
 import { perceivedTodayKey } from "./time";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -34,6 +35,7 @@ export type MessageIntent =
       endTime: string | null;
       location: string | null;
     }
+  | { type: "calendar_change"; ops: CalendarOp[] }
   | { type: "strava_query" }
   | { type: "study_schedule_query"; date: string }
   | { type: "shopping_add"; items: string[] }
@@ -62,7 +64,7 @@ export async function classifyMessage(text: string, history: Turn[] = []): Promi
 4. Domanda su un repository GitHub/progetto di codice (es. "il link di Orbis", "cosa fa Scolastica", "parlami del progetto Longevity"): {"intent": "github_query", "repoName": string}
 5. Domanda su issue/task di lavoro Linear (es. "a che punto è l'issue sull'audio?", "ci sono task aperti su AMU-803?"): {"intent": "linear_query", "term": string}
 6. Domanda sul calendario/agenda/impegni generici, NON di studio (es. "cosa ho in agenda?", "quali sono i prossimi impegni?", "quando è il compleanno di papà?", "domani cosa devo fare?", "che riunioni ho giovedì?"): {"intent": "calendar_query", "startDate": "YYYY-MM-DD oppure null", "endDate": "YYYY-MM-DD oppure null"} — se la domanda riguarda un giorno o un periodo preciso (domani, lunedì, questa settimana, nel weekend) risolvi tu le date assolute usando la data di oggi sopra (stesso giorno in startDate ed endDate per un giorno solo); se è generica (prossimi impegni) metti null in entrambi.
-6b. Richiesta di AGGIUNGERE un evento al calendario (es. "domani alle 18 ho il dentista", "venerdì alle 10 riunione con Marco", "aggiungi appuntamento alle 15:30"): {"intent": "calendar_add", "summary": string, "date": "YYYY-MM-DD" (risolvi tu la data assoluta da riferimenti relativi come "domani"/"venerdì" usando la data di oggi sopra), "startTime": "HH:MM", "endTime": "HH:MM oppure null se non specificato", "location": string oppure null}
+6b. Richiesta di AGGIUNGERE e/o SPOSTARE eventi del calendario (es. "domani alle 18 ho il dentista", "venerdì alle 10 riunione con Marco", "l'assemblea è alle 20", "sposta la riunione alle 15", "l'assemblea è alle 20 ma devo passare da Nicole alle 19:45"): {"intent": "calendar_change", "operations": [...]}. Un messaggio può contenere PIÙ operazioni: restituiscine una per ciascuna, mai ignorarne nessuna. Ogni operazione è una tra: {"op": "add", "summary": string, "date": "YYYY-MM-DD", "startTime": "HH:MM", "endTime": "HH:MM oppure null se non specificato", "location": string oppure null} per un evento NUOVO; {"op": "update", "match": "parole chiave del titolo dell'evento già esistente (es. \"assemblea\")", "date": "YYYY-MM-DD" del giorno in cui l'evento si trova, "startTime": "HH:MM" nuovo orario di inizio, "endTime": "HH:MM oppure null se la durata resta invariata"} quando l'utente CORREGGE l'orario di un evento che esiste già (di solito perché nella conversazione recente il bot gli ha mostrato un orario sbagliato: "l'assemblea è alle 20", "non è alle 19:30 ma alle 20"). Risolvi tu le date assolute da riferimenti relativi ("domani", "venerdì", "stasera" = oggi) usando la data di oggi sopra; se la data non è detta, usa quella della conversazione recente, altrimenti oggi.
 7. Domanda sulle attività sportive/corse/allenamenti tracciati su Strava (es. "quanto ho corso questa settimana?", "le mie ultime attività Strava"): {"intent": "strava_query"}
 7b. Domanda sull'orario di studio/lezioni universitarie per un giorno specifico (es. "domani cosa devo studiare?", "che lezioni ho lunedì?", "cosa ho di studio oggi?") — DIVERSA da una domanda sul calendario/agenda generica, è specifica sull'orario di studio/università: {"intent": "study_schedule_query", "date": "YYYY-MM-DD" (risolvi tu la data assoluta da riferimenti relativi come "domani"/"oggi"/"lunedì" usando la data di oggi sopra)}
 8. Aggiunta di uno o più articoli alla lista della spesa (es. "compra latte", "aggiungi pane e uova alla lista", "manca il detersivo", "finito il caffè" = è terminato, va comprato): {"intent": "shopping_add", "items": string[]}
@@ -129,6 +131,10 @@ export async function classifyMessage(text: string, history: Turn[] = []): Promi
       startDate: ok(parsed.startDate) && ok(parsed.endDate) ? parsed.startDate : null,
       endDate: ok(parsed.startDate) && ok(parsed.endDate) ? parsed.endDate : null,
     };
+  }
+  if (parsed.intent === "calendar_change") {
+    const ops = parseCalendarOps(parsed.operations);
+    if (ops.length) return { type: "calendar_change", ops };
   }
   if (parsed.intent === "calendar_add" && parsed.summary && parsed.date && parsed.startTime) {
     return {

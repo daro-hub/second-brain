@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { getPassword } from "./bitwarden";
 import { describeOverlap, findOverlaps, formatWhen } from "./agenda";
+import { applyCalendarOps } from "./calendarEdit";
 import { createEvent, getEventsInRange, getUpcomingEvents, isStudySyncEvent } from "./calendar";
 import { addTurns, formatHistory, recentTurns, toPlain, type Turn } from "./chatHistory";
 import { bold, BULLET, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
@@ -469,6 +470,17 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
     } catch (err) {
       reportError("respond/calendar_query", err);
       return "Errore nel recupero del calendario.";
+    }
+  }
+
+  if (intent.type === "calendar_change") {
+    try {
+      const r = await applyCalendarOps(intent.ops);
+      src(trace, "calendar", `${r.changed} modifiche al calendario`, { href: "/" });
+      return r.text;
+    } catch (err) {
+      reportError("respond/calendar_change", err);
+      return "Errore nella modifica del calendario.";
     }
   }
 
