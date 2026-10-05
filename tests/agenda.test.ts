@@ -19,8 +19,22 @@ describe("findOverlaps", () => {
   it("uno che finisce quando l'altro inizia non è un conflitto", () => {
     expect(findOverlaps([assemblea("2026-10-05T19:45:00+02:00"), nicole("2026-10-05T20:30:00+02:00")])).toEqual([]);
   });
-  it("gli eventi senza durata (start = end) non confliggono", () => {
-    expect(findOverlaps([assemblea("2026-10-05T21:00:00+02:00"), nicole("2026-10-05T19:45:00+02:00")])).toEqual([]);
+  it("un evento puntuale (senza durata) dentro un intervallo: 'cade durante', senza minuti inventati", () => {
+    const r = findOverlaps([assemblea("2026-10-05T20:30:00+02:00"), nicole("2026-10-05T19:45:00+02:00")]);
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ kind: "point", minutes: 0 });
+    expect(describeOverlap(r[0])).toContain("cade durante");
+    expect(describeOverlap(r[0])).not.toContain("minuti in comune");
+  });
+  it("un evento puntuale fuori dall'intervallo, o due puntuali tra loro, non confliggono", () => {
+    expect(findOverlaps([assemblea("2026-10-05T20:30:00+02:00"), ev("Prima", "2026-10-05T19:00:00+02:00", "2026-10-05T19:00:00+02:00")])).toEqual([]);
+    expect(findOverlaps([assemblea("2026-10-05T19:40:00+02:00"), nicole("2026-10-05T19:45:00+02:00")])).toEqual([]);
+    expect(findOverlaps([ev("P1", "2026-10-05T19:45:00+02:00", "2026-10-05T19:45:00+02:00"), ev("P2", "2026-10-05T19:45:00+02:00", "2026-10-05T19:50:00+02:00")])).toEqual([]);
+  });
+  it("entro 5 minuti conta come puntuale (Google vuole una fine): 19:45–19:50 dentro l'assemblea = 'cade durante'", () => {
+    const r = findOverlaps([assemblea("2026-10-05T20:30:00+02:00"), nicole("2026-10-05T19:50:00+02:00")]);
+    expect(r).toHaveLength(1);
+    expect(r[0].kind).toBe("point");
   });
   it("i tutto-il-giorno non confliggono con niente", () => {
     expect(findOverlaps([ev("Festa", "2026-10-05", "2026-10-06"), assemblea("2026-10-05T21:00:00+02:00")])).toEqual([]);
@@ -41,13 +55,16 @@ describe("formatWhen / describeOverlap", () => {
   it("mostra inizio–fine in ora italiana", () => {
     expect(formatWhen(assemblea("2026-10-05T21:00:00+02:00"))).toBe("19:30–21:00");
   });
-  it("senza durata reale mostra solo l'inizio; i tutto-il-giorno lo dicono", () => {
+  it("senza durata reale mostra solo l'inizio (anche se Google la salva di 5 minuti); i tutto-il-giorno lo dicono", () => {
     expect(formatWhen(nicole("2026-10-05T19:45:00+02:00"))).toBe("19:45");
+    expect(formatWhen(nicole("2026-10-05T19:50:00+02:00"))).toBe("19:45");
     expect(formatWhen(ev("Festa", "2026-10-05", "2026-10-06"))).toBe("tutto il giorno");
   });
-  it("descrive il conflitto con orari e minuti", () => {
+  it("descrive il conflitto con orari e minuti, con la data leggibile (non 2026-10-05)", () => {
     const [o] = findOverlaps([assemblea("2026-10-05T21:00:00+02:00"), nicole("2026-10-05T20:15:00+02:00")]);
     expect(describeOverlap(o)).toContain("30 minuti in comune");
+    expect(describeOverlap(o)).not.toContain("2026-10-05");
+    expect(describeOverlap(o)).toContain("ottobre");
   });
 });
 
@@ -63,6 +80,12 @@ describe("parseCalendarOps", () => {
       { op: "boh", summary: "x", date: "2026-10-05", startTime: "10:00" },
     ]);
     expect(ops.map((o) => o.op)).toEqual(["update", "add"]);
+  });
+  it("'non ha una durata' su una correzione diventa noDuration", () => {
+    const [op] = parseCalendarOps([{ op: "update", match: "nicole", date: "2026-10-05", startTime: "19:45", endTime: null, noDuration: true }]);
+    expect(op).toMatchObject({ op: "update", noDuration: true });
+    const [op2] = parseCalendarOps([{ op: "update", match: "nicole", date: "2026-10-05", startTime: "19:45" }]);
+    expect(op2).toMatchObject({ noDuration: false });
   });
   it("normalizza gli orari e scarta quelli impossibili", () => {
     expect(normTime("9:05")).toBe("09:05");

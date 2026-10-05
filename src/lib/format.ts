@@ -117,3 +117,14 @@ export function sanitizeTelegramHtml(raw: string): string {
     .join("");
   return balanced + stack.reverse().map((n) => `</${n}>`).join("");
 }
+
+/**
+ * Toglie le righe fatte SOLO di emoji ("📅", "📚", "🏋️" rimaste come intestazioni di sezioni senza contenuto):
+ * il modello le scriveva in fondo alla risposta. Non tocca righe con testo.
+ */
+export function dropEmptyIconLines(text: string): string {
+  const onlyIcons = /^[\p{Extended_Pictographic}\u{FE0F}\u{200D}\s]+$/u;
+  const kept = text.split("\n").filter((l) => !(l.trim() && l.trim().length <= 12 && onlyIcons.test(l)));
+  const out = kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return out || text;
+}

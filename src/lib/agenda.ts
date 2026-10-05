@@ -1,4 +1,4 @@
-import { dateKey, localHHMM } from "./time";
+import { dateKey, formatDayLong, localHHMM } from "./time";
 
 export interface AgendaEvent {
   summary: string;
@@ -11,51 +11,68 @@ export interface AgendaEvent {
 /** Evento con orario (ISO con ora): i "tutto il giorno" arrivano come data pura e non possono sovrapporsi a nulla. */
 const isTimed = (e: AgendaEvent) => e.start.length > 10 && e.end.length > 10;
 
-/** "19:30–20:30", oppure solo l'inizio se non c'è una durata reale; "tutto il giorno" per le date pure. */
+/**
+ * Un impegno senza durata ("passare da Nicole alle 19:45") è un evento PUNTUALE: Google richiede una fine, quindi si
+ * crea di 5 minuti; fino a 5 minuti conta come un orario, non come un intervallo.
+ */
+export const POINT_MAX_MIN = 5;
+const durationMin = (e: AgendaEvent) => Math.round((Date.parse(e.end) - Date.parse(e.start)) / 60_000);
+export const isPointEvent = (e: AgendaEvent): boolean => isTimed(e) && durationMin(e) <= POINT_MAX_MIN;
+
+/** "19:30–20:30" per un intervallo, solo "19:45" per un evento puntuale, "tutto il giorno" per le date pure. */
 export function formatWhen(e: AgendaEvent): string {
   if (!isTimed(e)) return "tutto il giorno";
-  const s = localHHMM(e.start);
-  const en = localHHMM(e.end);
-  return Date.parse(e.end) > Date.parse(e.start) ? `${s}–${en}` : s;
+  return isPointEvent(e) ? localHHMM(e.start) : `${localHHMM(e.start)}–${localHHMM(e.end)}`;
 }
 
 export interface Overlap {
   a: AgendaEvent;
   b: AgendaEvent;
-  /** minuti in comune */
+  /** "range": due intervalli che si sovrappongono; "point": un orario puntuale che cade dentro un intervallo */
+  kind: "range" | "point";
+  /** minuti in comune (0 per un evento puntuale) */
   minutes: number;
 }
 
 /**
- * Coppie di eventi con orario che si sovrappongono davvero (intervalli aperti: uno che finisce alle 19:30 non
- * confligge con uno che inizia alle 19:30). Gli eventi senza durata (promemoria, start = end) non contano.
- * Calcolato nel codice: al modello non si lascia dedurre i conflitti dalle sole ore di inizio.
+ * Conflitti tra eventi con orario, calcolati nel codice (il modello non li deduce dalle ore di inizio):
+ * - due intervalli che si sovrappongono davvero (uno che finisce alle 19:30 non confligge con uno che inizia alle 19:30);
+ * - un evento puntuale che cade DENTRO un intervallo (non puoi essere in due posti), ma mai due puntuali tra loro.
+ * Nessun "minuti in comune" inventato per gli eventi senza durata.
  */
 export function findOverlaps(events: AgendaEvent[]): Overlap[] {
-  const timed = events
-    .filter((e) => isTimed(e) && Date.parse(e.end) > Date.parse(e.start))
-    .sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
+  const timed = events.filter((e) => isTimed(e) && durationMin(e) >= 0).sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
+  const blocks = timed.filter((e) => !isPointEvent(e));
+  const points = timed.filter(isPointEvent);
   const out: Overlap[] = [];
-  for (let i = 0; i < timed.length; i++) {
-    for (let j = i + 1; j < timed.length; j++) {
-      const a = timed[i];
-      const b = timed[j];
+  for (let i = 0; i < blocks.length; i++) {
+    for (let j = i + 1; j < blocks.length; j++) {
+      const a = blocks[i];
+      const b = blocks[j];
       if (Date.parse(b.start) >= Date.parse(a.end)) break; // ordinati per inizio: oltre non ce ne sono più
-      const minutes = Math.round((Math.min(Date.parse(a.end), Date.parse(b.end)) - Date.parse(b.start)) / 60_000);
-      out.push({ a, b, minutes });
+      out.push({ a, b, kind: "range", minutes: Math.round((Math.min(Date.parse(a.end), Date.parse(b.end)) - Date.parse(b.start)) / 60_000) });
+    }
+  }
+  for (const p of points) {
+    for (const blk of blocks) {
+      if (Date.parse(p.start) >= Date.parse(blk.start) && Date.parse(p.start) < Date.parse(blk.end)) out.push({ a: blk, b: p, kind: "point", minutes: 0 });
     }
   }
   return out;
 }
 
-export const describeOverlap = (o: Overlap): string =>
-  `${dateKey(o.b.start)}: "${o.a.summary}" (${formatWhen(o.a)}) e "${o.b.summary}" (${formatWhen(o.b)}) hanno ${o.minutes} minuti in comune`;
+export const describeOverlap = (o: Overlap): string => {
+  const day = formatDayLong(dateKey(o.b.start));
+  return o.kind === "point"
+    ? `${day}: «${o.b.summary}» (${formatWhen(o.b)}) cade durante «${o.a.summary}» (${formatWhen(o.a)})`
+    : `${day}: «${o.a.summary}» (${formatWhen(o.a)}) e «${o.b.summary}» (${formatWhen(o.b)}) hanno ${o.minutes} minuti in comune`;
+};
 
 /* ───────── modifiche al calendario da messaggio ───────── */
 
 export type CalendarOp =
   | { op: "add"; summary: string; date: string; startTime: string; endTime: string | null; location: string | null }
-  | { op: "update"; match: string; date: string; startTime: string; endTime: string | null };
+  | { op: "update"; match: string; date: string; startTime: string; endTime: string | null; noDuration: boolean };
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -80,7 +97,7 @@ export function parseCalendarOps(raw: unknown): CalendarOp[] {
     if (r.op === "add" && r.summary) {
       ops.push({ op: "add", summary: String(r.summary).trim(), date, startTime, endTime, location: r.location ? String(r.location).trim() : null });
     } else if (r.op === "update" && r.match) {
-      ops.push({ op: "update", match: String(r.match).trim(), date, startTime, endTime });
+      ops.push({ op: "update", match: String(r.match).trim(), date, startTime, endTime, noDuration: r.noDuration === true });
     }
   }
   return ops;

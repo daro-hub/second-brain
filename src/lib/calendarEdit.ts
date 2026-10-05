@@ -1,10 +1,8 @@
-import { addMinutes, describeOverlap, findOverlaps, formatWhen, matchEvents, minutesBetween, type CalendarOp } from "./agenda";
+import { addMinutes, describeOverlap, findOverlaps, formatWhen, matchEvents, minutesBetween, POINT_MAX_MIN, type CalendarOp } from "./agenda";
 import { createEvent, getEventsInRange, isStudySyncEvent, updateEventTime } from "./calendar";
 import { bold, escapeHtml } from "./format";
 import { reportError } from "./report";
-import { dayRangeUtc, formatDayLong } from "./time";
-
-const addOneHour = (t: string) => addMinutes(t, 60);
+import { dateKey, dayRangeUtc, formatDayLong, localHHMM } from "./time";
 
 /**
  * Applica in ordine le operazioni (aggiunte e spostamenti) e racconta ESATTAMENTE cosa è successo, una riga per
@@ -14,16 +12,14 @@ const addOneHour = (t: string) => addMinutes(t, 60);
 export async function applyCalendarOps(ops: CalendarOp[]): Promise<{ text: string; changed: number }> {
   const lines: string[] = [];
   const days = new Set<string>();
-  // eventi creati senza una fine detta: la durata (1 ora) è una mia ipotesi e va dichiarata se causa un conflitto
-  const assumed = new Set<string>();
   let changed = 0;
 
   for (const op of ops) {
     try {
       if (op.op === "add") {
-        const event = await createEvent({ summary: op.summary, start: `${op.date}T${op.startTime}:00`, end: `${op.date}T${op.endTime ?? addOneHour(op.startTime)}:00`, location: op.location ?? undefined });
-        if (!op.endTime) assumed.add(op.summary);
-        lines.push(`📅 Creato: ${bold(escapeHtml(event.summary))} — ${formatDayLong(op.date)}, ${formatWhen(event)}`);
+        // senza una fine detta l'impegno è puntuale: niente durata inventata (Google vuole una fine, quindi 5 minuti)
+        const event = await createEvent({ summary: op.summary, start: `${op.date}T${op.startTime}:00`, end: `${op.date}T${op.endTime ?? addMinutes(op.startTime, POINT_MAX_MIN)}:00`, location: op.location ?? undefined });
+        lines.push(`📅 Creato: ${bold(escapeHtml(event.summary))} — ${formatDayLong(op.date)}, ${formatWhen(event)}${op.endTime ? "" : " (senza durata)"}`);
         days.add(op.date);
         changed++;
         continue;
@@ -44,13 +40,18 @@ export async function applyCalendarOps(ops: CalendarOp[]): Promise<{ text: strin
         lines.push(`⚠️ Non riesco a modificare "${escapeHtml(ev.summary)}".`);
         continue;
       }
-      // durata invariata se non è stata detta una nuova fine
-      const duration = Math.max(15, minutesBetween(ev.start, ev.end) || 60);
-      const endTime = op.endTime ?? addMinutes(op.startTime, duration);
+      // "non ha una durata" → evento puntuale; una fine detta vince; altrimenti la durata di prima resta invariata
+      const oldDuration = minutesBetween(ev.start, ev.end);
+      const endTime = op.noDuration ? addMinutes(op.startTime, POINT_MAX_MIN) : (op.endTime ?? addMinutes(op.startTime, oldDuration > 0 ? oldDuration : POINT_MAX_MIN));
       const before = formatWhen(ev);
+      // già così: niente chiamata a Google e niente "fatto" bugiardo
+      if (dateKey(ev.start) === op.date && localHHMM(ev.start) === op.startTime && localHHMM(ev.end) === endTime) {
+        lines.push(`ℹ️ ${bold(escapeHtml(ev.summary))} è già ${before}: non ho cambiato nulla.`);
+        continue;
+      }
       try {
         const updated = await updateEventTime({ id: ev.id, calendarId: ev.calendarId, account: ev.account }, `${op.date}T${op.startTime}:00`, `${op.date}T${endTime}:00`);
-        lines.push(`✏️ Spostato: ${bold(escapeHtml(updated.summary))} da ${before} a ${formatWhen(updated)}`);
+        lines.push(op.noDuration ? `✏️ ${bold(escapeHtml(updated.summary))}: ora è un impegno puntuale alle ${formatWhen(updated)}, senza durata (prima ${before})` : `✏️ Spostato: ${bold(escapeHtml(updated.summary))} da ${before} a ${formatWhen(updated)}`);
         days.add(op.date);
         changed++;
       } catch (err) {
@@ -69,10 +70,7 @@ export async function applyCalendarOps(ops: CalendarOp[]): Promise<{ text: strin
     try {
       const { from, to } = dayRangeUtc(day);
       const overlaps = findOverlaps((await getEventsInRange(from, to)).filter((e) => !isStudySyncEvent(e.summary)));
-      for (const o of overlaps) {
-        const guess = [o.a, o.b].find((e) => assumed.has(e.summary));
-        lines.push(`⚠️ ${escapeHtml(describeOverlap(o))}${guess ? `. Per "${escapeHtml(guess.summary)}" ho assunto 1 ora: dimmi quanto dura e lo correggo.` : ""}`);
-      }
+      for (const o of overlaps) lines.push(`⚠️ ${escapeHtml(describeOverlap(o))}`);
     } catch (err) {
       reportError("calendarEdit/overlaps", err, { expected: true });
     }

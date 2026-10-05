@@ -34,51 +34,84 @@ beforeEach(() => {
   readOnly = false;
 });
 
+const nicoleEv = (start: string, end: string): Ev => ({ summary: "Passare da Nicole", start, end, allDay: false, id: "n1", calendarId: "primary", account: "default" });
+const update = (match: string, startTime: string, over: Record<string, unknown> = {}) => ({ op: "update" as const, match, date: "2026-10-05", startTime, endTime: null, noDuration: false, ...over });
+const add = (summary: string, startTime: string, endTime: string | null = null) => ({ op: "add" as const, summary, date: "2026-10-05", startTime, endTime, location: null });
+
 describe("applyCalendarOps — il caso della chat: 'L'assemblea è alle 20, ma devo passare da Nicole alle 19:45'", () => {
-  const ops = [
-    { op: "update" as const, match: "assemblea", date: "2026-10-05", startTime: "20:00", endTime: null },
-    { op: "add" as const, summary: "Passare da Nicole", date: "2026-10-05", startTime: "19:45", endTime: null, location: null },
-  ];
-
-  it("sposta l'assemblea E crea Nicole (prima la correzione veniva ignorata)", async () => {
-    const r = await applyCalendarOps(ops);
-    expect(patched).toEqual([{ id: "a1", start: "2026-10-05T20:00:00", end: "2026-10-05T21:00:00" }]); // durata di 1 ora mantenuta
-    expect(created).toHaveLength(1);
+  it("sposta l'assemblea E crea Nicole come impegno PUNTUALE (nessuna durata inventata)", async () => {
+    const r = await applyCalendarOps([update("assemblea", "20:00"), add("Passare da Nicole", "19:45")]);
+    expect(patched).toEqual([{ id: "a1", start: "2026-10-05T20:00:00", end: "2026-10-05T21:00:00" }]); // durata dell'assemblea mantenuta
+    expect(created).toEqual([expect.objectContaining({ start: "2026-10-05T19:45:00", end: "2026-10-05T19:50:00" })]); // 5 min: Google vuole una fine
     expect(r.changed).toBe(2);
-    expect(r.text).toContain("Spostato");
     expect(r.text).toContain("da 19:30–20:30 a 20:00–21:00");
-    expect(r.text).toContain("Creato");
+    expect(r.text).toContain("(senza durata)");
+    expect(r.text).not.toContain("45 minuti");
+    expect(r.text).not.toContain("in comune");
+    expect(r.text).not.toContain("cade durante"); // 19:45 è prima delle 20:00: nessun conflitto
   });
 
-  it("dichiara che il conflitto nasce dalla durata presunta di Nicole", async () => {
-    const r = await applyCalendarOps(ops);
-    expect(r.text).toMatch(/minuti in comune/);
-    expect(r.text).toContain("ho assunto 1 ora");
-  });
-
-  it("con la fine detta per Nicole non c'è nessun avviso", async () => {
-    const r = await applyCalendarOps([ops[0], { ...ops[1], endTime: "20:00" }]);
+  it("se l'assemblea NON si sposta, Nicole alle 19:45 cade davvero durante: lo dice, senza inventare minuti", async () => {
+    const r = await applyCalendarOps([add("Passare da Nicole", "19:45")]);
+    expect(r.text).toContain("cade durante");
     expect(r.text).not.toContain("minuti in comune");
+    expect(r.text).not.toContain("ho assunto");
+  });
+
+  it("con la fine detta (19:45–20:00) è un intervallo normale", async () => {
+    const r = await applyCalendarOps([update("assemblea", "20:00"), add("Passare da Nicole", "19:45", "20:00")]);
+    expect(created).toEqual([expect.objectContaining({ end: "2026-10-05T20:00:00" })]);
+    expect(r.text).not.toContain("in comune");
+  });
+});
+
+describe("applyCalendarOps — 'No, passare da Nicole non ha una durata'", () => {
+  beforeEach(() => {
+    store = [assemblea(), nicoleEv("2026-10-05T19:45:00+02:00", "2026-10-05T20:45:00+02:00")];
+  });
+
+  it("toglie la durata (prima veniva risposto 'Spostato da 19:45–20:45 a 19:45–20:45' senza cambiare nulla)", async () => {
+    const r = await applyCalendarOps([update("nicole", "19:45", { noDuration: true })]);
+    expect(patched).toEqual([{ id: "n1", start: "2026-10-05T19:45:00", end: "2026-10-05T19:50:00" }]);
+    expect(r.text).toContain("impegno puntuale alle 19:45");
+    expect(r.text).toContain("prima 19:45–20:45");
+    expect(r.text).not.toContain("Spostato");
+    expect(r.text).not.toContain("45 minuti in comune");
+  });
+
+  it("una correzione che non cambia nulla lo dice e non chiama Google", async () => {
+    const r = await applyCalendarOps([update("nicole", "19:45")]); // stesso orario, stessa durata
+    expect(patched).toHaveLength(0);
+    expect(r.changed).toBe(0);
+    expect(r.text).toContain("già");
+    expect(r.text).toContain("non ho cambiato nulla");
+  });
+
+  it("ripetere la stessa correzione due volte: la seconda è 'già così'", async () => {
+    await applyCalendarOps([update("nicole", "19:45", { noDuration: true })]);
+    const r = await applyCalendarOps([update("nicole", "19:45", { noDuration: true })]);
+    expect(patched).toHaveLength(1);
+    expect(r.text).toContain("già");
   });
 });
 
 describe("applyCalendarOps — casi di errore raccontati, mai taciuti", () => {
   it("evento non trovato: lo dice e non cambia nulla", async () => {
-    const r = await applyCalendarOps([{ op: "update", match: "dentista", date: "2026-10-05", startTime: "20:00", endTime: null }]);
+    const r = await applyCalendarOps([update("dentista", "20:00")]);
     expect(r.changed).toBe(0);
     expect(r.text).toContain("Non ho trovato");
     expect(patched).toHaveLength(0);
   });
   it("più eventi corrispondenti: chiede quale invece di indovinare", async () => {
     store = [assemblea(), { ...assemblea(), id: "a2", summary: "Assemblea condominio" }];
-    const r = await applyCalendarOps([{ op: "update", match: "assemblea", date: "2026-10-05", startTime: "20:00", endTime: null }]);
+    const r = await applyCalendarOps([update("assemblea", "20:00")]);
     expect(r.changed).toBe(0);
     expect(r.text).toContain("dimmi quale");
     expect(patched).toHaveLength(0);
   });
   it("calendario in sola lettura: lo dice e lascia l'orario com'è", async () => {
     readOnly = true;
-    const r = await applyCalendarOps([{ op: "update", match: "assemblea", date: "2026-10-05", startTime: "20:00", endTime: null }]);
+    const r = await applyCalendarOps([update("assemblea", "20:00")]);
     expect(r.changed).toBe(0);
     expect(r.text).toContain("non posso modificare");
     expect(r.text).toContain("19:30");

@@ -1,10 +1,10 @@
 import OpenAI from "openai";
 import { getPassword } from "./bitwarden";
-import { asksForMeetingLink, describeOverlap, findOverlaps, formatWhen } from "./agenda";
+import { addMinutes, asksForMeetingLink, describeOverlap, findOverlaps, formatWhen } from "./agenda";
 import { applyCalendarOps } from "./calendarEdit";
 import { createEvent, getEventsInRange, getUpcomingEvents, isStudySyncEvent } from "./calendar";
 import { addTurns, formatHistory, recentTurns, toPlain, type Turn } from "./chatHistory";
-import { bold, BULLET, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
+import { bold, BULLET, dropEmptyIconLines, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
 import { getOpenAiUsageSummary } from "./openaiUsage";
 import { formatUsageReport } from "./usageReport";
 import { maybeHandleUniUpload } from "./uniUploadJob";
@@ -131,7 +131,7 @@ ${context}`,
       { role: "user", content: text },
     ],
   });
-  return sanitizeTelegramHtml(res.choices[0].message.content ?? context);
+  return dropEmptyIconLines(sanitizeTelegramHtml(res.choices[0].message.content ?? context));
 }
 
 /**
@@ -584,7 +584,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
       return await answerFromData(
         text,
         context,
-        'Se la domanda è generica (es. "cosa devo fare questa settimana?"), dai un quadro completo usando tutte e tre le fonti sopra (calendario, studio, allenamento); se è specifica su una sola di queste, rispondi solo su quella. Segnala una sovrapposizione tra eventi SOLO se compare nella riga "Sovrapposizioni tra eventi"; non dedurla dagli orari di inizio e non dire che due impegni "si sovrappongono" se la riga dice "nessuna". Non aggiungere consigli, inviti a "verificare" o ipotesi che non ti sono stati chiesti. Se Daro chiede il link di una riunione/call/meet, rispondi con l\'URL COMPLETO preso dal campo "LINK RIUNIONE" dell\'evento giusto (se chiede "di lavoro" guarda gli eventi del calendario [Lavoro]; se ci sono più riunioni scegli quella in corso o la prossima e nominala); se l\'evento non ha il campo "LINK RIUNIONE" dì chiaramente che quell\'evento non ha un link, senza inventarne uno.',
+        'Se la domanda è generica (es. "cosa devo fare questa settimana?"), dai un quadro completo usando tutte e tre le fonti sopra (calendario, studio, allenamento); se è specifica su una sola di queste, rispondi solo su quella. Segnala una sovrapposizione tra eventi SOLO se compare nella riga "Sovrapposizioni tra eventi"; non dedurla dagli orari di inizio e non dire che due impegni "si sovrappongono" se la riga dice "nessuna". Gli eventi con un solo orario (senza intervallo, es. "19:45") sono puntuali: non hanno una durata, quindi non dire mai che durano o che "si sovrappongono" a qualcosa se non compare nella riga "Sovrapposizioni". Non scrivere intestazioni di sezione o icone senza contenuto (un 📚 o 🏋️ da soli su una riga): se una fonte non ha nulla da dire, omettila del tutto. Non aggiungere consigli, inviti a "verificare" o ipotesi che non ti sono stati chiesti. Se Daro chiede il link di una riunione/call/meet, rispondi con l\'URL COMPLETO preso dal campo "LINK RIUNIONE" dell\'evento giusto (se chiede "di lavoro" guarda gli eventi del calendario [Lavoro]; se ci sono più riunioni scegli quella in corso o la prossima e nominala); se l\'evento non ha il campo "LINK RIUNIONE" dì chiaramente che quell\'evento non ha un link, senza inventarne uno.',
       );
     } catch (err) {
       reportError("respond/calendar_query", err);
@@ -606,7 +606,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
   if (intent.type === "calendar_add") {
     try {
       const start = `${intent.date}T${intent.startTime}:00`;
-      const endTime = intent.endTime ?? addOneHour(intent.startTime);
+      const endTime = intent.endTime ?? addMinutes(intent.startTime, 5); // puntuale: nessuna durata inventata
       const end = `${intent.date}T${endTime}:00`;
       const event = await createEvent({
         summary: intent.summary,
