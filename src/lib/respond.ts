@@ -7,6 +7,8 @@ import { addTurns, formatHistory, recentTurns, toPlain, type Turn } from "./chat
 import { bold, BULLET, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
 import { getOpenAiUsageSummary } from "./openaiUsage";
 import { formatUsageReport } from "./usageReport";
+import { gatherSiteData, SITE_TOPIC_LABELS } from "./siteData";
+import { KNOWLEDGE_AREAS, logKnowledge, logSocial, saveReflection, type KnowledgeArea } from "./knowledge";
 import { getRepoInfo, listPublicProjects, listRepos } from "./github";
 import { formatProjectList, isGenericLinkWord, lastRepoInHistory } from "./projects";
 import { searchEmails } from "./gmail";
@@ -86,6 +88,7 @@ Se Daro ti chiede chi sei, cosa sai fare o quali sono le tue funzionalità, NON 
 ${BULLET} hai una knowledge base personale su di lui (progetti, interessi, competenze, note che ti dice di ricordare) da cui attingi per rispondere
 ${BULLET} vedi il suo calendario Google (impegni, puoi anche aggiungere eventi) e il suo orario di lezioni/studio universitario
 ${BULLET} tieni traccia dei suoi allenamenti in palestra (serie, pesi, PR, routine) e delle sue corse/attività su Strava
+${BULLET} vedi tutto ciò che mostra il sito (punteggi dei pilastri, giornata, piano di studi ed esami, allenamento e forza, equilibrio, incroci, stato di Aira, conoscenza, appunti) e puoi registrare sessioni di conoscenza, contatti sociali e la riflessione del mese
 ${BULLET} leggi i consumi e i crediti OpenAI (quanto costa il second brain, quanto resta)
 ${BULLET} gestisci la sua lista della spesa (aggiungere articoli, segnarli comprati, vederla)
 ${BULLET} recuperi le sue password salvate, informazioni sui suoi repository GitHub e le sue issue Linear
@@ -434,6 +437,58 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
     } catch (err) {
       reportError("respond/usage_query", err);
       return "Errore nel recupero dei consumi OpenAI.";
+    }
+  }
+
+  if (intent.type === "site_query") {
+    try {
+      const context = await gatherSiteData(intent.topics, intent.date);
+      const TOPIC_SOURCE: Record<string, { id: SourceId; href: string }> = {
+        pilastri: { id: "kb", href: "/" },
+        oggi: { id: "health", href: "/?p=oggi" },
+        studio: { id: "study", href: "/?p=studio" },
+        settimana: { id: "health", href: "/?p=oggi" },
+        allenamento: { id: "gym", href: "/?p=allenamento" },
+        equilibrio: { id: "energy", href: "/?p=salute" },
+        incroci: { id: "health", href: "/?p=incroci" },
+        aira: { id: "kb", href: "/?p=aira" },
+        conoscenza: { id: "kb", href: "/?p=conoscenza" },
+        universita: { id: "study", href: "/?p=studio" },
+      };
+      for (const t of intent.topics) src(trace, TOPIC_SOURCE[t].id, SITE_TOPIC_LABELS[t], { href: TOPIC_SOURCE[t].href });
+      return await answerFromData(
+        text,
+        context,
+        'Rispondi usando SOLO i dati sopra, riportando i numeri esatti come sono scritti. Se una sezione dice "non disponibile", "n/d" o "nessun dato", dillo chiaramente invece di stimare. I dati di oggi sono parziali perché la giornata non è finita. Non aggiungere consigli o analisi che Daro non ha chiesto.',
+      );
+    } catch (err) {
+      reportError("respond/site_query", err);
+      return "Errore nel recupero dei dati del sito.";
+    }
+  }
+
+  if (intent.type === "life_log") {
+    try {
+      if (intent.kind === "knowledge") {
+        if (!intent.area || !(KNOWLEDGE_AREAS as readonly string[]).includes(intent.area) || !intent.minutes) {
+          return `📚 Per registrarla mi servono l'area (${KNOWLEDGE_AREAS.join(", ")}) e quanti minuti.`;
+        }
+        await logKnowledge({ area: intent.area as KnowledgeArea, minutes: intent.minutes, note: intent.note });
+        src(trace, "kb", `Conoscenza: ${intent.area}, ${intent.minutes} min`, { href: "/?p=conoscenza" });
+        return `📚 Registrato: ${bold(escapeHtml(intent.area))}, ${intent.minutes} minuti${intent.note ? ` — ${escapeHtml(intent.note)}` : ""}.`;
+      }
+      if (intent.kind === "social") {
+        await logSocial("uscita", intent.note);
+        src(trace, "kb", "Relazioni: contatto registrato", { href: "/?p=salute" });
+        return `🤝 Registrato un contatto con le persone a cui tieni${intent.note ? `: ${escapeHtml(intent.note)}` : ""}.`;
+      }
+      if (!intent.note) return "📝 Dimmi la riflessione da salvare.";
+      await saveReflection(todayKey().slice(0, 7), intent.note);
+      src(trace, "kb", "Riflessione del mese salvata", { href: "/?p=lavoro" });
+      return "📝 Riflessione del mese salvata (sostituisce quella precedente, se c'era).";
+    } catch (err) {
+      reportError("respond/life_log", err);
+      return "Errore nel salvare: la registrazione non è andata a buon fine.";
     }
   }
 

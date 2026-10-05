@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { formatHistory, type Turn } from "./chatHistory";
 import { parseCalendarOps, type CalendarOp } from "./agenda";
+import { SITE_TOPICS, type SiteTopic } from "./siteData";
 import { perceivedTodayKey } from "./time";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -46,6 +47,8 @@ export type MessageIntent =
   | { type: "email_query"; query: string }
   | { type: "energy_query" }
   | { type: "usage_query"; service: string | null }
+  | { type: "site_query"; topics: SiteTopic[]; date: string | null }
+  | { type: "life_log"; kind: "knowledge" | "social" | "reflection"; area: string | null; minutes: number | null; note: string }
   | { type: "none"; save: boolean };
 
 export async function classifyMessage(text: string, history: Turn[] = []): Promise<MessageIntent> {
@@ -76,6 +79,8 @@ export async function classifyMessage(text: string, history: Turn[] = []): Promi
 10d. Domanda su qualcosa che bisogna cercare nelle email/Gmail (es. "cerca nelle mie email...", "c'è una mail di Martina su...", "trovami il link che mi ha mandato..."): {"intent": "email_query", "query": string} — "query" è una query di ricerca Gmail valida (puoi usare operatori come "from:", "subject:", parole chiave), costruita dal contenuto della richiesta (es. "mail di Martina con un cliente sui totem" -> "from:martina totem").
 10e. Domanda sul bilancio calorico / deficit / surplus / fabbisogno / dimagrimento / quanto peso perderò (es. "sono in deficit oggi?", "quanto deficit ho fatto questa settimana?", "quanti chili perdo se continuo così?", "quante calorie posso ancora mangiare?"): {"intent": "energy_query"}
 10f. Domanda su crediti, costi, spesa, consumi o token dell'intelligenza artificiale del second brain / di Aira / del bot / di OpenAI (es. "quanti crediti ho consumato?", "quanto sto spendendo di OpenAI?", "quanti crediti mi restano?", "quanto costa Aira?", "quanti token ho usato?"): {"intent": "usage_query", "service": null oppure il nome di un ALTRO servizio se lo cita esplicitamente (es. "vercel", "supabase", "anthropic")}. Per il second brain i crediti sono quelli OpenAI: NON serve chiedere di quale servizio si parla. Se il messaggio è la risposta a una tua domanda su quale servizio intendesse (es. "per il mio second brain" dopo "quanti crediti ho consumato?"), restituisci usage_query.
+10g. Domanda su un dato che il SITO mostra e che non è coperto dai casi sopra: {"intent": "site_query", "topics": [...], "date": "YYYY-MM-DD oppure null"}. "topics" (da 1 a 4) sceglie tra: "pilastri" (punteggi/radar dei 5 pilastri studio-salute-allenamento-conoscenza-lavoro, indice di equilibrio, trend, "come sto andando?", "qual è il mio punto debole?"); "oggi" (riepilogo di una giornata: pasti, calorie, macro, passi, battito, notte, allenamenti, lezioni, eventi — "com'è andata oggi/ieri?"; metti in "date" il giorno se non è oggi); "studio" (piano di studi, laurea, CFU, media, esami pianificati, materie superate/mancanti/in corso); "settimana" (ultimi 7 giorni e ore di studio/lezione/allenamento della settimana); "allenamento" (forza per gruppo muscolare, livelli, massimali stimati, cuore e sessioni, carico settimanale — NON il singolo esercizio, quello è exercise_query); "equilibrio" (bilancio/equilibrio della vita della settimana); "incroci" (correlazioni tra sonno/battito/allenamento/cibo/passi/orari); "aira" (stato di Aira: integrazioni, rete neurale/base di conoscenza, bot Telegram); "conoscenza" (registro delle aree di conoscenza, relazioni, riflessione mensile sul lavoro); "universita" (appunti e file delle lezioni). Usa più argomenti se la domanda ne tocca più d'uno. In generale: se Daro chiede un dato che vede sul sito, è site_query (o uno dei casi dedicati sopra).
+10h. Daro REGISTRA qualcosa della sua vita: {"intent": "life_log", "kind": "knowledge" | "social" | "reflection", "area": una tra filosofia, psicologia, letteratura, scienze, fisica, geografia, storia, lingue (solo per knowledge), "minutes": numero (solo per knowledge), "note": testo}. knowledge = una sessione di lettura/studio/ascolto su un'area di conoscenza (es. "ho letto 30 minuti di filosofia", "20 min di inglese" = lingue); social = ha visto o sentito amici/famiglia (es. "sono uscito con gli amici", "cena con i miei"), note = con chi/cosa; reflection = una riflessione sulla direzione del suo lavoro (es. "la mia direzione di lavoro: voglio diventare CTO...").
 11. Nessuno dei precedenti. Qui devi anche decidere se il messaggio contiene un'informazione/fatto che vale la pena ricordare per il futuro (es. una nota, un pensiero, un dato su di sé) oppure se è solo una domanda, una richiesta, un commento di passaggio o un testo senza vero valore informativo da conservare (es. trascrizione vocale rumorosa, "ciao", "ok", una domanda retorica): {"intent": "none", "save": boolean}
 "muscleGroup" è una tra: petto, schiena, spalle, bicipiti, tricipiti, gambe, addome. Normalizza "exercise" in minuscolo. Se "sets" non è specificato, usa 1. "itemName" è il nome breve della voce da cercare nel vault (es. "Supabase", "Longevity"). "repoName" è il nome breve del repository (es. "Orbis", "Scolastica", "second-brain"). "term" è il testo/termine chiave da cercare su Linear. Per "shopping_add"/"shopping_done", "items" è l'elenco dei nomi degli articoli in minuscolo, al singolare dove ha senso (es. "uova" resta "uova").`,
       },
@@ -172,6 +177,22 @@ export async function classifyMessage(text: string, history: Turn[] = []): Promi
       metricNames: parsed.metricNames.map((m: string) => String(m).trim()),
       startDate: String(parsed.startDate).trim(),
       endDate: String(parsed.endDate).trim(),
+    };
+  }
+  if (parsed.intent === "site_query" && Array.isArray(parsed.topics)) {
+    const topics = parsed.topics.map((t: unknown) => String(t)).filter((t: string): t is SiteTopic => (SITE_TOPICS as readonly string[]).includes(t));
+    if (topics.length) {
+      const date = typeof parsed.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date) ? parsed.date : null;
+      return { type: "site_query", topics: topics.slice(0, 4), date };
+    }
+  }
+  if (parsed.intent === "life_log" && ["knowledge", "social", "reflection"].includes(parsed.kind)) {
+    return {
+      type: "life_log",
+      kind: parsed.kind,
+      area: parsed.area ? String(parsed.area).toLowerCase().trim() : null,
+      minutes: Number.isFinite(Number(parsed.minutes)) && Number(parsed.minutes) > 0 ? Number(parsed.minutes) : null,
+      note: String(parsed.note ?? "").trim(),
     };
   }
   if (parsed.intent === "usage_query") {
