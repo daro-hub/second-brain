@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { getPassword } from "./bitwarden";
+import { describeOverlap, findOverlaps, formatWhen } from "./agenda";
 import { createEvent, getEventsInRange, getUpcomingEvents, isStudySyncEvent } from "./calendar";
 import { addTurns, formatHistory, recentTurns, toPlain, type Turn } from "./chatHistory";
 import { bold, BULLET, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
@@ -8,6 +9,7 @@ import { searchEmails } from "./gmail";
 import { ingest } from "./ingest";
 import { classifyMessage } from "./intent";
 import { searchIssues } from "./linear";
+import { reportError } from "./report";
 import { searchSemantic } from "./search";
 import { addDays, dateKey, dayRangeUtc, formatDayLong, localHHMM, perceivedTodayKey, todayKey, weekdayOf } from "./time";
 import { SOURCE_LABELS, type Source, type SourceId, type Trace } from "./trace";
@@ -431,11 +433,15 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
       const eventsText = events.length
         ? events
             .map((e) => {
-              const when = e.start.length <= 10 ? "tutto il giorno" : localHHMM(e.start);
-              return `${dayOf(e.start)} ${when} — ${e.summary}${e.calendar ? ` [${e.calendar}]` : ""}${e.location ? ` (${e.location})` : ""}`;
+              return `${dayOf(e.start)} ${formatWhen(e)} — ${e.summary}${e.calendar ? ` [${e.calendar}]` : ""}${e.location ? ` (${e.location})` : ""}`;
             })
             .join("\n")
         : "Nessuno";
+
+      // I conflitti si calcolano qui con le ore di inizio E fine: senza la durata il modello li inventava
+      // ("l'assemblea e il passaggio da Nicole si sovrappongono") deducendoli dalle sole ore di inizio.
+      const overlaps = findOverlaps(events);
+      const overlapsText = overlaps.length ? overlaps.map(describeOverlap).join("\n") : "nessuna";
 
       const scheduleText =
         weekSchedule
@@ -454,13 +460,14 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
           .slice(0, 8),
       });
       src(trace, "gym", `Prossima routine: ${nextRoutine}`, { href: "/palestra" });
-      const context = `Periodo richiesto: ${hasRange ? (rangeStart === rangeEnd ? formatDayLong(rangeStart) : `dal ${formatDayLong(rangeStart)} al ${formatDayLong(rangeEnd)}`) : "prossimi giorni"}\n\nEventi in calendario:\n${eventsText}\n\nOrario di studio/lezioni:\n${scheduleText}\n\nAllenamento: prossima routine in programma è "${nextRoutine}"`;
+      const context = `Periodo richiesto: ${hasRange ? (rangeStart === rangeEnd ? formatDayLong(rangeStart) : `dal ${formatDayLong(rangeStart)} al ${formatDayLong(rangeEnd)}`) : "prossimi giorni"}\n\nEventi in calendario (orario di inizio–fine):\n${eventsText}\n\nSovrapposizioni tra eventi (calcolate, affidabili): ${overlapsText}\n\nOrario di studio/lezioni:\n${scheduleText}\n\nAllenamento: prossima routine in programma è "${nextRoutine}"`;
       return await answerFromData(
         text,
         context,
-        'Se la domanda è generica (es. "cosa devo fare questa settimana?"), dai un quadro completo usando tutte e tre le fonti sopra (calendario, studio, allenamento); se è specifica su una sola di queste, rispondi solo su quella.',
+        'Se la domanda è generica (es. "cosa devo fare questa settimana?"), dai un quadro completo usando tutte e tre le fonti sopra (calendario, studio, allenamento); se è specifica su una sola di queste, rispondi solo su quella. Segnala una sovrapposizione tra eventi SOLO se compare nella riga "Sovrapposizioni tra eventi"; non dedurla dagli orari di inizio e non dire che due impegni "si sovrappongono" se la riga dice "nessuna". Non aggiungere consigli, inviti a "verificare" o ipotesi che non ti sono stati chiesti.',
       );
-    } catch {
+    } catch (err) {
+      reportError("respond/calendar_query", err);
       return "Errore nel recupero del calendario.";
     }
   }
