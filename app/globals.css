@@ -1521,6 +1521,8 @@ main > *:nth-child(n + 6) {
 
 /* animazione dei pilastri al passaggio del mouse */
 .hub-vertex { cursor: pointer; outline: none; }
+.hub-vertex * { pointer-events: none; }
+.hub-vertex .v-hit { pointer-events: all; fill: transparent; stroke: none; }
 .hub-vertex .v-wedge { fill: var(--pc); opacity: 0; transition: opacity 0.35s ease; }
 .hub-vertex .v-line { stroke: rgba(120, 170, 220, 0.16); stroke-width: 1; transition: stroke 0.3s ease, stroke-width 0.3s ease, filter 0.3s ease; }
 .hub-vertex .v-dot { fill: var(--pc); transform-box: fill-box; transform-origin: center; transition: transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1), filter 0.3s ease; }
@@ -1666,3 +1668,14 @@ main > *:nth-child(n + 6) {
   .hub-stage.console .hub-orbwrap { top: 130px; width: 120px; height: 120px; }
 }
 .aira-root.embedded .aira-core .status { justify-content: center; }
+
+/* orb di Aira: al passaggio si ingrandisce, si accende e un alone pulsa (l'area sensibile è il cerchio, non il quadrato) */
+.hub-orbwrap canvas { clip-path: circle(50%); transition: transform 0.45s cubic-bezier(0.3, 1.5, 0.5, 1), filter 0.4s ease; }
+.hub-orbwrap:hover canvas { transform: scale(1.07); filter: drop-shadow(0 0 18px rgba(77, 225, 255, 0.6)) brightness(1.12); }
+.hub-orbwrap::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid #4de1ff;
+  opacity: 0; pointer-events: none;
+}
+.hub-orbwrap:hover::after { animation: hub-orb-halo 1.6s ease-out infinite; }
+@keyframes hub-orb-halo { 0% { opacity: 0.7; transform: scale(0.88); } 100% { opacity: 0; transform: scale(1.4); } }
+@media (prefers-reduced-motion: reduce) { .hub-orbwrap canvas, .hub-orbwrap::after { transition: none !important; animation: none !important; } }

@@ -46,7 +46,11 @@ export function PillarRadar({
           const [lx, ly] = pt(i, 1.3);
           const [ax, ay] = pt(i - 0.5, 1);
           const [bx, by] = pt(i + 0.5, 1);
+          const [mx, my] = pt(i, 1.15);
           const anchor = lx < C - 8 ? "end" : lx > C + 8 ? "start" : "middle";
+          // larghezza stimata dell'etichetta già ingrandita (×1.25): l'area sensibile la copre tutta anche da animata
+          const labelW = p.label.length * 9.8 * 1.25;
+          const labelX0 = anchor === "end" ? lx - labelW : anchor === "middle" ? lx - labelW / 2 : lx;
           return (
             <g
               key={p.key}
@@ -60,7 +64,11 @@ export function PillarRadar({
             >
               <polygon className="v-wedge" points={`${C},${C} ${ax},${ay} ${hx},${hy} ${bx},${by}`} />
               <line className="v-line" x1={C} y1={C} x2={hx} y2={hy} />
-              <circle cx={hx} cy={hy} r="40" fill="transparent" />
+              {/* Area sensibile FISSA (settore + cerchio su vertice ed etichetta): non si anima mai, altrimenti
+                  ingrandire l'etichetta spostava i punti validi e l'hover si accendeva e spegneva a scatti. */}
+              <polygon className="v-hit" points={`${C},${C} ${ax},${ay} ${hx},${hy} ${bx},${by}`} />
+              <circle className="v-hit" cx={mx} cy={my} r="62" />
+              <rect className="v-hit" x={labelX0 - 8} y={ly - 20} width={labelW + 16} height={50} />
               <circle className="v-ring" cx={p.score === null ? hx : x} cy={p.score === null ? hy : y} r="7" />
               {p.score !== null ? (
                 <circle className="v-dot" cx={x} cy={y} r="5.5" />
