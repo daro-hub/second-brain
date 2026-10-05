@@ -1451,3 +1451,52 @@ main > *:nth-child(n + 6) {
   padding: 0;
   letter-spacing: inherit;
 }
+
+/* ───────── università: esami e piano di studi ───────── */
+.uni-exams, .uni-career { margin-bottom: 16px; padding: 16px 18px; }
+.uni-exams .card-head, .uni-career .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.exam-list { list-style: none; margin: 0 0 14px; padding: 0; }
+.exam-list li { display: grid; grid-template-columns: 130px 1fr auto; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--border-soft); align-items: start; }
+.exam-list li.past { opacity: 0.55; }
+.exam-when { display: flex; flex-direction: column; font-size: 13px; }
+.exam-when span { font-family: var(--mono); font-size: 11px; color: var(--accent); }
+.exam-what p { margin: 3px 0 0; font-size: 12.5px; color: var(--muted); white-space: pre-wrap; }
+.exam-actions, .course-status { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.exam-form { display: grid; grid-template-columns: 1fr 170px; gap: 8px; margin-top: 12px; }
+.exam-form textarea, .exam-form-row { grid-column: 1 / -1; }
+.exam-form-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.exam-form select, .exam-form input, .exam-form textarea, .course-status input {
+  font: inherit; font-size: 13px; color: var(--text); background: var(--panel-2);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; outline: none; min-width: 0;
+}
+.exam-form select:focus, .exam-form input:focus, .exam-form textarea:focus, .course-status input:focus { border-color: var(--accent); }
+.exam-form button, .exam-actions button, .course-status button {
+  font: inherit; font-size: 12px; color: var(--text); background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 7px; padding: 6px 11px; cursor: pointer;
+}
+.exam-form button[type="submit"] { border-color: var(--accent); color: var(--accent); }
+.exam-form button:hover, .exam-actions button:hover, .course-status button:hover { border-color: var(--accent); }
+.exam-form button:disabled { opacity: 0.6; cursor: default; }
+.exam-error { font-family: var(--mono); font-size: 12px; color: var(--c-bad); }
+.career-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.career-stats div { display: flex; flex-direction: column; }
+.career-stats b { font-family: var(--mono); font-size: 24px; letter-spacing: -1px; }
+.career-stats span { font-size: 11.5px; color: var(--muted); }
+.career-bar { height: 4px; background: var(--border-soft); border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
+.career-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--brand), var(--accent)); }
+.career-h { margin: 14px 0 4px; font-family: var(--mono); font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.career-year { margin: 10px 0 2px; font-size: 12px; color: var(--faint); }
+.career-list { list-style: none; margin: 0; padding: 0; }
+.career-list li { display: grid; grid-template-columns: 1fr 70px 90px 90px auto; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border-soft); align-items: center; font-size: 13px; }
+.career-list li:last-child { border-bottom: 0; }
+.career-meta { font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
+.career-grade { font-family: var(--mono); font-weight: 700; color: var(--c-good); }
+.career-tag { font-family: var(--mono); font-size: 11px; }
+.career-tag.attending { color: var(--c-warn); }
+.career-tag.todo { color: var(--faint); }
+@media (max-width: 720px) {
+  .exam-list li { grid-template-columns: 1fr; }
+  .exam-form { grid-template-columns: 1fr; }
+  .career-list li { grid-template-columns: 1fr auto; }
+  .career-list li > span:nth-child(n+3):not(.course-status) { display: none; }
+}
