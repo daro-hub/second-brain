@@ -8,14 +8,15 @@ import { bold, BULLET, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./f
 import { getRepoInfo } from "./github";
 import { searchEmails } from "./gmail";
 import { ingest } from "./ingest";
-import { classifyMessage } from "./intent";
+import { parseBareItems } from "./bareItems";
+import { classifyMessage, type MessageIntent } from "./intent";
 import { searchIssues } from "./linear";
 import { reportError } from "./report";
 import { searchSemantic } from "./search";
 import { addDays, dateKey, dayRangeUtc, formatDayLong, localHHMM, perceivedTodayKey, todayKey, weekdayOf } from "./time";
 import { SOURCE_LABELS, type Source, type SourceId, type Trace } from "./trace";
 import { getRunningStats } from "./dashboard";
-import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList } from "./shoppingList";
+import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList, getKnownShoppingItems } from "./shoppingList";
 import { getEnergyOverview, PROFILE } from "./energy";
 import { getMetricSummary, type MetricSummary } from "./health";
 import { kjToKcal } from "./stats";
@@ -122,6 +123,25 @@ ${context}`,
     ],
   });
   return sanitizeTelegramHtml(res.choices[0].message.content ?? context);
+}
+
+/**
+ * Un messaggio che è solo il nome di un prodotto ("Latte") è "aggiungi alla spesa": lo decide il codice, non il modello,
+ * che senza un verbo lo trattava come conversazione. Si salta se il bot aveva appena fatto una domanda: in quel caso
+ * la parola è una risposta ("Pane" a "cosa hai mangiato?"), non un acquisto.
+ */
+async function bareShoppingIntent(text: string, history: Turn[]): Promise<MessageIntent | null> {
+  const last = history[history.length - 1];
+  if (last?.role === "assistant" && last.content.includes("?")) return null;
+  if (text.length > 50 || text.includes("?")) return null;
+  let known: string[] = [];
+  try {
+    known = await getKnownShoppingItems();
+  } catch (err) {
+    reportError("respond/bareShopping", err, { expected: true });
+  }
+  const items = parseBareItems(text, known);
+  return items ? { type: "shopping_add", items } : null;
 }
 
 /** "70kg x8", oppure "corpo libero x7" quando il peso è 0 (dragon flag, trazioni senza zavorra...). */
@@ -278,7 +298,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
     return `${bold(escapeHtml(routineName))} — ultimi pesi registrati\n\n${previewText}`;
   }
 
-  const intent = await classifyMessage(text, history);
+  const intent = (await bareShoppingIntent(text, history)) ?? (await classifyMessage(text, history));
   trace?.intent(intent.type);
 
   if (intent.type === "clarify") {
@@ -559,7 +579,8 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
       const list = await getActiveShoppingList();
       src(trace, "shopping", `Aggiunti: ${intent.items.join(", ")}`, { href: "/spesa", items: list.map((l) => ({ text: l.item })) });
       return `✅ Aggiornato\n\n${formatShoppingList(list)}`;
-    } catch {
+    } catch (err) {
+      reportError("respond/shopping_add", err);
       return "Errore nel salvare la lista della spesa.";
     }
   }

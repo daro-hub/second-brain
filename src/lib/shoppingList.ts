@@ -13,6 +13,13 @@ export async function addShoppingItems(items: string[]): Promise<void> {
   if (error) throw error;
 }
 
+/** Tutto ciò che è mai finito in lista (anche già comprato): il vocabolario di prodotti di Daro. */
+export async function getKnownShoppingItems(): Promise<string[]> {
+  const { data, error } = await supabase.from("shopping_list").select("item").order("added_at", { ascending: false }).limit(300);
+  if (error) throw error;
+  return [...new Set((data ?? []).map((r) => String(r.item).trim()).filter(Boolean))];
+}
+
 export async function getActiveShoppingList(): Promise<ShoppingListItem[]> {
   const { data, error } = await supabase
     .from("shopping_list")
