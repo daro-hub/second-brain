@@ -23,10 +23,15 @@ export async function WeekAgenda() {
     failed = true;
   }
 
-  const byDay = new Map<string, typeof events>();
+  // righe = fasce orarie distinte (inizio–fine) presenti nella settimana, in ordine di inizio;
+  // colonne = giorni; cella = eventi di quel giorno con esattamente quella fascia
+  const ALL_DAY = "tutto il giorno";
+  const slotOf = (e: (typeof events)[number]) => (e.allDay ? ALL_DAY : `${localHHMM(e.start)}–${localHHMM(e.end)}`);
+  const slots = [...new Set(events.map(slotOf))].sort((a, b) => (a === ALL_DAY ? -1 : b === ALL_DAY ? 1 : a.localeCompare(b)));
+  const cell = new Map<string, typeof events>();
   for (const e of events) {
-    const k = dateKey(e.start);
-    byDay.set(k, [...(byDay.get(k) ?? []), e]);
+    const key = `${dateKey(e.start)}|${slotOf(e)}`;
+    cell.set(key, [...(cell.get(key) ?? []), e]);
   }
 
   return (
@@ -39,34 +44,44 @@ export async function WeekAgenda() {
       </div>
       {failed ? (
         <p className="uni-week-empty">Impossibile leggere il calendario.</p>
+      ) : slots.length === 0 ? (
+        <p className="uni-week-empty">Nessuna lezione o sessione di studio questa settimana.</p>
       ) : (
-        <ul className="uni-week-list">
-          {days.map((k) => {
-            const list = byDay.get(k) ?? [];
-            return (
-              <li key={k} className={`${k === today ? "today" : ""}${k < today ? " past" : ""}`}>
-                <div className="uni-week-day">
-                  <b>{DAY_NAMES[weekdayOf(k)]}</b>
-                  <span>
-                    {k.slice(8)}/{k.slice(5, 7)}
-                  </span>
-                </div>
-                <div className="uni-week-events">
-                  {list.length === 0 ? (
-                    <span className="uni-week-empty">—</span>
-                  ) : (
-                    list.map((e) => (
-                      <div key={`${e.uid ?? e.summary}|${e.start}`} className="uni-week-event">
-                        <span className="uni-week-time">{e.allDay ? "tutto il giorno" : `${localHHMM(e.start)}–${localHHMM(e.end)}`}</span>
-                        <span>{e.summary}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="uni-week-scroll">
+          <table className="uni-week-table">
+            <thead>
+              <tr>
+                <th aria-label="Fascia oraria" />
+                {days.map((k) => (
+                  <th key={k} className={`${k === today ? "today" : ""}${k < today ? " past" : ""}`}>
+                    <b>{DAY_NAMES[weekdayOf(k)].slice(0, 3)}</b>
+                    <span>
+                      {k.slice(8)}/{k.slice(5, 7)}
+                    </span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {slots.map((slot) => (
+                <tr key={slot}>
+                  <th scope="row" className="uni-week-time">
+                    {slot}
+                  </th>
+                  {days.map((k) => (
+                    <td key={k} className={`${k === today ? "today" : ""}${k < today ? " past" : ""}`}>
+                      {(cell.get(`${k}|${slot}`) ?? []).map((e) => (
+                        <div key={`${e.uid ?? e.summary}|${e.start}`} className="uni-week-event">
+                          {e.summary}
+                        </div>
+                      ))}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

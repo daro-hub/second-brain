@@ -1421,16 +1421,19 @@ main > *:nth-child(n + 6) {
 .uni-week { margin-bottom: 16px; padding: 16px 18px; }
 .uni-week .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .uni-week-range { font-family: var(--mono); font-size: 11px; color: var(--faint); }
-.uni-week-list { list-style: none; margin: 0; padding: 0; }
-.uni-week-list li { display: grid; grid-template-columns: 130px 1fr; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--border-soft); }
-.uni-week-list li:last-child { border-bottom: 0; }
-.uni-week-list li.past { opacity: 0.55; }
-.uni-week-list li.today .uni-week-day b { color: var(--accent); }
-.uni-week-day { display: flex; flex-direction: column; font-size: 13px; }
-.uni-week-day span { font-family: var(--mono); font-size: 11px; color: var(--faint); }
-.uni-week-events { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-.uni-week-event { display: flex; gap: 12px; }
-.uni-week-time { font-family: var(--mono); font-size: 12px; color: var(--muted); min-width: 92px; }
+.uni-week-scroll { overflow-x: auto; margin-top: 8px; }
+.uni-week-table { width: 100%; min-width: 760px; border-collapse: collapse; table-layout: fixed; }
+.uni-week-table th, .uni-week-table td { border: 1px solid var(--border-soft); padding: 8px 10px; vertical-align: top; font-size: 13px; text-align: left; }
+.uni-week-table thead th { text-align: center; font-weight: 500; }
+.uni-week-table thead th b { display: block; }
+.uni-week-table thead th span { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+.uni-week-table th:first-child { width: 110px; }
+.uni-week-table th.today, .uni-week-table td.today { background: rgba(77, 225, 255, 0.07); }
+.uni-week-table th.today b { color: var(--accent); }
+.uni-week-table .past { opacity: 0.55; }
+.uni-week-time { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.uni-week-event { padding: 2px 0; }
+.uni-week-event + .uni-week-event { border-top: 1px dashed var(--border-soft); margin-top: 4px; padding-top: 4px; }
 .uni-week-empty { color: var(--faint); }
 
 .credit-tile { cursor: text; }
