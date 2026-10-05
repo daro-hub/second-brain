@@ -1,5 +1,7 @@
 import OpenAI from "openai";
+import { exerciseTokens } from "./gym";
 import { supabase } from "./supabase";
+import { dayRangeUtc } from "./time";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -68,7 +70,8 @@ export async function logWorkout(entry: WorkoutEntry) {
   return {
     id: data.id as string,
     performedAt: data.performed_at as string,
-    isPR: newOneRm > bestPreviousOneRm,
+    // il primo log di un esercizio non è un record: non c'è niente da battere (prima: "Nuovo PR!" a ogni esercizio nuovo)
+    isPR: (history ?? []).length > 0 && newOneRm > bestPreviousOneRm,
     estimatedOneRm: newOneRm,
   };
 }
@@ -84,14 +87,14 @@ export async function getExerciseHistory(exercise: string, limit = 20) {
   return data;
 }
 
-export async function getLastSession(muscleGroup: string) {
-  const { data: latest, error: latestError } = await supabase
-    .from("workout_logs")
-    .select("performed_at")
-    .eq("muscle_group", muscleGroup)
-    .order("performed_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+/**
+ * Ultima sessione di un gruppo muscolare. Con `beforeDayKey` si guardano solo i giorni PRECEDENTI (l'ultima volta è
+ * un'altra sessione, non le serie che hai già fatto oggi).
+ */
+export async function getLastSession(muscleGroup: string, beforeDayKey?: string) {
+  let latestQuery = supabase.from("workout_logs").select("performed_at").eq("muscle_group", muscleGroup);
+  if (beforeDayKey) latestQuery = latestQuery.lt("performed_at", dayRangeUtc(beforeDayKey).from.toISOString());
+  const { data: latest, error: latestError } = await latestQuery.order("performed_at", { ascending: false }).limit(1).maybeSingle();
   if (latestError) throw latestError;
   if (!latest) return null;
 
@@ -119,9 +122,11 @@ export interface RoutinePreviewEntry {
   exercise: string;
   muscleGroup: string | null;
   last: { weight_kg: number; reps: number; sets: number; performed_at: string } | null;
+  /** quanto fatto oggi (solo se richiesto con beforeDayKey) */
+  today: { weight_kg: number; reps: number; sets: number; performed_at: string } | null;
 }
 
-export async function getRoutinePreview(routineName: string): Promise<RoutinePreviewEntry[] | null> {
+export async function getRoutinePreview(routineName: string, beforeDayKey?: string): Promise<RoutinePreviewEntry[] | null> {
   const { data: routine, error } = await supabase
     .from("workout_routines")
     .select("exercise, muscle_group, order_index")
@@ -131,16 +136,26 @@ export async function getRoutinePreview(routineName: string): Promise<RoutinePre
   if (!routine || !routine.length) return null;
 
   const results: RoutinePreviewEntry[] = [];
+  const dayStart = beforeDayKey ? dayRangeUtc(beforeDayKey).from.toISOString() : null;
   for (const r of routine) {
-    const { data: last, error: lastError } = await supabase
-      .from("workout_logs")
-      .select("weight_kg, reps, sets, performed_at")
-      .eq("exercise", r.exercise)
-      .order("performed_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    let lastQuery = supabase.from("workout_logs").select("weight_kg, reps, sets, performed_at").eq("exercise", r.exercise);
+    if (dayStart) lastQuery = lastQuery.lt("performed_at", dayStart);
+    const { data: last, error: lastError } = await lastQuery.order("performed_at", { ascending: false }).limit(1).maybeSingle();
     if (lastError) throw lastError;
-    results.push({ exercise: r.exercise, muscleGroup: r.muscle_group, last });
+    let today: RoutinePreviewEntry["last"] = null;
+    if (dayStart) {
+      const { data: t, error: todayError } = await supabase
+        .from("workout_logs")
+        .select("weight_kg, reps, sets, performed_at")
+        .eq("exercise", r.exercise)
+        .gte("performed_at", dayStart)
+        .order("performed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (todayError) throw todayError;
+      today = t;
+    }
+    results.push({ exercise: r.exercise, muscleGroup: r.muscle_group, last, today });
   }
   return results;
 }
@@ -268,12 +283,8 @@ async function getKnownExercises(): Promise<KnownExercise[]> {
   return [...map.values()];
 }
 
-const tokens = (s: string): string[] =>
-  s
-    .toLowerCase()
-    .split(/[^a-zà-ù0-9]+/)
-    .filter(Boolean)
-    .map((t) => (t.length > 3 && t.endsWith("s") ? t.slice(0, -1) : t));
+// "trazioni" = "pull-up": i sinonimi italiani stanno in gym.ts (prima "Quanto faccio di trazioni" non trovava niente)
+const tokens = exerciseTokens;
 
 /**
  * Porta il nome detto a voce/scritto al nome già usato nello storico. Senza questo "extension"
@@ -309,14 +320,44 @@ export async function resolveExercise(name: string, muscleGroupHint?: string): P
   return { match: null, options: [] };
 }
 
-export async function getLastLogFor(exercise: string): Promise<{ weight_kg: number; reps: number; sets: number } | null> {
-  const { data, error } = await supabase
-    .from("workout_logs")
-    .select("weight_kg, reps, sets")
-    .eq("exercise", exercise)
-    .order("performed_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+/** Ultimo valore registrato; con `beforeDayKey` solo quello di una sessione PRECEDENTE ("come l'ultima volta"). */
+export async function getLastLogFor(exercise: string, beforeDayKey?: string): Promise<{ weight_kg: number; reps: number; sets: number } | null> {
+  let q = supabase.from("workout_logs").select("weight_kg, reps, sets").eq("exercise", exercise);
+  if (beforeDayKey) q = q.lt("performed_at", dayRangeUtc(beforeDayKey).from.toISOString());
+  const { data, error } = await q.order("performed_at", { ascending: false }).limit(1).maybeSingle();
   if (error) throw error;
   return data ? { weight_kg: Number(data.weight_kg), reps: Number(data.reps), sets: Number(data.sets ?? 1) } : null;
+}
+
+/** Per ogni routine, i gruppi muscolari dei suoi esercizi (serve a capire che "petto e schiena" è una routine). */
+export async function getRoutineGroups(): Promise<Record<string, string[]>> {
+  const { data, error } = await supabase.from("workout_routines").select("routine_name, muscle_group");
+  if (error) throw error;
+  const out: Record<string, string[]> = {};
+  for (const r of data ?? []) {
+    const name = String(r.routine_name);
+    const g = r.muscle_group ? String(r.muscle_group) : null;
+    (out[name] ??= []);
+    if (g && !out[name].includes(g)) out[name].push(g);
+  }
+  return out;
+}
+
+/**
+ * La routine DI OGGI: se hai già registrato serie oggi è quella che stai facendo (in corso), non la successiva;
+ * altrimenti la prossima del ciclo. (getNextRoutineToTrain da sola, a metà allenamento, già indicava il giorno dopo.)
+ */
+export async function getRoutineForToday(dayKey: string): Promise<string> {
+  const { data, error } = await supabase
+    .from("workout_logs")
+    .select("muscle_group")
+    .gte("performed_at", dayRangeUtc(dayKey).from.toISOString())
+    .lt("performed_at", dayRangeUtc(dayKey).to.toISOString())
+    .order("performed_at", { ascending: false });
+  if (error) throw error;
+  for (const row of data ?? []) {
+    const routine = MUSCLE_GROUP_TO_ROUTINE[row.muscle_group as string];
+    if (routine) return routine;
+  }
+  return getNextRoutineToTrain();
 }

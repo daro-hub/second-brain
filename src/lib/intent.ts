@@ -17,11 +17,14 @@ export interface WorkoutRequest {
   sets: number;
   muscleGroup?: string;
   sameAsLast: boolean;
+  /** "come l'ultima volta / oggi uguale": il valore della sessione PRECEDENTE, non la serie appena fatta oggi */
+  fromPreviousSession?: boolean;
 }
 
 export type MessageIntent =
   | { type: "workout"; entries: WorkoutRequest[] }
   | { type: "clarify"; question: string }
+  | { type: "gym_plan" }
   | { type: "exercise_query"; exercise: string }
   | { type: "session_query"; muscleGroup: string }
   | { type: "password_request"; itemName: string }
@@ -60,10 +63,11 @@ export async function classifyMessage(text: string, history: Turn[] = []): Promi
       {
         role: "system",
         content: `Oggi è ${today}. Classifica un messaggio in italiano in una di queste categorie, rispondendo SOLO con JSON:
-1. Una o PIÙ serie di allenamento da registrare (es. "hack 70 kg 8 reps", "leg curl 41 7", "oggi abs machine stesso peso e dragon flag anche"): {"intent": "workout", "entries": [{"exercise": string, "weightKg": number oppure null, "reps": number oppure null, "sets": number, "muscleGroup": string, "sameAsLast": boolean}]}. Regole: una voce per esercizio. Se dice "stesso peso", "come l'ultima volta", "uguale", "anche" (riferito a un esercizio già fatto) metti "sameAsLast": true e lascia a null il peso (e le reps se non le specifica). Per esercizi a corpo libero senza zavorra (dragon flag, trazioni, plank) il peso è 0. Se i numeri sono dati senza nome dell'esercizio (es. "41 7"), cerca l'esercizio nella conversazione recente: se è chiaro usalo, altrimenti usa il caso 1c. I plurali e i nomi parziali (es. "extension" per "leg extension") vanno comunque restituiti come li ha detti: li normalizza il codice.
+1. Una o PIÙ serie di allenamento da registrare (es. "hack 70 kg 8 reps", "leg curl 41 7", "oggi abs machine stesso peso e dragon flag anche"): {"intent": "workout", "entries": [{"exercise": string, "weightKg": number oppure null, "reps": number oppure null, "sets": number, "muscleGroup": string, "sameAsLast": boolean}]}. Regole: una voce per esercizio. Se dice "stesso peso", "come l'ultima volta", "uguale", "anche" (riferito a un esercizio già fatto) metti "sameAsLast": true e lascia a null il peso (e le reps se non le specifica). Aggiungi "fromPreviousSession": true SOLO se intende il valore dell'ALTRA volta (es. "come l'ultima volta", "oggi uguale", "come la scorsa volta", "come sempre"); false se intende la serie che ha appena fatto oggi (es. "ancora stesso peso", "un'altra serie uguale"). Per esercizi a corpo libero senza zavorra (dragon flag, trazioni, plank) il peso è 0. Se i numeri sono dati senza nome dell'esercizio (es. "41 7"), cerca l'esercizio nella conversazione recente: se è chiaro usalo, altrimenti usa il caso 1c. I plurali e i nomi parziali (es. "extension" per "leg extension") vanno comunque restituiti come li ha detti: li normalizza il codice.
 1c. Dati di un allenamento incompleti o ambigui che non si risolvono dalla conversazione recente (es. "41 7" senza esercizio, "ho fatto 50 kg" senza reps né esercizio): {"intent": "clarify", "question": string} dove "question" è UNA domanda brevissima in italiano che chiede solo ciò che manca (es. "Per quale esercizio? 41 kg × 7 reps"). Se invece Daro sta rispondendo a una domanda che gli hai appena fatto nella conversazione recente (es. scrive solo "Leg curl" dopo "per quale esercizio?"), combina con i numeri già detti e restituisci il caso 1.
 1d. Domanda sullo storico/record di un esercizio (es. "quanto facevo di leg extension?", "qual è il mio massimo di panca?", "che peso uso al leg curl?"): {"intent": "exercise_query", "exercise": string}
-2. Annuncio di un tipo di allenamento senza numeri specifici, per sapere cosa fatto l'ultima volta (es. "oggi faccio petto", "allenamento schiena"): {"intent": "session_query", "muscleGroup": string}
+2. Annuncio di un tipo di allenamento senza numeri specifici, per sapere cosa fatto l'ultima volta (es. "oggi faccio petto", "allenamento schiena", "schiena e bicipiti"): {"intent": "session_query", "muscleGroup": string} — se cita più gruppi, riporta la frase dei gruppi così com'è (es. "schiena e bicipiti").
+2b. Domanda su COSA allenare oggi / la scheda / i pesi da usare (es. "cosa devo allenare oggi?", "che allenamento faccio oggi?", "dammi la scheda", "dammi i pesi", "cosa faccio in palestra?", "tutti" come risposta a "per quali esercizi?"): {"intent": "gym_plan"} — NON è session_query (quello è solo quando dice i gruppi che farà) e NON è exercise_query (quello è un esercizio preciso).
 3. Richiesta di recuperare una password salvata (es. "password di Supabase", "mi serve la password del progetto Longevity", "password wifi"): {"intent": "password_request", "itemName": string}
 4. Domanda su un repository GitHub/progetto di codice, compreso il LINK del progetto (repository o sito online su Vercel) (es. "il link di Orbis", "cosa fa Scolastica", "parlami del progetto Longevity", "dammi il link del second brain"): {"intent": "github_query", "repoName": string}. Se il messaggio è un seguito riferito a un progetto della conversazione recente (es. "vercel", "il sito", "quello online", "il link del deploy"), "repoName" è QUEL progetto, mai la parola "vercel" o "sito". Se chiede i link o l'elenco di TUTTI i progetti pubblici/online (es. "i miei progetti pubblici", "dammi i link dei miei progetti", "cosa ho online?"), "repoName" è "*"
 5. Domanda su issue/task di lavoro Linear (es. "a che punto è l'issue sull'audio?", "ci sono task aperti su AMU-803?"): {"intent": "linear_query", "term": string}
@@ -110,8 +114,12 @@ export async function classifyMessage(text: string, history: Turn[] = []): Promi
           sets: num(e.sets) ?? 1,
           muscleGroup: e.muscleGroup ? String(e.muscleGroup).toLowerCase().trim() : undefined,
           sameAsLast: Boolean(e.sameAsLast),
+          fromPreviousSession: Boolean(e.fromPreviousSession),
         })),
     };
+  }
+  if (parsed.intent === "gym_plan") {
+    return { type: "gym_plan" };
   }
   if (parsed.intent === "clarify" && parsed.question) {
     return { type: "clarify", question: String(parsed.question).trim() };

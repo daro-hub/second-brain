@@ -10,6 +10,7 @@ import { formatUsageReport } from "./usageReport";
 import { maybeHandleUniUpload } from "./uniUploadJob";
 import { gatherSiteData, SITE_TOPIC_LABELS } from "./siteData";
 import { KNOWLEDGE_AREAS, logKnowledge, logSocial, saveReflection, type KnowledgeArea } from "./knowledge";
+import { fmtSet, formatRoutinePreview, groupsFromText, isGroupAnnouncement, latestAnnouncedGroups, routineForGroups, wantsGymPlan } from "./gym";
 import { getRepoInfo, listPublicProjects, listRepos } from "./github";
 import { formatProjectList, isGenericLinkWord, lastRepoInHistory } from "./projects";
 import { searchEmails } from "./gmail";
@@ -34,7 +35,8 @@ import {
   getLastSession,
   getPR,
   resolveExercise,
-  getNextRoutineToTrain,
+  getRoutineForToday,
+  getRoutineGroups,
   getRoutinePreview,
   getScheduleForDay,
   logWorkout,
@@ -153,11 +155,6 @@ async function bareShoppingIntent(text: string, history: Turn[]): Promise<Messag
   return items ? { type: "shopping_add", items } : null;
 }
 
-/** "70kg x8", oppure "corpo libero x7" quando il peso è 0 (dragon flag, trazioni senza zavorra...). */
-function fmtSet(weightKg: number, reps: number): string {
-  return weightKg > 0 ? `${weightKg}kg x${reps}` : `corpo libero x${reps}`;
-}
-
 function formatPace(distanceKm: number, movingTimeMin: number): string {
   if (distanceKm <= 0) return "N/D";
   const paceMinPerKm = movingTimeMin / distanceKm;
@@ -180,23 +177,50 @@ function addOneHour(time: string): string {
   return `${String(next).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-async function replyWithGymPlan(trace?: Trace): Promise<string> {
-  const routine = await getNextRoutineToTrain();
-  src(trace, "gym", routine === "riposo" ? "Giorno di riposo" : `Routine di oggi: ${routine}`, { href: "/palestra" });
-  if (routine === "riposo") {
-    return `🛋️ ${bold("Oggi riposo")}, nessun allenamento in programma.`;
-  }
-  const preview = await getRoutinePreview(routine);
+/** Scheda con i pesi di una routine: gli ultimi valori PRIMA di oggi e, se già fatto, quanto registrato oggi. */
+async function routinePreviewReply(routine: string, trace: Trace | undefined, title = routine): Promise<string> {
+  const preview = await getRoutinePreview(routine, perceivedTodayKey());
+  src(trace, "gym", `Pesi di ${routine}`, {
+    href: "/?p=allenamento",
+    items: (preview ?? []).map((p) => ({ text: p.exercise, meta: p.last ? fmtSet(Number(p.last.weight_kg), Number(p.last.reps)) : "nessun dato" })),
+  });
   if (!preview) return `Nessun esercizio definito per "${escapeHtml(routine)}".`;
-  const previewText = preview
-    .map((p) => {
-      const name = escapeHtml(p.exercise);
-      if (!p.last) return `${BULLET} ${name} — nessun dato registrato`;
-      return `${BULLET} ${name} — ${bold(fmtSet(p.last.weight_kg, p.last.reps))}`;
-    })
-    .join("\n");
-  return `🏋️ ${bold(`Allenamento di oggi: ${escapeHtml(routine)}`)}\n\n${previewText}`;
+  return formatRoutinePreview(title, preview.map((p) => ({ exercise: p.exercise, last: p.last, today: p.today })));
 }
+
+/** Scelta di gruppi muscolari ("schiena e bicipiti"): se sono una routine la scheda, altrimenti l'ultima sessione di ciascun gruppo. */
+async function groupsReply(groups: string[], trace: Trace | undefined): Promise<string> {
+  const routine = routineForGroups(groups, await getRoutineGroups());
+  if (routine) return routinePreviewReply(routine, trace);
+  const today = perceivedTodayKey();
+  const blocks: string[] = [];
+  const items: { text: string; meta: string }[] = [];
+  for (const g of groups) {
+    const session = await getLastSession(g, today);
+    if (!session?.length) {
+      blocks.push(`💪 ${bold(escapeHtml(g))} — nessuna sessione precedente registrata`);
+      continue;
+    }
+    for (const s of session) items.push({ text: `${g}: ${s.exercise}`, meta: fmtSet(Number(s.weight_kg), Number(s.reps)) });
+    blocks.push(`💪 ${bold(escapeHtml(g))} — ultima sessione\n${session.map((s) => `${BULLET} ${escapeHtml(s.exercise)}: ${fmtSet(Number(s.weight_kg), Number(s.reps))}`).join("\n")}`);
+  }
+  src(trace, "gym", `Ultime sessioni: ${groups.join(", ")}`, { href: "/?p=allenamento", items });
+  return blocks.join("\n\n");
+}
+
+/**
+ * "Cosa devo allenare oggi / dammi la scheda / dammi i pesi". Se Daro ha appena detto quali gruppi farà, valgono quelli
+ * (la correzione più recente); altrimenti la routine di oggi del ciclo (quella in corso se ha già registrato serie).
+ */
+async function replyWithGymPlan(trace: Trace | undefined, history: Turn[]): Promise<string> {
+  const announced = latestAnnouncedGroups(history);
+  if (announced?.length) return groupsReply(announced, trace);
+  const routine = await getRoutineForToday(perceivedTodayKey());
+  src(trace, "gym", routine === "riposo" ? "Giorno di riposo" : `Routine di oggi: ${routine}`, { href: "/?p=allenamento" });
+  if (routine === "riposo") return `🛋️ ${bold("Oggi riposo")}, nessun allenamento in programma.`;
+  return routinePreviewReply(routine, trace, `Allenamento di oggi: ${routine}`);
+}
+
 
 function formatShoppingList(list: { item: string }[]): string {
   if (!list.length) return "La lista della spesa è vuota 🛒";
@@ -285,26 +309,25 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
   // Stesso principio: "gym" da sola -> piano di oggi, solo Supabase + calcoli, zero LLM.
   if (text.trim().toLowerCase() === "gym") {
     trace?.intent("gym_plan");
-    return replyWithGymPlan(trace);
+    return replyWithGymPlan(trace, history);
   }
 
   const routineName = await findMatchingRoutine(text);
   if (routineName) {
     trace?.intent("routine_preview");
-    const preview = await getRoutinePreview(routineName);
-    src(trace, "gym", `Ultimi pesi registrati per ${routineName}`, {
-      href: "/palestra",
-      items: (preview ?? []).map((p) => ({ text: p.exercise, meta: p.last ? fmtSet(p.last.weight_kg, p.last.reps) : "nessun dato" })),
-    });
-    if (!preview) return `Nessun esercizio definito per "${escapeHtml(routineName)}".`;
-    const previewText = preview
-      .map((p) => {
-        const name = escapeHtml(p.exercise);
-        if (!p.last) return `${BULLET} ${name} — nessun dato registrato`;
-        return `${BULLET} ${name}: ${bold(fmtSet(p.last.weight_kg, p.last.reps))}`;
-      })
-      .join("\n");
-    return `${bold(escapeHtml(routineName))} — ultimi pesi registrati\n\n${previewText}`;
+    return routinePreviewReply(routineName, trace);
+  }
+
+  // "Schiena e bicipiti", "Ah no scusa devo fare schiena e petto": solo gruppi muscolari → sessioni/scheda, senza passare dal modello
+  if (isGroupAnnouncement(text)) {
+    trace?.intent("session_query");
+    return groupsReply(groupsFromText(text), trace);
+  }
+
+  // "Cosa devo allenare oggi", "dammi la scheda", "dammi i pesi"
+  if (wantsGymPlan(text)) {
+    trace?.intent("gym_plan");
+    return replyWithGymPlan(trace, history);
   }
 
   // PDF appena mandato + "mettilo su github": caricamento e parsing degli appunti
@@ -316,6 +339,15 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
 
   if (intent.type === "clarify") {
     return `🏋️ ${escapeHtml(intent.question)}`;
+  }
+
+  if (intent.type === "gym_plan") {
+    try {
+      return await replyWithGymPlan(trace, history);
+    } catch (err) {
+      reportError("respond/gym_plan", err);
+      return "Errore nel recupero della scheda.";
+    }
   }
 
   if (intent.type === "workout") {
@@ -331,7 +363,8 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
       let weight = e.weightKg;
       let reps = e.reps;
       if (e.sameAsLast || weight === null || reps === null) {
-        const last = await getLastLogFor(name);
+        // "come l'ultima volta / oggi uguale" = la sessione PRECEDENTE; "ancora stesso peso" = la serie appena fatta
+        const last = await getLastLogFor(name, e.fromPreviousSession ? perceivedTodayKey() : undefined);
         if (!last) {
           lines.push(`❓ ${bold(escapeHtml(name))}: non ho un valore precedente, dimmi peso e ripetizioni.`);
           continue;
@@ -362,8 +395,13 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
         href: "/palestra",
         items: hist.map((h) => ({ text: fmtSet(Number(h.weight_kg), Number(h.reps)), meta: new Date(h.performed_at).toLocaleDateString("it-IT", { timeZone: "Europe/Rome" }) })),
       });
-      const context = `Esercizio: ${res.match.name}\nUltime serie (dalla più recente): ${hist.map((h) => `${fmtSet(Number(h.weight_kg), Number(h.reps))}`).join(", ")}\n${pr ? `Miglior serie (1RM stimato ${pr.estimatedOneRm.toFixed(1)} kg): ${fmtSet(pr.weight_kg, pr.reps)}` : ""}`;
-      return await answerFromData(text, context, "Rispondi in modo diretto con il carico più recente e, se utile, il massimo. Le date storiche precedenti al 4 ottobre non sono affidabili: non citarle.");
+      // "l'ultima volta" è un'altra sessione: le serie già fatte oggi si tengono separate
+      const todayStart = dayRangeUtc(perceivedTodayKey()).from.getTime();
+      const doneToday = hist.filter((h) => Date.parse(String(h.performed_at)) >= todayStart);
+      const before = hist.filter((h) => Date.parse(String(h.performed_at)) < todayStart);
+      const fmt = (rows: typeof hist) => (rows.length ? rows.map((h) => fmtSet(Number(h.weight_kg), Number(h.reps))).join(", ") : "nessuna");
+      const context = `Esercizio: ${res.match.name}\nSerie di OGGI (già registrate): ${fmt(doneToday)}\nSessioni PRECEDENTI a oggi (dalla più recente): ${fmt(before)}\n${pr ? `Miglior serie (1RM stimato ${pr.estimatedOneRm.toFixed(1)} kg): ${fmtSet(pr.weight_kg, pr.reps)}` : ""}`;
+      return await answerFromData(text, context, 'Con "l\'ultima volta", "prima" o "di solito" si intende la sessione PRECEDENTE a oggi: rispondi con quella, non con le serie di oggi (che puoi citare a parte se già fatte). Se chiede "quanto faccio" dai il carico più recente e, se utile, il massimo. Le date storiche precedenti al 4 ottobre non sono affidabili: non citarle.');
     } catch {
       return "Errore nel recupero dello storico dell'esercizio.";
     }
@@ -371,16 +409,10 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
 
   if (intent.type === "session_query") {
     try {
-      const session = await getLastSession(intent.muscleGroup);
-      if (!session || !session.length) return `Nessun allenamento registrato per ${escapeHtml(intent.muscleGroup)}.`;
-      const date = new Date(session[0].performed_at).toLocaleDateString("it-IT");
-      const sessionText = session.map((s) => `${s.exercise}: ${s.weight_kg}kg x${s.reps}`).join("\n");
-      src(trace, "gym", `Ultima sessione ${intent.muscleGroup} (${date})`, {
-        href: "/palestra",
-        items: session.map((s) => ({ text: s.exercise, meta: `${s.weight_kg}kg x${s.reps}` })),
-      });
-      return await answerFromData(text, `Ultimo allenamento ${intent.muscleGroup} (${date}):\n${sessionText}`);
-    } catch {
+      const groups = groupsFromText(intent.muscleGroup);
+      return await groupsReply(groups.length ? groups : [intent.muscleGroup], trace);
+    } catch (err) {
+      reportError("respond/session_query", err);
       return "Errore nel recupero dell'allenamento.";
     }
   }
@@ -544,7 +576,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
       const [allEvents, weekSchedule, nextRoutine] = await Promise.all([
         hasRange ? getEventsInRange(dayRangeUtc(rangeStart).from, dayRangeUtc(rangeEnd).to) : getUpcomingEvents(30),
         Promise.all(dayKeys.map((key) => getScheduleForDay(weekdayOf(key)).then((slots) => ({ key, slots })))),
-        getNextRoutineToTrain(),
+        getRoutineForToday(today), // quella di oggi (in corso se hai già fatto serie), non la successiva
       ]);
 
       // gli eventi 📚/🎓 sono l'orario di studio sincronizzato su Calendar: già coperto da "Orario di studio"
@@ -579,8 +611,8 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
           .flatMap((d) => d.slots.map((s) => ({ text: s.subject, meta: `${formatDayLong(d.key)} ${s.startTime}-${s.endTime}` })))
           .slice(0, 8),
       });
-      src(trace, "gym", `Prossima routine: ${nextRoutine}`, { href: "/palestra" });
-      const context = `Periodo richiesto: ${hasRange ? (rangeStart === rangeEnd ? formatDayLong(rangeStart) : `dal ${formatDayLong(rangeStart)} al ${formatDayLong(rangeEnd)}`) : "prossimi giorni"}\n\nEventi in calendario (orario di inizio–fine):\n${eventsText}\n\nSovrapposizioni tra eventi (calcolate, affidabili): ${overlapsText}\n\nOrario di studio/lezioni:\n${scheduleText}\n\nAllenamento: prossima routine in programma è "${nextRoutine}"`;
+      src(trace, "gym", `Routine di oggi: ${nextRoutine}`, { href: "/?p=allenamento" });
+      const context = `Periodo richiesto: ${hasRange ? (rangeStart === rangeEnd ? formatDayLong(rangeStart) : `dal ${formatDayLong(rangeStart)} al ${formatDayLong(rangeEnd)}`) : "prossimi giorni"}\n\nEventi in calendario (orario di inizio–fine):\n${eventsText}\n\nSovrapposizioni tra eventi (calcolate, affidabili): ${overlapsText}\n\nOrario di studio/lezioni:\n${scheduleText}\n\nAllenamento: la routine di OGGI nel ciclo (${nextRoutine === "riposo" ? "giorno di riposo" : "quella in corso se Daro ha già registrato serie oggi"}) è "${nextRoutine}"`;
       return await answerFromData(
         text,
         context,
