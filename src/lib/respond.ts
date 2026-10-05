@@ -5,6 +5,8 @@ import { applyCalendarOps } from "./calendarEdit";
 import { createEvent, getEventsInRange, getUpcomingEvents, isStudySyncEvent } from "./calendar";
 import { addTurns, formatHistory, recentTurns, toPlain, type Turn } from "./chatHistory";
 import { bold, BULLET, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
+import { getOpenAiUsageSummary } from "./openaiUsage";
+import { formatUsageReport } from "./usageReport";
 import { getRepoInfo, listPublicProjects, listRepos } from "./github";
 import { formatProjectList, isGenericLinkWord, lastRepoInHistory } from "./projects";
 import { searchEmails } from "./gmail";
@@ -84,6 +86,7 @@ Se Daro ti chiede chi sei, cosa sai fare o quali sono le tue funzionalità, NON 
 ${BULLET} hai una knowledge base personale su di lui (progetti, interessi, competenze, note che ti dice di ricordare) da cui attingi per rispondere
 ${BULLET} vedi il suo calendario Google (impegni, puoi anche aggiungere eventi) e il suo orario di lezioni/studio universitario
 ${BULLET} tieni traccia dei suoi allenamenti in palestra (serie, pesi, PR, routine) e delle sue corse/attività su Strava
+${BULLET} leggi i consumi e i crediti OpenAI (quanto costa il second brain, quanto resta)
 ${BULLET} gestisci la sua lista della spesa (aggiungere articoli, segnarli comprati, vederla)
 ${BULLET} recuperi le sue password salvate, informazioni sui suoi repository GitHub e le sue issue Linear
 ${BULLET} registri gli allenamenti che Daro ti scrive o detta (anche più esercizi insieme, anche "stesso peso dell'ultima volta") e sai dirgli quanto faceva in un esercizio
@@ -422,6 +425,15 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
     } catch (err) {
       reportError("respond/github_query", err);
       return "Errore nel recupero da GitHub.";
+    }
+  }
+
+  if (intent.type === "usage_query") {
+    try {
+      return formatUsageReport(await getOpenAiUsageSummary(30), intent.service);
+    } catch (err) {
+      reportError("respond/usage_query", err);
+      return "Errore nel recupero dei consumi OpenAI.";
     }
   }
 
