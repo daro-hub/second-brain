@@ -7,6 +7,7 @@ import { addTurns, formatHistory, recentTurns, toPlain, type Turn } from "./chat
 import { bold, BULLET, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
 import { getOpenAiUsageSummary } from "./openaiUsage";
 import { formatUsageReport } from "./usageReport";
+import { maybeHandleUniUpload } from "./uniUploadJob";
 import { gatherSiteData, SITE_TOPIC_LABELS } from "./siteData";
 import { KNOWLEDGE_AREAS, logKnowledge, logSocial, saveReflection, type KnowledgeArea } from "./knowledge";
 import { getRepoInfo, listPublicProjects, listRepos } from "./github";
@@ -88,6 +89,7 @@ Se Daro ti chiede chi sei, cosa sai fare o quali sono le tue funzionalità, NON 
 ${BULLET} hai una knowledge base personale su di lui (progetti, interessi, competenze, note che ti dice di ricordare) da cui attingi per rispondere
 ${BULLET} vedi il suo calendario Google (impegni, puoi anche aggiungere eventi) e il suo orario di lezioni/studio universitario
 ${BULLET} tieni traccia dei suoi allenamenti in palestra (serie, pesi, PR, routine) e delle sue corse/attività su Strava
+${BULLET} se Daro ti manda un PDF di appunti e dice di metterlo su GitHub lo salvi nel repository nella cartella giusta e ne fai il parsing in Markdown con le formule
 ${BULLET} vedi tutto ciò che mostra il sito (punteggi dei pilastri, giornata, piano di studi ed esami, allenamento e forza, equilibrio, incroci, stato di Aira, conoscenza, appunti) e puoi registrare sessioni di conoscenza, contatti sociali e la riflessione del mese
 ${BULLET} leggi i consumi e i crediti OpenAI (quanto costa il second brain, quanto resta)
 ${BULLET} gestisci la sua lista della spesa (aggiungere articoli, segnarli comprati, vederla)
@@ -304,6 +306,10 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
       .join("\n");
     return `${bold(escapeHtml(routineName))} — ultimi pesi registrati\n\n${previewText}`;
   }
+
+  // PDF appena mandato + "mettilo su github": caricamento e parsing degli appunti
+  const uniReply = await maybeHandleUniUpload(text);
+  if (uniReply) return uniReply;
 
   const intent = (await bareShoppingIntent(text, history)) ?? (await classifyMessage(text, history));
   trace?.intent(intent.type);

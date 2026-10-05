@@ -6,6 +6,9 @@ import { bold, BULLET, escapeHtml, stripForSpeech } from "../lib/format";
 import { getExerciseHistory, getPR } from "../lib/workouts";
 import { ingest } from "../lib/ingest";
 import { handleMessage } from "../lib/respond";
+import { reportError } from "../lib/report";
+import { TELEGRAM_MAX_BYTES } from "../lib/uniUpload";
+import { registerPdf } from "../lib/uniUploadJob";
 import { searchSemantic } from "../lib/search";
 import { textToSpeech, transcribe } from "../lib/voice";
 
@@ -110,6 +113,36 @@ bot.command("note", async (ctx) => {
 bot.on("message:text", async (ctx) => {
   const reply = await handleMessage(ctx.message.text);
   await ctx.reply(reply, { parse_mode: "HTML" });
+});
+
+// Un PDF (appunti): resta in attesa finché Daro non dice dove metterlo; con una didascalia come «mettilo su github, analisi
+// lezione 4» parte subito.
+bot.on("message:document", async (ctx) => {
+  const doc = ctx.message.document;
+  if (doc.mime_type !== "application/pdf" && !doc.file_name?.toLowerCase().endsWith(".pdf")) {
+    await ctx.reply("Per ora riesco a gestire solo PDF (per gli appunti).");
+    return;
+  }
+  if ((doc.file_size ?? 0) > TELEGRAM_MAX_BYTES) {
+    await ctx.reply("Questo PDF supera i 20 MB, il limite di Telegram per i bot: mettilo direttamente dal sito (Università → carica).");
+    return;
+  }
+  try {
+    const pending = await registerPdf({ fileId: doc.file_id, name: doc.file_name ?? "appunti.pdf", size: doc.file_size ?? 0, at: new Date().toISOString() });
+    const caption = ctx.message.caption?.trim();
+    if (caption) {
+      const reply = await handleMessage(caption);
+      await ctx.reply(reply, { parse_mode: "HTML" });
+      return;
+    }
+    await ctx.reply(
+      `📄 Ricevuto ${escapeHtml(doc.file_name ?? "il PDF")}${pending.length > 1 ? ` (in attesa: ${pending.length})` : ""}. Dimmi dove metterlo, per esempio «mettilo su github, analisi, lezione 4» — se sono più PDF della stessa lezione mandali tutti prima.`,
+      { parse_mode: "HTML" },
+    );
+  } catch (err) {
+    reportError("telegram/document", err);
+    await ctx.reply("Non sono riuscito a registrare il PDF. Riprova tra poco.");
+  }
 });
 
 bot.on("message:voice", async (ctx) => {
