@@ -158,6 +158,11 @@ function Stage() {
   const aira = useCached<AiraStatus>("/api/hub/aira", p === "aira", 2 * 60_000);
   const data = hub.data;
 
+  // su telefono i chip stanno su una riga scorrevole: il chip attivo deve restare visibile
+  useEffect(() => {
+    document.querySelector(".hub-chips .on")?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [p, mode]);
+
   const select = (key: string) => router.push(p === key && mode === "pillar" ? "/" : `/?p=${key}`);
   const onOrb = () => {
     if (mode === "home") router.push("/?console=1"); // dalla panoramica l'orb apre la console
