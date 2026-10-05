@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { getPassword } from "./bitwarden";
-import { describeOverlap, findOverlaps, formatWhen } from "./agenda";
+import { asksForMeetingLink, describeOverlap, findOverlaps, formatWhen } from "./agenda";
 import { applyCalendarOps } from "./calendarEdit";
 import { createEvent, getEventsInRange, getUpcomingEvents, isStudySyncEvent } from "./calendar";
 import { addTurns, formatHistory, recentTurns, toPlain, type Turn } from "./chatHistory";
@@ -436,9 +436,13 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
       // Senza periodo: prossimi impegni da adesso. Prima il modello riceveva solo date senza giorno della
       // settimana e non sapeva che giorno fosse oggi, quindi "domani" diventava il primo giorno della lista.
       const today = perceivedTodayKey();
-      const rangeStart = intent.startDate ?? today;
-      const rangeEnd = intent.startDate && intent.endDate ? intent.endDate : addDays(today, 6);
-      const hasRange = Boolean(intent.startDate && intent.endDate);
+      // Chi chiede "il link del meet" di solito ne ha uno adesso: senza giorno si guardano oggi e domani
+      // (getUpcomingEvents parte da adesso e perderebbe la riunione già iniziata).
+      const explicitRange = Boolean(intent.startDate && intent.endDate);
+      const linkToday = asksForMeetingLink(text) && !explicitRange;
+      const rangeStart = linkToday ? today : (intent.startDate ?? today);
+      const rangeEnd = linkToday ? addDays(today, 1) : explicitRange ? intent.endDate! : addDays(today, 6);
+      const hasRange = explicitRange || linkToday;
       const dayKeys: string[] = [];
       for (let k = rangeStart; k <= rangeEnd && dayKeys.length < 14; k = addDays(k, 1)) dayKeys.push(k);
 
@@ -454,7 +458,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
       const eventsText = events.length
         ? events
             .map((e) => {
-              return `${dayOf(e.start)} ${formatWhen(e)} — ${e.summary}${e.calendar ? ` [${e.calendar}]` : ""}${e.location ? ` (${e.location})` : ""}`;
+              return `${dayOf(e.start)} ${formatWhen(e)} — ${e.summary}${e.calendar ? ` [${e.calendar}]` : ""}${e.location ? ` (${e.location})` : ""}${e.meetUrl ? ` — LINK RIUNIONE: ${e.meetUrl}` : ""}`;
             })
             .join("\n")
         : "Nessuno";
@@ -472,7 +476,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
 
       src(trace, "calendar", `${events.length} eventi${hasRange ? ` dal ${rangeStart} al ${rangeEnd}` : " in arrivo"}`, {
         href: "/",
-        items: events.map((e) => ({ text: e.calendar ? `${e.summary} · ${e.calendar}` : e.summary, meta: `${dayOf(e.start)} ${e.start.length <= 10 ? "" : localHHMM(e.start)}`.trim() })),
+        items: events.map((e) => ({ text: e.calendar ? `${e.summary} · ${e.calendar}` : e.summary, href: e.meetUrl, meta: `${dayOf(e.start)} ${e.start.length <= 10 ? "" : localHHMM(e.start)}`.trim() })),
       });
       src(trace, "study", "Lezioni e studio del periodo", {
         href: "/",
@@ -485,7 +489,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
       return await answerFromData(
         text,
         context,
-        'Se la domanda è generica (es. "cosa devo fare questa settimana?"), dai un quadro completo usando tutte e tre le fonti sopra (calendario, studio, allenamento); se è specifica su una sola di queste, rispondi solo su quella. Segnala una sovrapposizione tra eventi SOLO se compare nella riga "Sovrapposizioni tra eventi"; non dedurla dagli orari di inizio e non dire che due impegni "si sovrappongono" se la riga dice "nessuna". Non aggiungere consigli, inviti a "verificare" o ipotesi che non ti sono stati chiesti.',
+        'Se la domanda è generica (es. "cosa devo fare questa settimana?"), dai un quadro completo usando tutte e tre le fonti sopra (calendario, studio, allenamento); se è specifica su una sola di queste, rispondi solo su quella. Segnala una sovrapposizione tra eventi SOLO se compare nella riga "Sovrapposizioni tra eventi"; non dedurla dagli orari di inizio e non dire che due impegni "si sovrappongono" se la riga dice "nessuna". Non aggiungere consigli, inviti a "verificare" o ipotesi che non ti sono stati chiesti. Se Daro chiede il link di una riunione/call/meet, rispondi con l\'URL COMPLETO preso dal campo "LINK RIUNIONE" dell\'evento giusto (se chiede "di lavoro" guarda gli eventi del calendario [Lavoro]; se ci sono più riunioni scegli quella in corso o la prossima e nominala); se l\'evento non ha il campo "LINK RIUNIONE" dì chiaramente che quell\'evento non ha un link, senza inventarne uno.',
       );
     } catch (err) {
       reportError("respond/calendar_query", err);

@@ -85,3 +85,34 @@ describe("matchEvents / addMinutes", () => {
     expect(addMinutes("23:30", 120)).toBe("23:59");
   });
 });
+
+import { asksForMeetingLink, extractMeetingUrl } from "../src/lib/agenda";
+
+describe("extractMeetingUrl", () => {
+  it("preferisce il Meet creato da Google (hangoutLink)", () => {
+    expect(extractMeetingUrl({ hangoutLink: "https://meet.google.com/abc-defg-hij", location: "https://zoom.us/j/1" })).toBe("https://meet.google.com/abc-defg-hij");
+  });
+  it("altrimenti il punto d'accesso video di conferenceData", () => {
+    expect(extractMeetingUrl({ conferenceData: { entryPoints: [{ entryPointType: "phone", uri: "tel:+39" }, { entryPointType: "video", uri: "https://meet.google.com/x-y-z" }] } })).toBe("https://meet.google.com/x-y-z");
+  });
+  it("trova il link scritto nel luogo o nella descrizione (inviti da calendari esterni)", () => {
+    expect(extractMeetingUrl({ location: "https://teams.microsoft.com/l/meetup-join/abc%40thread" })).toContain("teams.microsoft.com");
+    expect(extractMeetingUrl({ description: 'Entra qui: <a href="https://zoom.us/j/123456?pwd=abc">link</a> grazie' })).toBe("https://zoom.us/j/123456?pwd=abc");
+    expect(extractMeetingUrl({ description: "Unisciti: https://meet.google.com/aaa-bbbb-ccc." })).toBe("https://meet.google.com/aaa-bbbb-ccc");
+  });
+  it("nessun link → undefined (e un sito qualunque non conta)", () => {
+    expect(extractMeetingUrl({ location: "Via Roma 1", description: "vedi https://example.com/agenda" })).toBeUndefined();
+    expect(extractMeetingUrl({})).toBeUndefined();
+  });
+});
+
+describe("asksForMeetingLink", () => {
+  it("riconosce la richiesta del link", () => {
+    expect(asksForMeetingLink("dammi il link del meet di lavoro in cui devo entrare")).toBe(true);
+    expect(asksForMeetingLink("qual è il link della call?")).toBe(true);
+  });
+  it("non scatta su domande normali di agenda", () => {
+    expect(asksForMeetingLink("cosa ho in agenda domani?")).toBe(false);
+    expect(asksForMeetingLink("che riunioni ho giovedì?")).toBe(false);
+  });
+});

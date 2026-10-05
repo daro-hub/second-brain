@@ -106,3 +106,33 @@ export function addMinutes(hhmm: string, minutes: number): string {
 }
 
 export const minutesBetween = (startIso: string, endIso: string): number => Math.round((Date.parse(endIso) - Date.parse(startIso)) / 60_000);
+
+/* ───────── link delle videochiamate ───────── */
+
+const MEETING_URL = /https?:\/\/(?:[\w-]+\.)?(?:meet\.google\.com|zoom\.us|zoom\.com|teams\.microsoft\.com|teams\.live\.com|whereby\.com|webex\.com|gotomeet\.me|around\.co)\/[^\s<>"')\]]+/i;
+
+export interface RawConference {
+  hangoutLink?: string;
+  conferenceData?: { entryPoints?: { entryPointType?: string; uri?: string }[] };
+  location?: string;
+  description?: string;
+}
+
+/**
+ * Il link per entrare nella riunione di un evento. Ordine: il Meet creato da Google Calendar (hangoutLink),
+ * il punto d'accesso video di conferenceData, poi un link di Meet/Zoom/Teams/... scritto nel luogo o nella descrizione
+ * (così arrivano gli inviti da calendari esterni). Nessun link → undefined.
+ */
+export function extractMeetingUrl(e: RawConference): string | undefined {
+  if (e.hangoutLink) return e.hangoutLink;
+  const video = e.conferenceData?.entryPoints?.find((p) => p.entryPointType === "video" && p.uri);
+  if (video?.uri) return video.uri;
+  for (const text of [e.location, e.description]) {
+    const m = text ? MEETING_URL.exec(text) : null;
+    if (m) return m[0].replace(/[.,;:!]+$/, "");
+  }
+  return undefined;
+}
+
+/** La domanda chiede il link di una riunione/videochiamata (anche senza dire il giorno: si guarda oggi e domani). */
+export const asksForMeetingLink = (text: string): boolean => /\b(link|meet|zoom|teams|videochiamata|videocall|call)\b/i.test(text);

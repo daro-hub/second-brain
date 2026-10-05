@@ -1,3 +1,4 @@
+import { extractMeetingUrl, type RawConference } from "./agenda";
 import { getGoogleAccessToken, hasWorkGoogleAccount, type GoogleAccount } from "./googleAuth";
 
 export interface CalendarEvent {
@@ -7,6 +8,8 @@ export interface CalendarEvent {
   location?: string;
   /** calendario di provenienza (es. "Lavoro"); assente per il calendario principale */
   calendar?: string;
+  /** link per entrare nella videochiamata (Meet, Zoom, Teams...), se l'evento ne ha uno */
+  meetUrl?: string;
 }
 
 export interface CalendarEventDetailed extends CalendarEvent {
@@ -19,7 +22,7 @@ export interface CalendarEventDetailed extends CalendarEvent {
   account?: GoogleAccount;
 }
 
-interface RawEvent {
+type RawEvent = {
   summary?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
@@ -27,7 +30,7 @@ interface RawEvent {
   id?: string;
   iCalUID?: string;
   status?: string;
-}
+} & RawConference;
 
 interface CalendarRef {
   account: GoogleAccount;
@@ -103,6 +106,7 @@ async function fetchFrom(ref: CalendarRef, params: Record<string, string>): Prom
       start: e.start?.dateTime ?? e.start?.date ?? "",
       end: e.end?.dateTime ?? e.end?.date ?? "",
       location: e.location,
+      meetUrl: extractMeetingUrl(e),
       allDay: !e.start?.dateTime,
       calendar: ref.label ?? undefined,
       id: e.id,
