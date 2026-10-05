@@ -147,6 +147,26 @@ function Stage() {
   useEffect(() => {
     if (console_) setConsoleOpened(true);
   }, [console_]);
+  // Console su telefono: la pagina non scorre (solo l'elenco dei messaggi) e l'altezza segue la tastiera aperta
+  useEffect(() => {
+    if (!console_) return;
+    document.body.classList.add("hub-console-open");
+    const vv = window.visualViewport;
+    const sync = () => {
+      if (!vv) return;
+      document.documentElement.style.setProperty("--vvh", `${vv.height}px`);
+      window.scrollTo(0, 0); // iOS sposta la pagina quando compare la tastiera: la si riporta su
+    };
+    sync();
+    vv?.addEventListener("resize", sync);
+    vv?.addEventListener("scroll", sync);
+    return () => {
+      document.body.classList.remove("hub-console-open");
+      document.documentElement.style.removeProperty("--vvh");
+      vv?.removeEventListener("resize", sync);
+      vv?.removeEventListener("scroll", sync);
+    };
+  }, [console_]);
   useEffect(() => {
     if (!console_) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && router.push("/");

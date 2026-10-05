@@ -125,7 +125,8 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
 
 
   useEffect(() => {
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" });
+    // istantaneo (non "smooth"): l'animazione viene sospesa se la scheda non è in primo piano e l'ultimo messaggio restava fuori vista
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [messages]);
 
   // ───────── chat ─────────
@@ -288,14 +289,16 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
 
       <section className="aira-core">
         <div className="orb-wrap" aria-hidden />
+        <div className="aira-name">Aira</div>
         <div className={`status status-${phase}`}>
           <span className="pulse" />
           {STATUS[phase]}
         </div>
         <div className="heard">{phase === "listening" ? "Parla pure, ti ascolto…" : heard ? `“${heard}”` : " "}</div>
         {notice && <div className="notice">{notice}</div>}
-        <button type="button" className="aira-close" onClick={onClose}>
-          ← Panoramica
+        <button type="button" className="aira-close" onClick={onClose} aria-label="Torna alla panoramica">
+          <span className="arrow" aria-hidden>←</span>
+          <span className="lbl"> Panoramica</span>
         </button>
       </section>
 
@@ -355,14 +358,17 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
           className={`btn-mic${live ? " on" : ""}`}
           onClick={() => (live ? stopLive() : void startLive())}
           title={live ? "Termina la modalità live" : "Parla con Aira in diretta"}
+          aria-label={live ? "Termina la modalità live" : "Parla con Aira in diretta"}
         >
-          {live ? "■ LIVE" : "🎙 LIVE"}
+          <span aria-hidden>{live ? "■" : "🎙"}</span>
+          <span className="lbl"> LIVE</span>
         </button>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={live ? "Sto ascoltando… oppure scrivi qui" : "Scrivi ad Aira…"}
           autoComplete="off"
+          enterKeyHint="send"
           aria-label="Messaggio per Aira"
         />
         <button
@@ -373,8 +379,9 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
         >
           {voiceReplies ? "🔊" : "🔈"}
         </button>
-        <button type="submit" className="btn-send" disabled={!input.trim() || phase === "thinking"}>
-          Invia
+        <button type="submit" className="btn-send" aria-label="Invia" disabled={!input.trim() || phase === "thinking"}>
+          <span className="lbl">Invia</span>
+          <span className="arrow" aria-hidden>↑</span>
         </button>
       </form>
     </div>
