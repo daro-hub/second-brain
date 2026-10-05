@@ -1555,3 +1555,9 @@ a.hub-chip { text-decoration: none; }
 @media (max-width: 720px) {
   .hub-dock.strip { flex-direction: column; align-items: flex-start; }
 }
+
+.topbar .readouts .logout {
+  background: transparent; border: 1px solid var(--border); border-radius: 6px; color: var(--muted);
+  font: inherit; font-size: 11px; padding: 2px 8px; cursor: pointer; order: 9;
+}
+.topbar .readouts .logout:hover { color: var(--text); border-color: var(--accent); }

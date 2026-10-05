@@ -22,8 +22,6 @@ interface HubData {
   nextExam: { name: string; daysLeft: number } | null;
 }
 
-/** Su quali pagine "vecchie" il dock evidenzia un pilastro. */
-const PATH_PILLAR: Record<string, string> = { "/salute": "salute", "/palestra": "allenamento", "/uni": "studio", "/spesa": "salute", "/bilancio": "salute" };
 const CACHE_KEY = "hub:v1";
 const CACHE_MS = 5 * 60_000;
 
@@ -47,7 +45,7 @@ function Dock() {
 
   const p = params.get("p");
   const overview = pathname === "/" && !p;
-  const active = pathname === "/" ? p : (PATH_PILLAR[pathname] ?? null);
+  const active = pathname === "/" ? p : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -137,7 +135,11 @@ function Dock() {
               <i />
               Aira
             </Link>
-            {!overview && <Link href="/" className="hub-chip home">← Panoramica</Link>}
+            <Link href="/?p=incroci" className={`hub-chip${active === "incroci" ? " on" : ""}`}>
+              <i style={{ background: "#ff7ad9" }} />
+              Incroci
+            </Link>
+            <Link href="/" className="hub-chip home">← Panoramica</Link>
           </div>
         )}
         {(voice.phase !== "idle" || voice.heard) && (

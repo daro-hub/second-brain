@@ -164,7 +164,7 @@ export async function OggiView() {
         <div className="card">
           <div className="card-head">
             <h3>⚖ Equilibrio della settimana</h3>
-            <Link href="/bilancio" className="muted small">
+            <Link href="/?p=salute" className="muted small">
               {balance.index !== null ? `indice ${balance.index}/100 · ` : ""}dettagli →
             </Link>
           </div>
@@ -213,7 +213,7 @@ export async function OggiView() {
         <div className="card">
           <div className="card-head">
             <h3>🍽 Pasti di oggi</h3>
-            <Link href="/salute" className="muted small">
+            <Link href="/?p=salute" className="muted small">
               dettaglio →
             </Link>
           </div>
@@ -239,7 +239,7 @@ export async function OggiView() {
       <div className="card">
         <div className="card-head">
           <h3>Ultimi 7 giorni</h3>
-          <Link href="/insights" className="muted small">
+          <Link href="/?p=incroci" className="muted small">
             tutti gli incroci →
           </Link>
         </div>
@@ -276,7 +276,7 @@ export async function OggiView() {
       <div className="card">
         <div className="card-head">
           <h3>🔗 Incroci in evidenza</h3>
-          <Link href="/insights" className="muted small">
+          <Link href="/?p=incroci" className="muted small">
             apri →
           </Link>
         </div>

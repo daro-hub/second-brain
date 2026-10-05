@@ -160,7 +160,7 @@ export async function PalestraView({ exercise: selected }: { exercise?: string }
       </div>
 
       <div className="card">
-        <div className="card-head"><h3>Costanza — ultime 12 settimane</h3><Link href="/insights" className="muted small">tutti gli incroci →</Link></div>
+        <div className="card-head"><h3>Costanza — ultime 12 settimane</h3><Link href="/?p=incroci" className="muted small">tutti gli incroci →</Link></div>
         <ActivityHeatmap days={cal.days} />
       </div>
 
@@ -173,7 +173,7 @@ export async function PalestraView({ exercise: selected }: { exercise?: string }
           {strength.map((s) => (
             <Link
               key={s.exercise}
-              href={`/palestra?exercise=${encodeURIComponent(s.exercise)}`}
+              href={`/?p=allenamento&exercise=${encodeURIComponent(s.exercise)}`}
               className={`pill ${s.exercise === exercise ? "info" : ""}`}
               style={{ textDecoration: "none", textTransform: "capitalize" }}
             >

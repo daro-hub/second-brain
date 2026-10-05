@@ -32,12 +32,12 @@ export async function SaluteView({ date }: { date?: string }) {
       <p className="page-sub">Dati da Apple Health (Yazio per i pasti, Zepp Life per battito e passi).</p>
 
       <div className="daynav">
-        <Link href={`/salute?date=${addDays(dayKey, -1)}`}>← Ieri</Link>
+        <Link href={`/?p=salute&date=${addDays(dayKey, -1)}`}>← Ieri</Link>
         <div className="label">{formatDayLong(dayKey)}</div>
-        <Link href="/salute" className={dayKey === today ? "disabled" : ""}>
+        <Link href="/?p=salute" className={dayKey === today ? "disabled" : ""}>
           Oggi
         </Link>
-        <Link href={`/salute?date=${addDays(dayKey, 1)}`} className={dayKey >= today ? "disabled" : ""}>
+        <Link href={`/?p=salute&date=${addDays(dayKey, 1)}`} className={dayKey >= today ? "disabled" : ""}>
           Domani →
         </Link>
       </div>

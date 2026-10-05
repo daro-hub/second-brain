@@ -7,6 +7,7 @@ import { PalestraView } from "../../palestra/PalestraView";
 import { SaluteView } from "../../salute/SaluteView";
 import { SpesaView } from "../../spesa/SpesaView";
 import { UniView } from "../../uni/UniView";
+import { InsightsView } from "../../insights/InsightsView";
 import { WidgetBoundary } from "./WidgetBoundary";
 import { AiraPanel, KnowledgePanel, MeasureGrid, Skeleton, SocialQuickLog, WorkPanel } from "./widgets";
 
@@ -24,7 +25,20 @@ const S = ({ label, children }: { label: string; children: React.ReactNode }) =>
  * La pagina modulare: ogni contesto è una lista di widget, ciascuno in un proprio Suspense, così la
  * pagina si compone man mano e un widget lento non blocca gli altri. Senza contesto: la panoramica (Oggi).
  */
-export function HubContext({ context }: { context: string | undefined }) {
+export interface HubParams {
+  date?: string;
+  path?: string;
+  exercise?: string;
+}
+
+export function HubContext({ context, params = {} }: { context: string | undefined; params?: HubParams }) {
+  if (context === "incroci") {
+    return (
+      <S label="Incroci">
+        <InsightsView />
+      </S>
+    );
+  }
   if (context === "aira") {
     return (
       <>
@@ -50,7 +64,7 @@ export function HubContext({ context }: { context: string | undefined }) {
       return (
         <>
           {measures}
-          <S label="Università"><UniView /></S>
+          <S label="Università"><UniView path={params.path} /></S>
         </>
       );
     case "salute":
@@ -58,7 +72,7 @@ export function HubContext({ context }: { context: string | undefined }) {
         <>
           {measures}
           <SocialQuickLog />
-          <S label="Salute"><SaluteView /></S>
+          <S label="Salute"><SaluteView date={params.date} /></S>
           <S label="Bilancio"><BilancioView /></S>
           <S label="Spesa"><SpesaView /></S>
         </>
@@ -67,7 +81,7 @@ export function HubContext({ context }: { context: string | undefined }) {
       return (
         <>
           {measures}
-          <S label="Allenamento"><PalestraView /></S>
+          <S label="Allenamento"><PalestraView exercise={params.exercise} /></S>
         </>
       );
     case "conoscenza":

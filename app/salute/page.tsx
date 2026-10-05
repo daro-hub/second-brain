@@ -1,7 +1,8 @@
-import { SaluteView } from "./SaluteView";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default async function SalutePage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
-  return <SaluteView date={(await searchParams).date} />;
+// Tutto vive nella pagina unica: questa route resta solo per i vecchi link e i segnalibri.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const qs = new URLSearchParams({ p: "salute" });
+  for (const [k, v] of Object.entries(await searchParams)) if (v && k !== "p") qs.set(k, v);
+  redirect(`/?${qs}`);
 }

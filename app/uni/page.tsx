@@ -1,7 +1,8 @@
-import { UniView } from "./UniView";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default async function UniPage({ searchParams }: { searchParams: Promise<{ path?: string }> }) {
-  return <UniView path={(await searchParams).path} />;
+// Tutto vive nella pagina unica: questa route resta solo per i vecchi link e i segnalibri.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const qs = new URLSearchParams({ p: "studio" });
+  for (const [k, v] of Object.entries(await searchParams)) if (v && k !== "p") qs.set(k, v);
+  redirect(`/?${qs}`);
 }

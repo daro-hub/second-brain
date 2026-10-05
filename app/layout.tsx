@@ -1,7 +1,6 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { Sidebar } from "./components/Sidebar";
 import { Topbar } from "./components/Topbar";
 import { HubDock } from "./components/hub/HubDock";
 
@@ -17,9 +16,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="it" className={`${sans.variable} ${mono.variable}`}>
       <body>
         <div className="shell">
-          <Sidebar />
           <div className="content-col">
-            <Topbar />
+            <Suspense fallback={null}>
+              <Topbar />
+            </Suspense>
             <HubDock />
             <main>{children}</main>
           </div>

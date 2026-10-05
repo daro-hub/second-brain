@@ -1,18 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const TITLES: Record<string, string> = {
-  "/": "oggi",
-  "/salute": "salute",
-  "/palestra": "allenamento",
-  "/bilancio": "bilancio",
-  "/insights": "incroci",
-  "/spesa": "spesa",
-  "/uni": "università",
-};
+const CONTEXT_TITLES: Record<string, string> = { studio: "studio", salute: "salute", allenamento: "allenamento", conoscenza: "conoscenza", lavoro: "lavoro", aira: "aira", incroci: "incroci" };
 
 /** Il progetto è nato il 3 ottobre 2026: il contatore "DAY" parte da lì. */
 const BORN = Date.UTC(2026, 9, 3);
@@ -53,6 +45,7 @@ function Ruler() {
 export function Topbar() {
   const pathname = usePathname();
   const router = useRouter();
+  const ctx = useSearchParams().get("p");
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -88,7 +81,7 @@ export function Topbar() {
           </Link>
           <span className="tag">Pubblico</span>
           <span className="sep">/</span>
-          <span className="here">{TITLES[pathname] ?? pathname.slice(1)}</span>
+          <span className="here">{(ctx && CONTEXT_TITLES[ctx]) || "panoramica"}</span>
           <span className="tag live">
             <i /> online
           </span>
@@ -106,6 +99,16 @@ export function Topbar() {
             <span className="lbl">DAY</span>
             <b>{String(day).padStart(3, "0")}</b>
           </span>
+          <button
+            type="button"
+            className="logout"
+            onClick={async () => {
+              await fetch("/api/logout", { method: "POST" });
+              window.location.href = "/login";
+            }}
+          >
+            Esci
+          </button>
           <span>
             <span className="lbl">WK</span>
             <b>{now ? String(weekNumber(now)).padStart(2, "0") : "--"}</b>

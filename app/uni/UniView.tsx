@@ -19,11 +19,11 @@ function Breadcrumbs({ path }: { path: string }) {
   const parts = path ? path.split("/") : [];
   return (
     <nav className="uni-crumbs">
-      <Link href="/uni">university</Link>
+      <Link href="/?p=studio">university</Link>
       {parts.map((p, i) => (
         <span key={i}>
           {" / "}
-          <Link href={`/uni?path=${encodeURIComponent(parts.slice(0, i + 1).join("/"))}`}>{p}</Link>
+          <Link href={`/?p=studio&path=${encodeURIComponent(parts.slice(0, i + 1).join("/"))}`}>{p}</Link>
         </span>
       ))}
     </nav>
@@ -105,7 +105,7 @@ export async function UniView({ path: rawPath }: { path?: string }) {
             <ul className="uni-list">
               {entries.map((e) => (
                 <li key={e.path}>
-                  <Link href={`/uni?path=${encodeURIComponent(e.path)}`}>
+                  <Link href={`/?p=studio&path=${encodeURIComponent(e.path)}`}>
                     {e.type === "dir" ? "📁" : e.name.endsWith(".md") ? "📝" : "📄"} {e.name}
                   </Link>
                   {e.type === "file" && <span className="uni-size">{fmtSize(e.size)}</span>}
