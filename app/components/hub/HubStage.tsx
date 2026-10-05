@@ -88,23 +88,6 @@ function useCached<T>(url: string, enabled: boolean, ttl = TTL): { data: T | nul
   return { data, failed };
 }
 
-function homeInsights(d: HubData): Card[] {
-  const low = d.weakest?.measures?.filter((m) => m.score !== null).sort((a, b) => (a.score as number) - (b.score as number))[0];
-  const moving = d.pillars.filter((p) => p.trend !== null && p.trend !== 0).sort((a, b) => Math.abs(b.trend as number) - Math.abs(a.trend as number))[0];
-  return [
-    d.nextExam
-      ? { key: "exam", label: "Prossimo esame", value: d.nextExam.name, detail: d.nextExam.daysLeft === 0 ? "è oggi" : `fra ${d.nextExam.daysLeft} giorni`, color: "#5eead4" }
-      : { key: "exam", label: "Prossimo esame", value: "—", detail: "nessun esame pianificato", color: "#5eead4" },
-    d.weakest && d.weakest.score !== null
-      ? { key: "weak", label: "Da sistemare", value: d.weakest.label, detail: low ? `${low.label}: ${low.value} (${low.score}/100)` : `punteggio ${d.weakest.score}/100`, color: d.weakest.color }
-      : { key: "weak", label: "Da sistemare", value: "—", detail: "servono più dati", color: "#5a6677" },
-    { key: "index", label: "Equilibrio", value: d.index === null ? "—" : `${d.index}/100`, detail: "media dei pilastri, penalizzata dagli squilibri", score: d.index, color: "#4de1ff" },
-    moving
-      ? { key: "trend", label: (moving.trend as number) > 0 ? "In crescita" : "In calo", value: moving.label, detail: `${(moving.trend as number) > 0 ? "+" : ""}${moving.trend} in 7 giorni`, color: moving.color }
-      : { key: "trend", label: "Tendenza", value: "—", detail: "i trend compaiono dopo 7 giorni di storico", color: "#5a6677" },
-  ];
-}
-
 function airaCards(a: AiraStatus): Card[] {
   const down = a.integrations.filter((i) => !i.ok);
   const cards: Card[] = [
@@ -156,8 +139,9 @@ function Stage() {
 
   const console_ = pathname === "/" && params.get("console") === "1";
   const p = pathname === "/" && !console_ ? params.get("p") : null;
-  const detail = pathname === "/" && !console_ && (params.get("detail") === "1" || p === "incroci");
-  const mode: "home" | "pillar" | "detail" | "console" = console_ ? "console" : detail ? "detail" : p ? "pillar" : "home";
+  // Entrare in un pilastro mostra subito tutto: non c'è più un passaggio "Dettagli" (?detail=1 resta valido per i vecchi link)
+  const inside = pathname === "/" && !console_ && (Boolean(p) || params.get("detail") === "1");
+  const mode: "home" | "pillar" | "console" = console_ ? "console" : inside ? "pillar" : "home";
 
   // la chat resta montata una volta aperta: la cronologia non si perde tornando alla panoramica
   useEffect(() => {
@@ -188,6 +172,7 @@ function Stage() {
   const pillars: HubPillar[] = data?.pillars ?? ["studio", "salute", "allenamento", "conoscenza", "lavoro"].map((k) => ({ key: k, label: k[0].toUpperCase() + k.slice(1), color: "#5a6677", score: null, trend: null }));
   const current = pillars.find((x) => x.key === p);
   const title = p === "aira" ? "Status di Aira" : p === "incroci" ? "Incroci" : current ? current.label : "Oggi";
+  const hasStrip = p === "aira" || Boolean(current);
   const cards: Card[] | null =
     p === "aira"
       ? aira.data
@@ -197,29 +182,22 @@ function Stage() {
         ? current.measures.map((m) => ({ key: m.key, label: m.label, value: m.value, detail: m.detail, score: m.score, color: current.color }))
         : null;
   const loadFailed = p === "aira" ? aira.failed : hub.failed;
-  const insights = data ? homeInsights(data) : [];
 
   return (
     <section className={`hub-stage ${mode}`} aria-label="Aira e pilastri">
       <div className="hub-home">
-        <div className="hub-col">
-          <Cards cards={insights.slice(0, 2)} />
-        </div>
         <div className="hub-cc">
-          <PillarRadar pillars={pillars} active={p} compact={false} onSelect={select} />
+          <PillarRadar pillars={pillars} active={p} onSelect={select} />
           <div className="hub-text">
-            <p className="hub-hint">Tocca un vertice per aprirlo · tocca Aira per parlarci e scriverle</p>
             <div className="hub-actions">
-              <Link href="/?detail=1" className="hub-chip">Oggi · dettaglio</Link>
+              <Link href="/?p=oggi" className="hub-chip">Oggi</Link>
               <Link href="/?p=aira" className="hub-chip aira">
                 <i />
                 Status
               </Link>
             </div>
+            <p className="hub-hint">Tocca Aira per parlarci e scriverle</p>
           </div>
-        </div>
-        <div className="hub-col">
-          <Cards cards={insights.slice(2)} />
         </div>
       </div>
 
@@ -244,24 +222,18 @@ function Stage() {
             <i />
             Status
           </Link>
+          <Link href="/?p=oggi" className={`hub-chip${p === "oggi" || (inside && !p) ? " on" : ""}`}>
+            <i style={{ background: "#8b98a8" }} />
+            Oggi
+          </Link>
           <Link href="/?p=incroci" className={`hub-chip${p === "incroci" ? " on" : ""}`}>
             <i style={{ background: "#ff7ad9" }} />
             Incroci
           </Link>
         </div>
-        {mode === "pillar" && (
-          <Link href={`/?p=${p}&detail=1`} className="hub-chip">
-            Dettagli
-          </Link>
-        )}
-        {mode === "detail" && p !== "incroci" && (
-          <Link href={p ? `/?p=${p}` : "/"} className="hub-chip">
-            ← Insight
-          </Link>
-        )}
       </div>
 
-      {mode === "pillar" && (
+      {mode === "pillar" && hasStrip && (
         <div className="hub-body">
           {cards ? <Cards cards={cards} /> : <p className="muted small">{loadFailed ? "Non riesco a leggere i dati in questo momento." : "Calcolo…"}</p>}
         </div>

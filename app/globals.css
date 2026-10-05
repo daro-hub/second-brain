@@ -1505,23 +1505,40 @@ main > *:nth-child(n + 6) {
 @media (min-width: 900px) {
   .content-col:has(.hub-stage) { height: 100vh; overflow: hidden; }
 }
-.hub-stage { --top-h: 67px; --S: clamp(190px, min(calc(100vh - var(--top-h) - 250px), calc((100vw - 620px) / 1.227)), 460px); position: relative; flex: 1; min-height: 0; }
-.hub-stage.detail { flex: 0 0 76px; }
+.hub-stage { --top-h: 67px; --txt: 92px; --S: clamp(220px, min(calc(100vh - var(--top-h) - var(--txt) - 50px), calc((100vw - 120px) / 1.193)), 760px); position: relative; flex: 1; min-height: 0; }
+.hub-stage.pillar { flex: 0 0 auto; min-height: 76px; }
 
 /* panoramica: colonna sinistra · Aira + radar · colonna destra */
 .hub-home {
-  position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center; gap: 24px; padding: 0 28px; transition: opacity 0.4s ease;
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; transition: opacity 0.4s ease;
 }
 .hub-stage:not(.home) .hub-home { opacity: 0; pointer-events: none; }
-.hub-col { display: flex; flex-direction: column; gap: 14px; align-self: center; }
-.hub-cc { height: calc(var(--S) + 140px); display: flex; flex-direction: column; align-items: center; }
-.hub-cc .hub-radar { width: calc(var(--S) * 1.227); height: var(--S); flex-shrink: 0; }
-.hub-text { height: 140px; width: 100%; text-align: center; overflow: hidden; }
+.hub-cc { height: calc(var(--S) + var(--txt)); display: flex; flex-direction: column; align-items: center; }
+.hub-cc .hub-radar { width: calc(var(--S) * 1.193); height: var(--S); flex-shrink: 0; }
+.hub-text { height: var(--txt); width: 100%; text-align: center; overflow: hidden; }
 .hub-radar { position: relative; }
 .hub-radar svg { width: 100%; height: 100%; display: block; overflow: visible; }
+
+/* animazione dei pilastri al passaggio del mouse */
 .hub-vertex { cursor: pointer; outline: none; }
-.hub-vertex:hover circle:nth-child(2), .hub-vertex:focus-visible circle:nth-child(2) { r: 8; }
+.hub-vertex .v-wedge { fill: var(--pc); opacity: 0; transition: opacity 0.35s ease; }
+.hub-vertex .v-line { stroke: rgba(120, 170, 220, 0.16); stroke-width: 1; transition: stroke 0.3s ease, stroke-width 0.3s ease, filter 0.3s ease; }
+.hub-vertex .v-dot { fill: var(--pc); transform-box: fill-box; transform-origin: center; transition: transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1), filter 0.3s ease; }
+.hub-vertex .v-dot.empty { fill: none; stroke: var(--pc); stroke-dasharray: 2 2; }
+.hub-vertex .v-ring { fill: none; stroke: var(--pc); stroke-width: 1.5; opacity: 0; transform-box: fill-box; transform-origin: center; }
+.hub-vertex .v-label { fill: #8b98a8; transform-box: fill-box; transform-origin: center; transition: fill 0.3s ease, transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1); }
+.hub-vertex .v-score { fill: #e6edf3; transform-box: fill-box; transform-origin: center; transition: transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1); }
+.hub-vertex:hover .v-wedge, .hub-vertex:focus-visible .v-wedge { opacity: 0.16; }
+.hub-vertex:hover .v-line, .hub-vertex:focus-visible .v-line { stroke: var(--pc); stroke-width: 2; filter: drop-shadow(0 0 5px var(--pc)); }
+.hub-vertex:hover .v-dot, .hub-vertex:focus-visible .v-dot { transform: scale(2); filter: drop-shadow(0 0 8px var(--pc)); }
+.hub-vertex:hover .v-ring, .hub-vertex:focus-visible .v-ring { animation: hub-pulse 1.3s ease-out infinite; }
+.hub-vertex:hover .v-label, .hub-vertex:focus-visible .v-label { fill: var(--pc); transform: scale(1.18); }
+.hub-vertex:hover .v-score, .hub-vertex:focus-visible .v-score { transform: scale(1.25); }
+.hub-vertex.on .v-wedge { opacity: 0.1; }
+.hub-vertex.on .v-label { fill: var(--pc); }
+.hub-radar:has(.hub-vertex:hover) .hub-vertex:not(:hover) { opacity: 0.4; transition: opacity 0.3s ease; }
+@keyframes hub-pulse { 0% { transform: scale(1); opacity: 0.9; } 100% { transform: scale(4.2); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .hub-vertex * { transition: none !important; animation: none !important; } }
 .hub-hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
 .hub-say { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin: 4px 0 0; }
 .hub-heard { font-size: 13px; color: var(--muted); font-style: italic; margin: 2px 0 0; }
@@ -1535,7 +1552,7 @@ main > *:nth-child(n + 6) {
   transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1), top 0.6s cubic-bezier(0.4, 0, 0.2, 1), width 0.6s cubic-bezier(0.4, 0, 0.2, 1), height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .hub-orbwrap .orb { width: 100%; height: 100%; display: block; cursor: pointer; }
-.hub-stage.home .hub-orbwrap { left: 50%; top: calc((100% - 140px) / 2); width: calc(var(--S) * 0.42); height: calc(var(--S) * 0.42); }
+.hub-stage.home .hub-orbwrap { left: 50%; top: calc((100% - var(--txt)) / 2); width: calc(var(--S) * 0.42); height: calc(var(--S) * 0.42); }
 .hub-stage:not(.home) .hub-orbwrap { left: 58px; top: 38px; width: 68px; height: 68px; }
 
 /* barra in alto nelle schermate di pilastro */
@@ -1547,11 +1564,27 @@ main > *:nth-child(n + 6) {
 .hub-title { font-size: 20px; font-weight: 500; white-space: nowrap; }
 .hub-chips { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; justify-content: flex-end; }
 .hub-body {
-  position: absolute; top: 84px; left: 34px; right: 34px; bottom: 20px; overflow: auto;
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); grid-auto-rows: min-content; gap: 14px; align-content: start;
+  margin: 76px 34px 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; align-content: start;
 }
+.hub-body .hub-card { padding: 9px 12px; }
+.hub-body .hub-card .kpi-value { font-size: 18px !important; margin-top: 2px; }
+.hub-body .hub-card .kpi-sub { font-size: 11px; margin-top: 2px; }
+.hub-body .hub-bar { margin-top: 6px; height: 4px; }
 .hub-card { margin: 0; }
-.hub-detail { flex: 1; min-height: 0; overflow: auto; padding: 8px 34px 70px; }
+.hub-detail { flex: 1; min-height: 0; overflow: auto; padding: 12px 34px 40px; }
+.hub-stage.pillar:not(:has(.hub-body)) + .hub-detail { padding-top: 0; }
+/* contenuto dei pilastri in forma compatta: titoli ridondanti via (li mostra già la barra), spazi ridotti, griglie fitte */
+.hub-detail > h2, .hub-detail > .page-sub, .hub-detail > .eyebrow { display: none; }
+.hub-detail .card { padding: 10px 12px; margin-bottom: 10px; }
+.hub-detail .card-head { margin-bottom: 6px; }
+.hub-detail .card-head h3 { font-size: 13px; }
+.hub-detail .grid { gap: 10px; margin-bottom: 10px; }
+.hub-detail .grid-2, .hub-detail .grid-3 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.hub-detail .grid-kpi { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.hub-detail .kpi-value { font-size: 20px; }
+.hub-detail .kpi-sub, .hub-detail .agenda-row { font-size: 12px; }
+.hub-detail .agenda-row { padding: 3px 0; }
+.hub-detail hr.sep { margin: 8px 0; }
 .hub-detail > * { max-width: 1360px; margin-left: auto; margin-right: auto; }
 
 .hub-chip {
@@ -1585,7 +1618,7 @@ main > *:nth-child(n + 6) {
   .hub-stage { flex: none; }
   .hub-home { position: static; grid-template-columns: 1fr; padding: 12px 14px; }
   .hub-cc { height: auto; }
-  .hub-cc .hub-radar { width: min(100%, 420px); height: auto; aspect-ratio: 540 / 440; }
+  .hub-cc .hub-radar { width: min(100%, 420px); height: auto; aspect-ratio: 420 / 352; }
   .hub-text { height: auto; }
   .hub-stage.home { min-height: 1100px; }
   .hub-stage.home .hub-orbwrap { top: 170px; width: 130px; height: 130px; }
@@ -1628,6 +1661,8 @@ main > *:nth-child(n + 6) {
   .aira-root.embedded { position: fixed; inset: 67px 0 0 0; overflow-y: auto; background: var(--bg); }
   .aira-root.embedded .orb-wrap { width: 120px; height: 120px; }
   .aira-root.embedded .aira-core { --co: 120px; }
+  .aira-root.embedded .aira-core .status, .aira-root.embedded .aira-core .heard, .aira-root.embedded .aira-core .notice { position: static; }
+  .aira-close { position: static; transform: none; margin-top: 8px; }
   .hub-stage.console .hub-orbwrap { top: 130px; width: 120px; height: 120px; }
 }
 .aira-root.embedded .aira-core .status { justify-content: center; }

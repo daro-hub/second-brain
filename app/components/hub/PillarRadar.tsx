@@ -18,54 +18,61 @@ const pt = (i: number, f: number): [number, number] => {
 const poly = (fracs: number[]) => fracs.map((f, i) => pt(i, f).join(",")).join(" ");
 
 /**
- * Radar dei cinque pilastri: i vertici sono la navigazione, al centro vive l'orb (children).
- * `compact` toglie etichette e punteggi e riduce il disegno; il poligono resta leggibile.
+ * Radar dei cinque pilastri: i vertici sono la navigazione (al centro vive l'orb, posizionato dallo stage).
+ * Passando sopra un pilastro si anima: il suo settore si illumina, l'asse si accende, il punto pulsa e
+ * l'etichetta si ingrandisce; gli altri pilastri si attenuano (stili `.hub-vertex` in globals.css).
  */
 export function PillarRadar({
   pillars,
   active,
-  compact,
   onSelect,
 }: {
   pillars: RadarPillar[];
   active: string | null;
-  compact: boolean;
   onSelect: (key: string) => void;
 }) {
   const real = pillars.map((p) => Math.min(1.08, (p.score ?? 0) / 100));
   return (
-    <div className={`hub-radar${compact ? " compact" : ""}`}>
-      <svg viewBox="-70 -20 540 440" role="img" aria-label="Radar dei cinque pilastri">
+    <div className="hub-radar">
+      <svg viewBox="-10 24 420 352" role="img" aria-label="Radar dei cinque pilastri">
         {[0.25, 0.5, 0.75, 1].map((f) => (
           <polygon key={f} points={poly(pillars.map(() => f))} fill="none" stroke="rgba(120,170,220,0.16)" />
         ))}
-        {pillars.map((p, i) => {
-          const [x, y] = pt(i, 1);
-          return <line key={p.key} x1={C} y1={C} x2={x} y2={y} stroke="rgba(120,170,220,0.16)" />;
-        })}
         <polygon points={poly(pillars.map(() => 0.7))} fill="none" stroke="rgba(255,122,217,0.5)" strokeDasharray="4 4" />
         <polygon points={poly(real)} fill="rgba(77,225,255,0.14)" stroke="#4de1ff" strokeWidth="1.6" />
         {pillars.map((p, i) => {
           const [x, y] = pt(i, real[i]);
           const [hx, hy] = pt(i, 1);
           const [lx, ly] = pt(i, 1.3);
-          const on = active === p.key;
+          const [ax, ay] = pt(i - 0.5, 1);
+          const [bx, by] = pt(i + 0.5, 1);
           const anchor = lx < C - 8 ? "end" : lx > C + 8 ? "start" : "middle";
           return (
-            <g key={p.key} className="hub-vertex" onClick={() => onSelect(p.key)} role="button" tabIndex={0} aria-label={`${p.label}${p.score === null ? ", nessun dato" : `, ${p.score} su 100`}`} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onSelect(p.key)}>
-              <circle cx={hx} cy={hy} r="34" fill="transparent" />
-              {p.score !== null && <circle cx={x} cy={y} r={on ? 8 : 5.5} fill={p.color} style={{ filter: on ? `drop-shadow(0 0 6px ${p.color})` : undefined }} />}
-              {p.score === null && <circle cx={hx} cy={hy} r="4" fill="none" stroke={p.color} strokeDasharray="2 2" />}
-              {!compact && (
-                <>
-                  <text x={lx} y={ly} textAnchor={anchor} fill={on ? p.color : "#8b98a8"} fontSize="13" letterSpacing="1.2">
-                    {p.label.toUpperCase()}
-                  </text>
-                  <text x={lx} y={ly + 18} textAnchor={anchor} fill="#e6edf3" fontSize="17">
-                    {p.score === null ? "n/d" : p.score}
-                  </text>
-                </>
+            <g
+              key={p.key}
+              className={`hub-vertex${active === p.key ? " on" : ""}`}
+              style={{ ["--pc" as string]: p.color }}
+              onClick={() => onSelect(p.key)}
+              role="button"
+              tabIndex={0}
+              aria-label={`${p.label}${p.score === null ? ", nessun dato" : `, ${p.score} su 100`}`}
+              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onSelect(p.key)}
+            >
+              <polygon className="v-wedge" points={`${C},${C} ${ax},${ay} ${hx},${hy} ${bx},${by}`} />
+              <line className="v-line" x1={C} y1={C} x2={hx} y2={hy} />
+              <circle cx={hx} cy={hy} r="40" fill="transparent" />
+              <circle className="v-ring" cx={p.score === null ? hx : x} cy={p.score === null ? hy : y} r="7" />
+              {p.score !== null ? (
+                <circle className="v-dot" cx={x} cy={y} r="5.5" />
+              ) : (
+                <circle className="v-dot empty" cx={hx} cy={hy} r="4" />
               )}
+              <text className="v-label" x={lx} y={ly} textAnchor={anchor} fontSize="13" letterSpacing="1.2">
+                {p.label.toUpperCase()}
+              </text>
+              <text className="v-score" x={lx} y={ly + 18} textAnchor={anchor} fontSize="17">
+                {p.score === null ? "n/d" : p.score}
+              </text>
             </g>
           );
         })}

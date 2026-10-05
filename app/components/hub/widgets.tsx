@@ -110,25 +110,8 @@ export function SocialQuickLog() {
 
 export async function AiraPanel() {
   const brain = await getBrainSnapshot();
-  const down = brain.integrations.filter((i) => !i.ok);
   return (
     <>
-      <div className="eyebrow">Aira · stato del sistema</div>
-      <div className="grid grid-kpi">
-        <div className="card kpi" style={{ ["--kpi" as string]: down.length ? "var(--c-warn)" : "var(--c-good)" }}>
-          <div className="kpi-top"><span>Integrazioni</span><span className={`pill ${down.length ? "warn" : "good"}`}>{brain.integrations.length - down.length}/{brain.integrations.length}</span></div>
-          <div className="kpi-sub">{down.length ? `Da controllare: ${down.map((d) => d.label).join(", ")}` : "Tutte attive."}</div>
-        </div>
-        <div className="card kpi" style={{ ["--kpi" as string]: "var(--accent)" }}>
-          <div className="kpi-top"><span>Base di conoscenza</span></div>
-          <div className="kpi-value" style={{ fontSize: 22 }}>{brain.totalDocuments}</div>
-          <div className="kpi-sub">note · {brain.totalLogs} allenamenti registrati</div>
-        </div>
-        <div className="card kpi" style={{ ["--kpi" as string]: brain.webhook.active ? "var(--c-good)" : "var(--c-bad)" }}>
-          <div className="kpi-top"><span>Bot Telegram</span><span className={`pill ${brain.webhook.active ? "good" : "warn"}`}>{brain.webhook.active ? "webhook attivo" : "spento"}</span></div>
-          <div className="kpi-sub">{brain.webhook.pending} aggiornamenti in coda</div>
-        </div>
-      </div>
       <BrainPanel brain={brain} />
     </>
   );

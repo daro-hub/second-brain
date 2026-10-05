@@ -3,12 +3,13 @@ import { HubContext } from "./components/hub/HubContext";
 export const dynamic = "force-dynamic";
 
 /**
- * La schermata (Aira, radar, insight) vive nel layout e non si scorre. Questa pagina rende solo il pannello
- * "dettagli", quando serve: `?p=<pilastro|aira>&detail=1`, oppure `?p=incroci`, oppure `?detail=1` (Oggi).
+ * Il radar, l'orb e la barra dei pilastri vivono nel layout. Questa pagina rende il contenuto del pilastro scelto
+ * (`?p=<pilastro|aira|incroci|oggi>`), già completo e compatto; senza `p` (panoramica) non rende nulla.
  */
 export default async function HubPage({ searchParams }: { searchParams: Promise<{ p?: string; detail?: string; date?: string; path?: string; exercise?: string }> }) {
   const { p, detail, date, path, exercise } = await searchParams;
-  if (detail !== "1" && p !== "incroci") return null;
+  // la schermata di un pilastro mostra subito tutto il suo contenuto; la panoramica non ha pannello
+  if (!p && detail !== "1") return null;
   return (
     <div className="hub-detail">
       <HubContext context={p} params={{ date, path, exercise }} />
