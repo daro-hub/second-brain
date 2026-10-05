@@ -7,7 +7,7 @@ export const maxDuration = 30;
 
 /**
  * Promemoria a 30 minuti dagli eventi. Vercel (piano gratuito) permette cron solo giornalieri, quindi
- * questa route viene chiamata ogni 5 minuti da GitHub Actions (.github/workflows/reminders.yml).
+ * questa route viene chiamata ogni 5 minuti da pg_cron su Supabase (supabase/migrations/0009_reminders_cron.sql).
  * ?dry=1 mostra cosa verrebbe inviato senza inviare né segnare niente.
  */
 export async function GET(req: NextRequest) {
