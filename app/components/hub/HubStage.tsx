@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
-import { askAira } from "../../aira/askAira";
+import { Suspense, useEffect, useState } from "react";
+import { AiraConsole } from "../../aira/AiraConsole";
 import { Orb } from "../../aira/Orb";
 import { useAiraVoice } from "../../aira/useAiraVoice";
 import { PillarRadar } from "./PillarRadar";
@@ -150,48 +150,40 @@ function Stage() {
   const pathname = usePathname();
   const params = useSearchParams();
   const router = useRouter();
-  const [said, setSaid] = useState<string | null>(null);
   const voice = useAiraVoice();
-  const { onHeardRef, speak, ensureAudio, setPhaseBoth, beginListeningIfLive } = voice;
+  const { ensureAudio } = voice;
+  const [consoleOpened, setConsoleOpened] = useState(false);
 
-  const p = pathname === "/" ? params.get("p") : null;
-  const detail = pathname === "/" && (params.get("detail") === "1" || p === "incroci");
-  const mode: "home" | "pillar" | "detail" = detail ? "detail" : p ? "pillar" : "home";
+  const console_ = pathname === "/" && params.get("console") === "1";
+  const p = pathname === "/" && !console_ ? params.get("p") : null;
+  const detail = pathname === "/" && !console_ && (params.get("detail") === "1" || p === "incroci");
+  const mode: "home" | "pillar" | "detail" | "console" = console_ ? "console" : detail ? "detail" : p ? "pillar" : "home";
+
+  // la chat resta montata una volta aperta: la cronologia non si perde tornando alla panoramica
+  useEffect(() => {
+    if (console_) setConsoleOpened(true);
+  }, [console_]);
+  useEffect(() => {
+    if (!console_) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && router.push("/");
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [console_, router]);
 
   const hub = useCached<HubData>("/api/hub", true);
   const aira = useCached<AiraStatus>("/api/hub/aira", p === "aira", 2 * 60_000);
   const data = hub.data;
 
-  const ask = useCallback(
-    async (text: string) => {
-      setPhaseBoth("thinking");
-      setSaid(null);
-      try {
-        const r = await askAira(text);
-        setSaid(r.html.replace(/<[^>]+>/g, ""));
-        if (!r.sensitive) await speak(r.speech);
-        else beginListeningIfLive();
-      } catch (err) {
-        setSaid((err as Error).message);
-        beginListeningIfLive();
-      }
-    },
-    [beginListeningIfLive, setPhaseBoth, speak],
-  );
-
-  useEffect(() => {
-    onHeardRef.current = (t) => ask(t);
-  }, [ask, onHeardRef]);
-
   const select = (key: string) => router.push(p === key && mode === "pillar" ? "/" : `/?p=${key}`);
   const onOrb = () => {
-    if (mode === "home") {
+    if (mode === "home") router.push("/?console=1"); // dalla panoramica l'orb apre la console
+    else if (mode === "console") {
       ensureAudio();
-      voice.onOrbClick();
+      voice.onOrbClick(); // nella console l'orb attiva/disattiva la voce
     } else router.push("/"); // dall'angolo, l'orb riporta alla schermata principale
   };
 
-  if (pathname.startsWith("/aira") || pathname.startsWith("/login")) return null;
+  if (pathname.startsWith("/login")) return null;
 
   const pillars: HubPillar[] = data?.pillars ?? ["studio", "salute", "allenamento", "conoscenza", "lavoro"].map((k) => ({ key: k, label: k[0].toUpperCase() + k.slice(1), color: "#5a6677", score: null, trend: null }));
   const current = pillars.find((x) => x.key === p);
@@ -206,7 +198,6 @@ function Stage() {
         : null;
   const loadFailed = p === "aira" ? aira.failed : hub.failed;
   const insights = data ? homeInsights(data) : [];
-  const phaseLabel = voice.phase === "listening" ? "In ascolto…" : voice.phase === "thinking" ? "Elaboro…" : voice.phase === "speaking" ? "Sto parlando…" : "";
 
   return (
     <section className={`hub-stage ${mode}`} aria-label="Aira e pilastri">
@@ -217,10 +208,7 @@ function Stage() {
         <div className="hub-cc">
           <PillarRadar pillars={pillars} active={p} compact={false} onSelect={select} />
           <div className="hub-text">
-            {phaseLabel && <p className="hub-say">{phaseLabel}</p>}
-            {voice.heard && <p className="hub-heard">“{voice.heard}”</p>}
-            {said ? <p className="hub-answer">{said}</p> : <p className="hub-hint">Tocca un vertice per aprirlo · tocca l’orb per parlare con Aira</p>}
-            {voice.notice && <p className="hub-notice">{voice.notice}</p>}
+            <p className="hub-hint">Tocca un vertice per aprirlo · tocca Aira per parlarci e scriverle</p>
             <div className="hub-actions">
               <Link href="/?detail=1" className="hub-chip">Oggi · dettaglio</Link>
               <Link href="/?p=aira" className="hub-chip aira">
@@ -234,6 +222,8 @@ function Stage() {
           <Cards cards={insights.slice(2)} />
         </div>
       </div>
+
+      {consoleOpened && <AiraConsole voice={voice} active={mode === "console"} onClose={() => router.push("/")} />}
 
       <div className="hub-orbwrap">
         <Orb phase={voice.phase} getLevel={() => voice.levelRef.current} getSpectrum={() => voice.specBuf.current} onClick={onOrb} />

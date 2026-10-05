@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Source, SourceId } from "../../src/lib/trace";
-import type { BrainSnapshot } from "../../src/lib/brain";
-import { BrainView } from "./BrainView";
-import { Orb, type Phase } from "./Orb";
-import { useAiraVoice } from "./useAiraVoice";
+import type { Phase } from "./Orb";
+import type { AiraVoice } from "./useAiraVoice";
 import "./aira.css";
 
 interface Msg {
@@ -77,8 +75,12 @@ function safeHtml(html: string): string {
     .replace(/\n/g, "<br/>");
 }
 
-export function AiraConsole({ brain, initialView = "console" }: { brain: BrainSnapshot; initialView?: "console" | "brain" }) {
-  const [view, setView] = useState<"console" | "brain">(initialView);
+/**
+ * Chat (a sinistra) e fonti dati (a destra) di Aira, dentro lo stage del hub. L'orb al centro è quello dello stage
+ * e la voce è condivisa (`voice`): qui c'è solo la conversazione. Resta montata anche quando è nascosta, così la
+ * cronologia non si perde tornando alla panoramica.
+ */
+export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; active: boolean; onClose: () => void }) {
   const [messages, setMessages] = useState<Msg[]>([
     {
       id: 0,
@@ -102,8 +104,6 @@ export function AiraConsole({ brain, initialView = "console" }: { brain: BrainSn
     setNotice,
     heard,
     setHeard,
-    levelRef,
-    specBuf,
     onHeardRef,
     ensureAudio,
     speak,
@@ -112,23 +112,14 @@ export function AiraConsole({ brain, initialView = "console" }: { brain: BrainSn
     setPhaseBoth,
     startLive,
     stopLive,
-    onOrbClick,
-  } = useAiraVoice();
+  } = voice;
   const [revealed, setRevealed] = useState<Set<number>>(new Set());
-  const [clock, setClock] = useState("");
 
   // refs "vivi" letti dai loop audio (evitano closure stantie)
   const idRef = useRef(1);
   const logRef = useRef<HTMLDivElement>(null);
 
 
-
-  useEffect(() => {
-    const tick = () => setClock(new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, []);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" });
@@ -216,38 +207,9 @@ export function AiraConsole({ brain, initialView = "console" }: { brain: BrainSn
   const lastAira = [...messages].reverse().find((m) => m.role === "aira" && (m.sources.length || m.pending || m.intent));
   const shown = messages.find((m) => m.id === selectedId) ?? lastAira;
   const shownSources = shown?.sources ?? [];
-  // note della KB usate dalla risposta selezionata: la mappa del cervello le illumina
-  const litDocs = new Set(shownSources.filter((x) => x.id === "kb").flatMap((x) => (x.items ?? []).map((i) => i.id).filter((v): v is string => Boolean(v))));
-
   return (
-    <div className="aira-root">
-      <div className="aira-grid" aria-hidden />
-      <header className="aira-top">
-        <Link href="/" className="aira-back">
-          ← Dashboard
-        </Link>
-        <nav className="aira-tabs" role="tablist">
-          <button role="tab" aria-selected={view === "console"} className={view === "console" ? "on" : ""} onClick={() => setView("console")}>
-            Console
-          </button>
-          <button role="tab" aria-selected={view === "brain"} className={view === "brain" ? "on" : ""} onClick={() => setView("brain")}>
-            Cervello <span className="count">{brain.totalDocuments}</span>
-          </button>
-        </nav>
-        <div className="aira-title">
-          <span className="aira-title-mark" />
-          A·I·R·A
-        </div>
-        <div className="aira-clock">{clock}</div>
-      </header>
-
-      {view === "brain" && (
-        <section className="aira-brain">
-          <BrainView brain={brain} lit={litDocs} />
-        </section>
-      )}
-
-      <section className="aira-log" ref={logRef} aria-live="polite" hidden={view === "brain"}>
+    <div className={`aira-root embedded${active ? "" : " off"}`} aria-hidden={!active}>
+      <section className="aira-log" ref={logRef} aria-live="polite">
         <div className="hud-label">CONVERSAZIONE</div>
         {messages.map((m) => (
           <div
@@ -319,28 +281,20 @@ export function AiraConsole({ brain, initialView = "console" }: { brain: BrainSn
         )}
       </section>
 
-      <section className="aira-core" hidden={view === "brain"}>
-        <div className="orb-wrap">
-          <Orb
-            phase={phase}
-            getLevel={() => levelRef.current}
-            getSpectrum={() => specBuf.current}
-            onClick={onOrbClick}
-          />
-          <span className="corner tl" />
-          <span className="corner tr" />
-          <span className="corner bl" />
-          <span className="corner br" />
-        </div>
+      <section className="aira-core">
+        <div className="orb-wrap" aria-hidden />
         <div className={`status status-${phase}`}>
           <span className="pulse" />
           {STATUS[phase]}
         </div>
         <div className="heard">{phase === "listening" ? "Parla pure, ti ascolto…" : heard ? `“${heard}”` : " "}</div>
         {notice && <div className="notice">{notice}</div>}
+        <button type="button" className="aira-close" onClick={onClose}>
+          ← Panoramica
+        </button>
       </section>
 
-      <aside className="aira-sources" hidden={view === "brain"}>
+      <aside className="aira-sources">
         <div className="hud-label">
           FONTI DATI
           {shown?.intent && <span className="intent-tag">{INTENT_LABELS[shown.intent] ?? shown.intent}</span>}

@@ -308,3 +308,5 @@ export function useAiraVoice() {
     onOrbClick,
   };
 }
+
+export type AiraVoice = ReturnType<typeof useAiraVoice>;

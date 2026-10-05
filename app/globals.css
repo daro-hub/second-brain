@@ -1600,3 +1600,34 @@ main > *:nth-child(n + 6) {
   font: inherit; font-size: 11px; padding: 2px 8px; cursor: pointer; order: 9;
 }
 .topbar .readouts .logout:hover { color: var(--text); border-color: var(--accent); }
+
+.topbar .readouts { margin-left: auto; }
+
+/* console di Aira dentro lo stage: chat a sinistra, fonti a destra, orb (dello stage) al centro */
+.aira-root.embedded {
+  position: absolute; inset: 0; z-index: 4; background: transparent; padding: 12px 28px 18px;
+  grid-template-columns: minmax(260px, 1fr) minmax(0, 1.1fr) minmax(260px, 1fr);
+  grid-template-rows: 0 1fr auto; transition: opacity 0.4s ease;
+}
+.aira-root.embedded.off { opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 0.3s ease, visibility 0s linear 0.3s; }
+.aira-root.embedded .aira-core { position: relative; --co: min(44vh, 400px, 26vw); }
+.aira-root.embedded .orb-wrap { width: var(--co); height: var(--co); aspect-ratio: 1; }
+.aira-root.embedded .aira-core .status { position: absolute; top: calc(50% + var(--co) / 2 + 10px); left: 0; right: 0; text-align: center; }
+.aira-root.embedded .aira-core .heard { position: absolute; top: calc(50% + var(--co) / 2 + 34px); left: 0; right: 0; text-align: center; }
+.aira-root.embedded .aira-core .notice { position: absolute; top: calc(50% + var(--co) / 2 + 60px); left: 0; right: 0; text-align: center; }
+.aira-close {
+  position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); z-index: 6;
+  background: transparent; border: 1px solid var(--a-line); border-radius: 999px; color: var(--muted);
+  font: inherit; font-size: 12px; padding: 5px 12px; cursor: pointer;
+}
+.aira-close:hover { color: var(--text); border-color: var(--a-cyan); }
+.hub-stage.console .hub-home, .hub-stage.console .hub-bar-top { opacity: 0; pointer-events: none; }
+.hub-stage.console .hub-orbwrap { left: 50%; top: calc(50% - 27px); width: min(44vh, 400px, 26vw); height: min(44vh, 400px, 26vw); }
+.hub-stage.console { --co: min(44vh, 400px, 26vw); }
+@media (max-width: 899px) {
+  .aira-root.embedded { position: fixed; inset: 67px 0 0 0; overflow-y: auto; background: var(--bg); }
+  .aira-root.embedded .orb-wrap { width: 120px; height: 120px; }
+  .aira-root.embedded .aira-core { --co: 120px; }
+  .hub-stage.console .hub-orbwrap { top: 130px; width: 120px; height: 120px; }
+}
+.aira-root.embedded .aira-core .status { justify-content: center; }

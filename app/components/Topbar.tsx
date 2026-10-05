@@ -45,7 +45,8 @@ function Ruler() {
 export function Topbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const ctx = useSearchParams().get("p");
+  const sp = useSearchParams();
+  const ctx = sp.get("console") === "1" ? "aira" : sp.get("p");
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -58,14 +59,14 @@ export function Topbar() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        router.push("/aira");
+        router.push("/?console=1");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [router]);
 
-  if (pathname.startsWith("/aira") || pathname.startsWith("/login")) return null;
+  if (pathname.startsWith("/login")) return null;
 
   const time = now?.toLocaleTimeString("it-IT", { timeZone: "Europe/Rome", hour12: false }) ?? "--:--:--";
   const day = now ? Math.floor((now.getTime() - BORN) / 86400000) + 1 : 0;
@@ -86,10 +87,6 @@ export function Topbar() {
             <i /> online
           </span>
         </div>
-        <Link href="/aira" className="cmd">
-          <span>✦ Chiedi qualcosa ad Aira…</span>
-          <kbd>Ctrl K</kbd>
-        </Link>
         <div className="readouts" suppressHydrationWarning>
           <span>
             <span className="lbl">T</span>
