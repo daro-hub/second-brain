@@ -173,7 +173,7 @@ export async function PalestraView({ exercise: selected }: { exercise?: string }
           {strength.map((s) => (
             <Link
               key={s.exercise}
-              href={`/?p=allenamento&exercise=${encodeURIComponent(s.exercise)}`}
+              href={`/?p=allenamento&detail=1&exercise=${encodeURIComponent(s.exercise)}`}
               className={`pill ${s.exercise === exercise ? "info" : ""}`}
               style={{ textDecoration: "none", textTransform: "capitalize" }}
             >

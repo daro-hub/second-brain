@@ -23,7 +23,7 @@ export function RawActions({ files, enabled }: { files: string[]; enabled: boole
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(body?.message ?? "Conversione non riuscita");
       setMsg(`Creato ${body.path}`);
-      router.push(`/?p=studio&path=${encodeURIComponent(body.path)}`);
+      router.push(`/?p=studio&detail=1&path=${encodeURIComponent(body.path)}`);
     } catch (err) {
       setMsg(err instanceof Error ? err.message : "Errore");
     } finally {

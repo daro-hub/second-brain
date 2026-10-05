@@ -1,7 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
-
 export interface RadarPillar {
   key: string;
   label: string;
@@ -28,13 +26,11 @@ export function PillarRadar({
   active,
   compact,
   onSelect,
-  children,
 }: {
   pillars: RadarPillar[];
   active: string | null;
   compact: boolean;
   onSelect: (key: string) => void;
-  children?: ReactNode;
 }) {
   const real = pillars.map((p) => Math.min(1.08, (p.score ?? 0) / 100));
   return (
@@ -74,7 +70,6 @@ export function PillarRadar({
           );
         })}
       </svg>
-      <div className="hub-orb">{children}</div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { PILLAR_META, getPillar, isPillarKey, type PillarKey } from "../../../src/lib/pillars";
+import { isPillarKey } from "../../../src/lib/pillars";
 import { BilancioView } from "../../bilancio/BilancioView";
 import { CostiView } from "../../costi/CostiView";
 import { OggiView } from "../../views/OggiView";
@@ -9,11 +9,7 @@ import { SpesaView } from "../../spesa/SpesaView";
 import { UniView } from "../../uni/UniView";
 import { InsightsView } from "../../insights/InsightsView";
 import { WidgetBoundary } from "./WidgetBoundary";
-import { AiraPanel, KnowledgePanel, MeasureGrid, Skeleton, SocialQuickLog, WorkPanel } from "./widgets";
-
-async function Measures({ k }: { k: PillarKey }) {
-  return <MeasureGrid pillar={await getPillar(k)} />;
-}
+import { AiraPanel, KnowledgePanel, Skeleton, SocialQuickLog, WorkPanel } from "./widgets";
 
 const S = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <WidgetBoundary label={label}>
@@ -54,23 +50,16 @@ export function HubContext({ context, params = {} }: { context: string | undefin
       </S>
     );
   }
-  const measures = (
-    <S label={`Misure ${PILLAR_META[context].label}`}>
-      <Measures k={context} />
-    </S>
-  );
   switch (context) {
     case "studio":
       return (
         <>
-          {measures}
           <S label="Università"><UniView path={params.path} /></S>
         </>
       );
     case "salute":
       return (
         <>
-          {measures}
           <SocialQuickLog />
           <S label="Salute"><SaluteView date={params.date} /></S>
           <S label="Bilancio"><BilancioView /></S>
@@ -80,21 +69,18 @@ export function HubContext({ context, params = {} }: { context: string | undefin
     case "allenamento":
       return (
         <>
-          {measures}
           <S label="Allenamento"><PalestraView exercise={params.exercise} /></S>
         </>
       );
     case "conoscenza":
       return (
         <>
-          {measures}
           <S label="Conoscenza"><KnowledgePanel /></S>
         </>
       );
     case "lavoro":
       return (
         <>
-          {measures}
           <S label="Lavoro"><WorkPanel /></S>
         </>
       );
