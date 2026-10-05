@@ -4,7 +4,6 @@ import { getEnergyWeek } from "../../src/lib/insights";
 import { clock, dec, int, signed } from "../../src/lib/numfmt";
 import { getDayBundle } from "../../src/lib/overview";
 import { addDays, formatDayLong, localHourDecimal, todayKey, weekdayShort } from "../../src/lib/time";
-import { DayTimeline } from "../components/viz/DayTimeline";
 import { AreaLine, GroupedBars } from "../components/viz/charts";
 import { CollectProgress, MacroBar, Ring } from "../components/viz/small";
 
@@ -67,11 +66,6 @@ export default async function SalutePage({ searchParams }: { searchParams: Promi
           <div className="kpi-value">{int(steps.total)}</div>
           <div className="kpi-sub">{hr.avg ? `FC media ${int(hr.avg)} bpm (min ${int(hr.min ?? 0)}, max ${int(hr.max ?? 0)})` : "Nessun dato di battito"}</div>
         </div>
-      </div>
-
-      <div className="card">
-        <div className="card-head"><h3>La giornata</h3></div>
-        <DayTimeline bundle={bundle} />
       </div>
 
       <div className="grid grid-2" style={{ marginBottom: 18 }}>
