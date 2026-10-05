@@ -117,6 +117,9 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
 
   // refs "vivi" letti dai loop audio (evitano closure stantie)
   const idRef = useRef(1);
+  // Un solo invio alla volta. NON si usa la fase "elaboro" come guardia: la mette già la trascrizione del parlato
+  // (transcribeAndSend) prima di chiamare send, e con quella guardia la modalità live restava bloccata per sempre.
+  const sendingRef = useRef(false);
   const logRef = useRef<HTMLDivElement>(null);
 
 
@@ -129,7 +132,8 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
   const send = useCallback(
     async (raw: string, viaVoice: boolean) => {
       const text = raw.trim();
-      if (!text || phaseRef.current === "thinking") return;
+      if (!text || sendingRef.current) return;
+      sendingRef.current = true;
       stopSpeaking();
       setNotice(null);
       setHeard("");
@@ -187,9 +191,10 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
       } catch (err) {
         patch((m) => ({ ...m, pending: false, error: true, html: (err as Error).message || "Errore." }));
       }
+      sendingRef.current = false;
       if (!spoke) beginListeningIfLive();
     },
-    [beginListeningIfLive, phaseRef, liveRef, voiceRepliesRef, setHeard, setNotice, setPhaseBoth, speak, stopSpeaking],
+    [beginListeningIfLive, liveRef, voiceRepliesRef, setHeard, setNotice, setPhaseBoth, speak, stopSpeaking],
   );
 
   useEffect(() => {
