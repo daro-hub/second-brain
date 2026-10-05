@@ -11,6 +11,7 @@ const TITLES: Record<string, string> = {
   "/bilancio": "bilancio",
   "/insights": "incroci",
   "/spesa": "spesa",
+  "/uni": "università",
 };
 
 /** Il progetto è nato il 3 ottobre 2026: il contatore "DAY" parte da lì. */

@@ -46,6 +46,12 @@ const ICONS = {
       <circle cx="17" cy="19" r="1.3" />
     </>,
   ),
+  uni: I(
+    <>
+      <path d="M2 9l10-5 10 5-10 5z" />
+      <path d="M6 11.5V16c0 1.4 2.7 3 6 3s6-1.6 6-3v-4.5" />
+    </>,
+  ),
   costs: I(
     <>
       <circle cx="12" cy="12" r="8.5" />
@@ -68,6 +74,7 @@ const GROUPS = [
       { href: "/palestra", label: "Allenamento", icon: ICONS.gym },
       { href: "/insights", label: "Incroci", icon: ICONS.insights },
       { href: "/spesa", label: "Spesa", icon: ICONS.shop },
+      { href: "/uni", label: "Università", icon: ICONS.uni },
     ],
   },
   {
