@@ -1388,3 +1388,18 @@ main > *:nth-child(n + 6) {
   font-size: 9.5px;
   color: var(--faint);
 }
+
+.rail .rail-foot .logout {
+  margin-top: 6px;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.rail .rail-foot .logout:hover {
+  color: var(--text);
+}

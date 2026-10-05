@@ -71,7 +71,7 @@ export function Topbar() {
     return () => window.removeEventListener("keydown", onKey);
   }, [router]);
 
-  if (pathname.startsWith("/aira")) return null;
+  if (pathname.startsWith("/aira") || pathname.startsWith("/login")) return null;
 
   const time = now?.toLocaleTimeString("it-IT", { timeZone: "Europe/Rome", hour12: false }) ?? "--:--:--";
   const day = now ? Math.floor((now.getTime() - BORN) / 86400000) + 1 : 0;

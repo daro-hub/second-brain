@@ -79,7 +79,7 @@ const GROUPS = [
 export function Sidebar() {
   const pathname = usePathname();
   // /aira è a schermo intero e ha la sua barra: la rail resta nascosta lì
-  if (pathname.startsWith("/aira")) return null;
+  if (pathname.startsWith("/aira") || pathname.startsWith("/login")) return null;
   return (
     <aside className="rail">
       <Link href="/" className="brand">
@@ -109,6 +109,17 @@ export function Sidebar() {
         daro-hub/second-brain
         <br />
         master · pubblico
+        <br />
+        <button
+          type="button"
+          className="logout"
+          onClick={async () => {
+            await fetch("/api/logout", { method: "POST" });
+            window.location.href = "/login";
+          }}
+        >
+          Esci
+        </button>
       </div>
     </aside>
   );

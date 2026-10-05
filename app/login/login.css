@@ -1,0 +1,118 @@
+.login-wrap {
+  min-height: 100vh;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 28px 28px 20px;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 26px;
+}
+
+.login-brand .logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 35% 30%, #9ff3ff, var(--accent) 45%, #1b7fa0);
+  box-shadow: 0 0 22px -4px rgba(77, 225, 255, 0.7);
+  color: #04141a;
+  font-family: var(--mono);
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.login-brand b {
+  display: block;
+  font-size: 15px;
+}
+
+.login-brand small {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  color: var(--faint);
+}
+
+.login-card h3 {
+  margin: 0 0 16px;
+}
+
+.pin-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+
+.pin-row input {
+  width: 100%;
+  aspect-ratio: 1 / 1.15;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+  caret-color: var(--accent);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.pin-row input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(77, 225, 255, 0.14);
+}
+
+.pin-row input:disabled {
+  opacity: 0.6;
+}
+
+.pin.error .pin-row,
+.pin.locked .pin-row {
+  animation: pin-shake 0.32s;
+}
+
+.pin.error .pin-row input,
+.pin.locked .pin-row input {
+  border-color: var(--c-bad);
+}
+
+.pin-msg {
+  min-height: 20px;
+  margin-top: 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pin.error .pin-msg,
+.pin.locked .pin-msg {
+  color: var(--c-bad);
+}
+
+.login-foot {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-soft);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+}
+
+@keyframes pin-shake {
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
