@@ -1432,3 +1432,19 @@ main > *:nth-child(n + 6) {
 .uni-week-event { display: flex; gap: 12px; }
 .uni-week-time { font-family: var(--mono); font-size: 12px; color: var(--muted); min-width: 92px; }
 .uni-week-empty { color: var(--faint); }
+
+.credit-tile { cursor: text; }
+.credit-tile .t-val { display: flex; align-items: baseline; gap: 2px; }
+.credit-cur { color: var(--muted); }
+.credit-input {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  color: #fff;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--accent);
+  outline: none;
+  padding: 0;
+  letter-spacing: inherit;
+}

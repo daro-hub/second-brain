@@ -1,5 +1,6 @@
 import { getOpenAiUsageSummary } from "../../src/lib/openaiUsage";
 import { formatDayShort } from "../../src/lib/time";
+import { CreditTile } from "./CreditTile";
 
 export const dynamic = "force-dynamic";
 
@@ -55,8 +56,8 @@ export default async function CostiPage() {
               Aggiungi <code>OPENAI_ADMIN_API_KEY</code> alle variabili d&apos;ambiente (locale e Vercel).
             </li>
             <li>
-              Opzionale: per vedere anche una stima del credito residuo, imposta <code>OPENAI_CREDIT_TOTAL_USD</code> con
-              l&apos;importo dell&apos;ultima ricarica — non è un saldo live (OpenAI non lo espone via API), solo
+              Opzionale: per vedere anche una stima del credito residuo, imposta il <b>Totale caricato</b> (doppio click sul
+              riquadro, una volta configurata la chiave) — non è un saldo live (OpenAI non lo espone via API), solo
               &quot;ricarica meno spesa degli ultimi 30 giorni&quot;.
             </li>
           </ol>
@@ -89,10 +90,11 @@ export default async function CostiPage() {
           <div className="t-val">{usd(u.totalCostUsd30d)}</div>
           <div className="t-sub">{tok(u.totalTokens30d)} token totali</div>
         </div>
+        <CreditTile total={u.creditTotalUsd} />
         <div className="tile" style={{ ["--t" as string]: "#ff7ad9" }}>
           <div className="t-lbl">Credito residuo (stima)</div>
           <div className="t-val">{u.creditRemainingUsd === null ? "—" : usd(u.creditRemainingUsd)}</div>
-          <div className="t-sub">{u.creditTotalUsd === null ? "OPENAI_CREDIT_TOTAL_USD non impostato" : `su ${usd(u.creditTotalUsd)} ricaricati`}</div>
+          <div className="t-sub">{u.creditTotalUsd === null ? "imposta il totale caricato qui accanto" : `su ${usd(u.creditTotalUsd)} ricaricati`}</div>
         </div>
       </div>
 

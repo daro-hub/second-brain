@@ -1,3 +1,4 @@
+import { supabase } from "./supabase";
 // Richiede una Admin API key separata da OPENAI_API_KEY: le Usage/Costs API di OpenAI sono
 // a livello di organizzazione, una chiave di progetto normale non basta (vedi README per come
 // crearla). Senza OPENAI_ADMIN_API_KEY la pagina mostra uno stato "non configurato" invece di
@@ -141,7 +142,8 @@ export async function getOpenAiUsageSummary(days = 30): Promise<OpenAiUsageSumma
   // OpenAI non espone un'API pubblica per il credito residuo prepagato (è dashboard-only,
   // nessun endpoint REST documentato): se Daro ci dice quanto ha ricaricato l'ultima volta,
   // calcoliamo "residuo = totale - spesa dal giorno della ricarica" come stima, non un dato live.
-  const creditTotalUsd = process.env.OPENAI_CREDIT_TOTAL_USD ? Number(process.env.OPENAI_CREDIT_TOTAL_USD) : null;
+  // Il valore modificato dalla dashboard (tabella app_settings) vince sulla variabile d'ambiente.
+  const creditTotalUsd = (await getCreditTotalUsd()) ?? (process.env.OPENAI_CREDIT_TOTAL_USD ? Number(process.env.OPENAI_CREDIT_TOTAL_USD) : null);
   const creditRemainingUsd = creditTotalUsd !== null ? creditTotalUsd - totalCostUsd30d : null;
 
   return {
@@ -155,4 +157,17 @@ export async function getOpenAiUsageSummary(days = 30): Promise<OpenAiUsageSumma
     creditTotalUsd,
     creditRemainingUsd,
   };
+}
+
+export const CREDIT_SETTING_KEY = "openai_credit_total_usd";
+
+/** Totale dei crediti caricati, come impostato dalla pagina /costi; null se non impostato. */
+export async function getCreditTotalUsd(): Promise<number | null> {
+  const { data, error } = await supabase.from("app_settings").select("value").eq("key", CREDIT_SETTING_KEY).maybeSingle();
+  if (error) {
+    console.error("[costi] lettura totale caricato fallita:", error.message);
+    return null;
+  }
+  const n = data ? Number(data.value) : NaN;
+  return Number.isFinite(n) ? n : null;
 }
