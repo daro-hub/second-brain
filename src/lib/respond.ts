@@ -5,7 +5,8 @@ import { applyCalendarOps } from "./calendarEdit";
 import { createEvent, getEventsInRange, getUpcomingEvents, isStudySyncEvent } from "./calendar";
 import { addTurns, formatHistory, recentTurns, toPlain, type Turn } from "./chatHistory";
 import { bold, BULLET, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
-import { getRepoInfo } from "./github";
+import { getRepoInfo, listPublicProjects, listRepos } from "./github";
+import { formatProjectList, isGenericLinkWord, lastRepoInHistory } from "./projects";
 import { searchEmails } from "./gmail";
 import { ingest } from "./ingest";
 import { parseBareItems } from "./bareItems";
@@ -386,19 +387,40 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
 
   if (intent.type === "github_query") {
     try {
-      const repo = await getRepoInfo(intent.repoName);
+      // "*" = tutti i progetti pubblici con il loro indirizzo online (elenco costruito nel codice, niente voci inventate)
+      if (intent.repoName === "*") {
+        const projects = await listPublicProjects();
+        src(trace, "github", `${projects.length} progetti pubblici`, { href: "https://github.com", items: projects.map((p) => ({ text: p.name, href: p.liveUrl ?? p.url })) });
+        return formatProjectList(projects);
+      }
+
+      let repo = isGenericLinkWord(intent.repoName) ? null : await getRepoInfo(intent.repoName);
+      if (!repo) {
+        // "vercel", "il sito", "online": non sono nomi di repository ma si riferiscono al progetto di cui si stava parlando
+        const fromChat = lastRepoInHistory(await listRepos(), history);
+        if (fromChat) repo = await getRepoInfo(fromChat.name);
+      }
       if (!repo) return `Nessun repository trovato per "${escapeHtml(intent.repoName)}".`;
-      src(trace, "github", `Repository ${repo.name}`, { href: repo.url, items: [{ text: repo.description ?? repo.name, href: repo.url }] });
+      src(trace, "github", `Repository ${repo.name}`, {
+        href: repo.liveUrl ?? repo.url,
+        items: [{ text: repo.description ?? repo.name, href: repo.url }, ...(repo.liveUrl ? [{ text: "Sito online", href: repo.liveUrl }] : [])],
+      });
       const context = [
-        `Repository: ${repo.name}`,
+        `Repository: ${repo.name}${repo.private ? " (PRIVATO)" : ""}`,
         `Descrizione: ${repo.description ?? "(nessuna descrizione)"}`,
-        `URL: ${repo.url}`,
+        `Repository GitHub (codice): ${repo.url}`,
+        `Sito online (Vercel): ${repo.liveUrl ?? "nessun indirizzo online registrato per questo progetto"}`,
         repo.readmeExcerpt ? `Estratto README:\n${repo.readmeExcerpt}` : null,
       ]
         .filter(Boolean)
         .join("\n");
-      return await answerFromData(text, context, 'Includi sempre l\'URL del repository nella risposta se è pertinente alla domanda.');
-    } catch {
+      return await answerFromData(
+        text,
+        context,
+        'Se Daro chiede il link "del sito", "di Vercel", "online" o "da aprire", rispondi con il "Sito online" (il repository GitHub dopo, solo se utile). Se chiede solo "il link" senza altro, dai entrambi ben etichettati: sito online e repository. Se il sito online non c\'è, dillo chiaramente senza inventare un indirizzo. Scrivi gli URL completi.',
+      );
+    } catch (err) {
+      reportError("respond/github_query", err);
       return "Errore nel recupero da GitHub.";
     }
   }
