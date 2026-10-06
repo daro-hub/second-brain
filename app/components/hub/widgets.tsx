@@ -1,8 +1,8 @@
-import { KNOWLEDGE_AREAS, getKnowledgeStats, getReflection } from "../../../src/lib/knowledge";
+import { KNOWLEDGE_AREAS, getKnowledgeStats } from "../../../src/lib/knowledge";
 import type { Pillar } from "../../../src/lib/pillars";
 import { todayKey } from "../../../src/lib/time";
 import { getBrainSnapshot } from "../../../src/lib/brain";
-import { logKnowledgeAction, logSocialAction, saveReflectionAction } from "../../actions/hub";
+import { logKnowledgeAction, logSocialAction } from "../../actions/hub";
 import { BrainPanel } from "./BrainPanel";
 import { AreaLine } from "../viz/charts";
 import { WorkHeatmap } from "../viz/WorkHeatmap";
@@ -234,24 +234,6 @@ export async function PillsPanel() {
           <span className="muted small">{p.status === "known" ? "✓" : p.status === "review" ? "↻" : "·"}</span>
         </div>
       ))}
-    </div>
-  );
-}
-
-export async function WorkPanel() {
-  const month = todayKey().slice(0, 7);
-  const r = await getReflection(month);
-  return (
-    <div className="card">
-      <div className="card-head"><h3>Direzione · {month}</h3><span className="muted small">dove voglio andare, in poche righe</span></div>
-      {r === undefined ? (
-        <p className="muted small">La tabella non esiste ancora: applica la migrazione <code>0013_life_stats.sql</code> su Supabase.</p>
-      ) : (
-        <form action={saveReflectionAction} className="hub-form col">
-          <textarea name="body" rows={5} maxLength={5000} defaultValue={r ?? ""} placeholder="Che responsabilità mi sto prendendo? Come sta cambiando il mio lavoro con l'AI? In che direzione voglio muovermi?" required />
-          <button type="submit">Salva</button>
-        </form>
-      )}
     </div>
   );
 }

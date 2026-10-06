@@ -1,7 +1,7 @@
 import { getEnergyOverview, PROFILE } from "./energy";
 import { getHealthDaily, getLatestWeightKg, getSleepNights } from "./health";
 import { getStrengthLeaderboard, getWeekBudget } from "./insights";
-import { getReflection, getKnowledgeStats, getSocialCount, KNOWLEDGE_AREAS } from "./knowledge";
+import { getKnowledgeStats, getSocialCount, KNOWLEDGE_AREAS } from "./knowledge";
 import { getMyRecentActivity } from "./linear";
 import { listRepos } from "./github";
 import { reportError } from "./report";
@@ -209,12 +209,10 @@ async function umore(): Promise<Pillar> {
 }
 
 async function lavoro(): Promise<Pillar> {
-  const month = todayKey().slice(0, 7);
   const today = todayKey();
-  const [linear, repos, reflection, work] = await Promise.all([
+  const [linear, repos, work] = await Promise.all([
     safe("linear", () => getMyRecentActivity(7)),
     safe("github", listRepos),
-    getReflection(month),
     safe("work", () => getWork(addDays(today, -(GOALS.windowDays - 1)), today)),
   ]);
   const since = addDays(todayKey(), -(GOALS.windowDays - 1));
@@ -226,7 +224,6 @@ async function lavoro(): Promise<Pillar> {
     { key: "hours", label: "Ore registrate", value: work ? fmtHours(week) : "—", detail: work ? `ultimi 7 giorni · ${daysWorked} giorni lavorati su ${GOALS.windowDays}` : "registro ore non disponibile", score: null, weight: 0 },
     { key: "linear", label: "Issue toccate", value: linear ? `${linear.updated}` : "—", detail: linear ? `${linear.completed} completate in 7 giorni` : "Linear non raggiungibile", score: linear ? scoreTarget(linear.updated, GOALS.workUpdatesPerWeek) : null, weight: 0.45 },
     { key: "github", label: "Progetti GitHub attivi", value: active === null ? "—" : `${active}`, detail: `aggiornati negli ultimi ${GOALS.windowDays} giorni`, score: active === null ? null : scoreTarget(active, GOALS.activeRepos28d), weight: 0.3 },
-    { key: "direction", label: "Direzione", value: reflection === undefined ? "—" : reflection ? "scritta" : "da scrivere", detail: reflection === undefined ? "registro non ancora attivo" : `riflessione di ${month}`, score: reflection === undefined ? null : reflection ? 100 : 0, weight: 0.25 },
   ]);
 }
 
