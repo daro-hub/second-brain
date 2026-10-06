@@ -16,13 +16,20 @@ describe("cronologia condivisa", () => {
     expect(turns.map((t) => t.channel)).toEqual(["web", "web", "telegram"]);
   });
 
-  it("ricorda gli ultimi 20 messaggi, non di più", async () => {
-    for (let i = 1; i <= 25; i++) await addTurns(i % 2 ? "web" : "telegram", [{ role: "user", content: `m${i}` }]);
+  it("ricorda gli ultimi 30 messaggi, non di più", async () => {
+    for (let i = 1; i <= 35; i++) await addTurns(i % 2 ? "web" : "telegram", [{ role: "user", content: `m${i}` }]);
     const turns = await recentTurns();
-    expect(HISTORY_LIMIT).toBe(20);
-    expect(turns).toHaveLength(20);
+    expect(HISTORY_LIMIT).toBe(30);
+    expect(turns).toHaveLength(30);
     expect(turns[0].content).toBe("m6");
-    expect(turns.at(-1)!.content).toBe("m25");
+    expect(turns.at(-1)!.content).toBe("m35");
+  });
+
+  it("domanda e risposta salvate insieme restano in ordine (orari distinti, mai identici)", async () => {
+    await addTurns("web", [{ role: "user", content: "domanda" }, { role: "assistant", content: "risposta" }]);
+    const [a, b] = db.chat_history;
+    expect(Date.parse(String(a.created_at))).toBeLessThan(Date.parse(String(b.created_at)));
+    expect((await recentTurns()).map((t) => t.role)).toEqual(["user", "assistant"]);
   });
 
   it("non ha più la finestra di 90 minuti: un messaggio di giorni fa resta nella memoria", async () => {

@@ -49,3 +49,15 @@ describe("argomento attivo", () => {
     expect(describeTopic(null, now)).toBe("");
   });
 });
+
+import { isPeopleQuestion } from "../src/lib/router";
+
+describe("domande sulle persone (non sono «richieste non supportate»)", () => {
+  it.each(["che persone conosco", "chi è checco", "chi è kekko?", "chi sono i miei amici", "Chi sono i miei amici?", "cosa sai di Nicole", "ti ricordi di Nicole?"])(
+    "«%s» va alla knowledge base",
+    (t) => expect(isPeopleQuestion(t)).toBe(true),
+  );
+  it.each(["quanto ho speso", "domani cosa ho", "leg curl 41 7", "password di Supabase", "chi vince stasera in campionato"])("«%s» no", (t) =>
+    expect(isPeopleQuestion(t)).toBe(false),
+  );
+});

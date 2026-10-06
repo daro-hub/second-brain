@@ -23,3 +23,19 @@ export function lateRoute(text: string): QuickRoute | null {
 }
 
 export const quickRoute = (text: string): QuickRoute | null => earlyRoute(text) ?? lateRoute(text);
+
+/**
+ * «Chi è Checco?», «che persone conosco?», «chi sono i miei amici?»: domande su persone e fatti raccontati ad Aira.
+ * La risposta sta nella knowledge base, non in una fonte live: se il modello le scambia per «richiesta non supportata»
+ * (come è successo) il codice le rimette sulla strada giusta invece di rispondere «non riesco a leggerlo».
+ */
+export function isPeopleQuestion(text: string): boolean {
+  const t = text.trim().toLowerCase().replace(/[?!.]+$/, "");
+  return (
+    /^chi (è|e'|sono|era|erano)(\s|$)/.test(t) ||
+    /(^|\s)(che|quali|quante|quanti) (persone|amici|amiche|conoscenti|ragazze|ragazzi)(\s|$)/.test(t) ||
+    /(^|\s)(miei|mie) (amici|amiche|conoscenti|contatti)(\s|$)/.test(t) ||
+    /^(cosa|che cosa) (sai|ricordi) (di|su|dei|delle)(\s|$)/.test(t) ||
+    /^(ti ricordi|ricordi) (di|chi)(\s|$)/.test(t)
+  );
+}

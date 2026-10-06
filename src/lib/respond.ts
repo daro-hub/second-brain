@@ -10,7 +10,7 @@ import { proposalKeyboard, saveOrPropose } from "./kbProposals";
 import { getOpenAiUsageSummary } from "./openaiUsage";
 import { formatUsageReport } from "./usageReport";
 import { maybeHandleUniUpload } from "./uniUploadJob";
-import { earlyRoute, lateRoute } from "./router";
+import { earlyRoute, isPeopleQuestion, lateRoute } from "./router";
 import { describeTopic, getTopic, setTopic, type ActiveTopic } from "./topic";
 import { gatherSiteData, SITE_TOPIC_LABELS } from "./siteData";
 import { KNOWLEDGE_AREAS, logKnowledge, logSocial, saveReflection, type KnowledgeArea } from "./knowledge";
@@ -59,7 +59,8 @@ async function respondConversationally(text: string, trace?: Trace, history: Tur
   // falsa "non lo so" nonostante il dato fosse presente). La similarity assoluta non è un
   // proxy affidabile di pertinenza su testi brevi: si passano sempre i top-3 risultati e
   // si lascia che sia l'istruzione nel prompt sotto a giudicare cosa è davvero pertinente.
-  const results = await searchSemantic(text, 3);
+  // sulle persone ('chi sono i miei amici?') le voci rilevanti sono sparse in più note: si guarda più in là
+  const results = await searchSemantic(text, isPeopleQuestion(text) ? 8 : 3);
   src(trace, "kb", results.length ? `${results.length} voci più simili alla domanda` : "Nessuna voce pertinente", {
     href: "/aira?view=brain",
     items: results.map((r) => ({
@@ -373,6 +374,8 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
 
   // chiede un dato o un'azione che il bot non ha: lo dice, invece di forzarla nella categoria più vicina o inventare
   if (intent.type === "unsupported") {
+    // persone e fatti raccontati ad Aira stanno nella knowledge base: non sono «un dato che non ho»
+    if (isPeopleQuestion(text)) return respondConversationally(text, trace, history, topic);
     return `🤷 ${escapeHtml(intent.what.charAt(0).toUpperCase() + intent.what.slice(1))}: questo non riesco a leggerlo o farlo da qui.\n\nPosso aiutarti con agenda e calendario, spesa, allenamenti e scheda, salute e alimentazione, studio ed esami, progetti e link, costi OpenAI, email, password e appunti in PDF.`;
   }
 
@@ -413,7 +416,11 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
       }
       const result = await logWorkout({ exercise: name, weightKg: weight, reps, sets: e.sets, muscleGroup: e.muscleGroup ?? res.match?.muscleGroup ?? undefined });
       saved.push(`${name} ${fmtSet(weight, reps)}`);
-      lines.push(`${BULLET} ${bold(escapeHtml(name))} ${fmtSet(weight, reps)}${result.isPR ? " 🏆 Nuovo PR!" : ""}`);
+      // dalla seconda serie dello stesso esercizio nella giornata lo si dice: un doppio invio ("Oggi uguale" ripetuto) si nota subito
+      const todayStart = dayRangeUtc(perceivedTodayKey()).from.getTime();
+      const setsToday = (await getExerciseHistory(name, 30).catch(() => [])).filter((h) => Date.parse(String(h.performed_at)) >= todayStart).length;
+      const nth = setsToday >= 2 ? ` · serie ${setsToday} di oggi` : "";
+      lines.push(`${BULLET} ${bold(escapeHtml(name))} ${fmtSet(weight, reps)}${result.isPR ? " 🏆 Nuovo PR!" : ""}${nth}`);
     }
     if (saved.length) src(trace, "gym", `Serie salvate: ${saved.join(", ")}`, { href: "/palestra", items: saved.map((t) => ({ text: t })) });
     if (lines.length === 1 && saved.length === 1) return `✅ Salvato: ${lines[0].slice(BULLET.length + 1)}`;

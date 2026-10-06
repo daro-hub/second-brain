@@ -11,7 +11,7 @@ export interface Turn {
 }
 
 /** Quanti messaggi ricorda Aira, su qualunque canale. */
-export const HISTORY_LIMIT = 20;
+export const HISTORY_LIMIT = 30;
 /** Oltre questo tempo un messaggio resta nel contesto ma non vale più per le scorciatoie legate a "adesso" (gruppi di oggi, ecc.). */
 export const FRESH_MINUTES = 90;
 const KEEP_DAYS = 30;
@@ -33,8 +33,15 @@ export async function recentTurns(limit = HISTORY_LIMIT): Promise<Turn[]> {
     .map((r) => ({ role: r.role as Turn["role"], content: String(r.content), at: String(r.created_at), channel: String(r.channel) }));
 }
 
+let lastStamp = 0;
+
 export async function addTurns(channel: string, turns: Turn[]): Promise<void> {
-  const rows = turns.map((t) => ({ channel, role: t.role, content: t.content.slice(0, 800) }));
+  // Un solo INSERT dà a tutte le righe lo stesso now(): con created_at identici l'ordine tra la domanda e la risposta
+  // era casuale (nel sito la risposta finiva sopra il messaggio, e il modello rileggeva il dialogo al contrario).
+  // Si distanziano di 1 ms, così l'ordine cronologico è sempre quello vero.
+  const base = Math.max(Date.now(), lastStamp + 1);
+  lastStamp = base + turns.length - 1;
+  const rows = turns.map((t, i) => ({ channel, role: t.role, content: t.content.slice(0, 800), created_at: new Date(base + i).toISOString() }));
   const { error } = await supabase.from("chat_history").insert(rows);
   if (error) throw error;
 }
