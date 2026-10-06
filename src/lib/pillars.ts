@@ -6,22 +6,25 @@ import { getMyRecentActivity } from "./linear";
 import { listRepos } from "./github";
 import { reportError } from "./report";
 import { balanceIndex, clamp, combine, scoreRange, scoreTarget, trendOf } from "./scoring";
+import { getMoodHistory, moodIndex } from "./mood";
+import { getCultureScore } from "./pills";
 import { mean } from "./stats";
 import { getAllActivities, type StravaActivityFull } from "./strava";
 import { addDays, todayKey } from "./time";
+import { getWork, minutesByDay, fmtHours } from "./work";
 import { getCourses, getPlannedExams, summarize } from "./uniExams";
 import { supabase } from "./supabase";
 
-export type PillarKey = "studio" | "salute" | "allenamento" | "conoscenza" | "lavoro";
+export type PillarKey = "studio" | "salute" | "allenamento" | "umore" | "lavoro";
 
 export const PILLAR_META: Record<PillarKey, { label: string; color: string }> = {
   studio: { label: "Studio", color: "#5eead4" },
   salute: { label: "Salute", color: "#3ecf8e" },
   allenamento: { label: "Allenamento", color: "#4de1ff" },
-  conoscenza: { label: "Conoscenza", color: "#b78cff" },
+  umore: { label: "Umore", color: "#b78cff" },
   lavoro: { label: "Lavoro", color: "#f5a524" },
 };
-export const PILLAR_ORDER: PillarKey[] = ["studio", "salute", "allenamento", "conoscenza", "lavoro"];
+export const PILLAR_ORDER: PillarKey[] = ["studio", "salute", "allenamento", "umore", "lavoro"];
 
 /** Obiettivi: fasce per salute/allenamento, soglie per il resto. Modificabili qui. */
 export const GOALS = {
@@ -31,6 +34,7 @@ export const GOALS = {
   kcalDiffBand: [-700, 100] as const, // assunte − fabbisogno
   sessionsPerWeek: [3, 6] as const,
   knowledgeMinutesPerWeek: 120,
+  moodWindowDays: 14,
   socialContactsPer14Days: 2,
   workUpdatesPerWeek: 8,
   activeRepos28d: 2,
@@ -81,20 +85,33 @@ function pillar(key: PillarKey, measures: Measure[]): Pillar {
 
 async function studio(): Promise<{ p: Pillar; nextExam: HubData["nextExam"] }> {
   const today = todayKey();
-  const [courses, exams, budget] = await Promise.all([
+  const [courses, exams, budget, k, culture] = await Promise.all([
     safe("courses", getCourses),
     safe("exams", getPlannedExams),
     safe("budget", getWeekBudget),
+    getKnowledgeStats(GOALS.windowDays),
+    safe("culture", getCultureScore),
   ]);
   const measures: Measure[] = [];
   if (courses) {
     const s = summarize(courses);
-    measures.push({ key: "cfu", label: "Laurea", value: `${s.cfuPassed}/${s.cfuTotal} CFU`, detail: `${s.cfuTotal - s.cfuPassed} CFU mancanti`, score: scoreTarget(s.cfuPassed, s.cfuTotal), weight: 0.3 });
+    measures.push({ key: "cfu", label: "Laurea", value: `${s.cfuPassed}/${s.cfuTotal} CFU`, detail: `${s.cfuTotal - s.cfuPassed} CFU mancanti`, score: scoreTarget(s.cfuPassed, s.cfuTotal), weight: 0.25 });
     measures.push({ key: "avg", label: "Media", value: s.weightedAvg ? fmt(s.weightedAvg, 1) : "—", detail: "ponderata sui CFU", score: null, weight: 0 });
-  } else measures.push({ key: "cfu", label: "Laurea", value: "—", detail: "piano di studi non disponibile", score: null, weight: 0.3 });
+  } else measures.push({ key: "cfu", label: "Laurea", value: "—", detail: "piano di studi non disponibile", score: null, weight: 0.25 });
 
   const hours = budget ? budget.totals.study + budget.totals.lesson : null;
-  measures.push({ key: "hours", label: "Ore di studio", value: hours === null ? "—" : `${fmt(hours)} h`, detail: `in programma questa settimana su ${GOALS.studyHoursPerWeek} h`, score: scoreTarget(hours, GOALS.studyHoursPerWeek), weight: 0.7 });
+  measures.push({ key: "hours", label: "Ore di studio", value: hours === null ? "—" : `${fmt(hours)} h`, detail: `in programma questa settimana su ${GOALS.studyHoursPerWeek} h`, score: scoreTarget(hours, GOALS.studyHoursPerWeek), weight: 0.4 });
+
+  // cultura generale (ex pilastro Conoscenza): letture per area + pillole assimilate
+  if (k) {
+    const perWeek = k.totalMinutes / (GOALS.windowDays / 7);
+    const stale = KNOWLEDGE_AREAS.filter((a) => (k.daysSince[a] ?? Infinity) > 30);
+    measures.push({ key: "areas", label: "Cultura: aree", value: `${k.areasCovered.length}/${KNOWLEDGE_AREAS.length}`, detail: stale.length ? `ferme da oltre 30 giorni: ${stale.join(", ")}` : "tutte attive", score: scoreTarget(k.areasCovered.length, KNOWLEDGE_AREAS.length), weight: 0.2 });
+    measures.push({ key: "minutes", label: "Cultura: tempo", value: `${fmt(perWeek)} min/sett.`, detail: `obiettivo ${GOALS.knowledgeMinutesPerWeek} min a settimana`, score: scoreTarget(perWeek, GOALS.knowledgeMinutesPerWeek), weight: 0.15 });
+  }
+  if (culture) {
+    measures.push({ key: "culture", label: "Cultura generale", value: culture.score === null ? "—" : `${culture.score}/100`, detail: culture.score === null ? `${culture.pending} pillole inviate, nessun check ancora fatto` : `${culture.known} assimilate, ${culture.review} da ripassare, ${culture.pending} da verificare`, score: culture.score, weight: 0 });
+  }
 
   let nextExam: HubData["nextExam"] = null;
   const upcoming = (exams ?? []).filter((e) => e.examDate >= today)[0];
@@ -163,29 +180,37 @@ async function allenamento(): Promise<Pillar> {
   return pillar("allenamento", measures);
 }
 
-async function conoscenza(): Promise<Pillar> {
-  const k = await getKnowledgeStats(GOALS.windowDays);
-  if (!k) {
-    return pillar("conoscenza", [{ key: "setup", label: "Registro", value: "—", detail: "tabella non ancora creata: applica la migrazione 0013", score: null, weight: 0 }]);
+async function umore(): Promise<Pillar> {
+  const hist = await safe("mood", () => getMoodHistory(GOALS.moodWindowDays));
+  if (!hist) {
+    return pillar("umore", [{ key: "setup", label: "Diario", value: "—", detail: "tabella non ancora creata: applica la migrazione 0016", score: null, weight: 0 }]);
   }
-  const perWeek = k.totalMinutes / (GOALS.windowDays / 7);
-  const stale = KNOWLEDGE_AREAS.filter((a) => (k.daysSince[a] ?? Infinity) > 30);
-  return pillar("conoscenza", [
-    { key: "areas", label: "Aree coperte", value: `${k.areasCovered.length}/${KNOWLEDGE_AREAS.length}`, detail: stale.length ? `ferme da oltre 30 giorni: ${stale.join(", ")}` : "tutte attive", score: scoreTarget(k.areasCovered.length, KNOWLEDGE_AREAS.length), weight: 0.5 },
-    { key: "minutes", label: "Tempo dedicato", value: `${fmt(perWeek)} min/sett.`, detail: `obiettivo ${GOALS.knowledgeMinutesPerWeek} min a settimana`, score: scoreTarget(perWeek, GOALS.knowledgeMinutesPerWeek), weight: 0.5 },
+  const idx = hist.map((d) => moodIndex(d.scores)).filter((v): v is number => v !== null);
+  const avg = idx.length ? Math.round(mean(idx) as number) : null;
+  const last = hist.filter((d) => moodIndex(d.scores) !== null).at(-1);
+  return pillar("umore", [
+    { key: "avg", label: "Umore medio", value: avg === null ? "—" : `${avg}/100`, detail: avg === null ? "il diario serale parte alle 22" : `media su ${idx.length} sere negli ultimi ${GOALS.moodWindowDays} giorni`, score: avg, weight: 0.8 },
+    { key: "streak", label: "Costanza", value: `${hist.filter((d) => d.completed).length}/${GOALS.moodWindowDays}`, detail: "check-in completati", score: scoreTarget(hist.filter((d) => d.completed).length, GOALS.moodWindowDays * 0.7), weight: 0.2 },
+    { key: "last", label: "Ultima sera", value: last ? `${moodIndex(last.scores)}/100` : "—", detail: last ? last.day : "nessun check-in", score: null, weight: 0 },
   ]);
 }
 
 async function lavoro(): Promise<Pillar> {
   const month = todayKey().slice(0, 7);
-  const [linear, repos, reflection] = await Promise.all([
+  const today = todayKey();
+  const [linear, repos, reflection, work] = await Promise.all([
     safe("linear", () => getMyRecentActivity(7)),
     safe("github", listRepos),
     getReflection(month),
+    safe("work", () => getWork(addDays(today, -(GOALS.windowDays - 1)), today)),
   ]);
   const since = addDays(todayKey(), -(GOALS.windowDays - 1));
   const active = repos ? repos.filter((r) => r.updatedAt.slice(0, 10) >= since).length : null;
+  const perDay = minutesByDay(work ?? []);
+  const week = Object.entries(perDay).filter(([d]) => d > addDays(today, -7)).reduce((a, [, m]) => a + m, 0);
+  const daysWorked = Object.values(perDay).filter((m) => m > 0).length;
   return pillar("lavoro", [
+    { key: "hours", label: "Ore registrate", value: work ? fmtHours(week) : "—", detail: work ? `ultimi 7 giorni · ${daysWorked} giorni lavorati su ${GOALS.windowDays}` : "registro ore non disponibile", score: null, weight: 0 },
     { key: "linear", label: "Issue toccate", value: linear ? `${linear.updated}` : "—", detail: linear ? `${linear.completed} completate in 7 giorni` : "Linear non raggiungibile", score: linear ? scoreTarget(linear.updated, GOALS.workUpdatesPerWeek) : null, weight: 0.45 },
     { key: "github", label: "Progetti GitHub attivi", value: active === null ? "—" : `${active}`, detail: `aggiornati negli ultimi ${GOALS.windowDays} giorni`, score: active === null ? null : scoreTarget(active, GOALS.activeRepos28d), weight: 0.3 },
     { key: "direction", label: "Direzione", value: reflection === undefined ? "—" : reflection ? "scritta" : "da scrivere", detail: reflection === undefined ? "registro non ancora attivo" : `riflessione di ${month}`, score: reflection === undefined ? null : reflection ? 100 : 0, weight: 0.25 },
@@ -206,8 +231,8 @@ async function recordSnapshot(scores: Record<string, number | null>): Promise<vo
 }
 
 export async function getHubData(opts: { snapshot?: boolean } = {}): Promise<HubData> {
-  const [st, sa, al, co, la] = await Promise.all([studio(), salute(), allenamento(), conoscenza(), lavoro()]);
-  const pillars = [st.p, sa, al, co, la];
+  const [st, sa, al, um, la] = await Promise.all([studio(), salute(), allenamento(), umore(), lavoro()]);
+  const pillars = [st.p, sa, al, um, la];
   const scores = Object.fromEntries(pillars.map((p) => [p.key, p.score]));
   const trends = await loadTrends(scores);
   for (const p of pillars) p.trend = trends[p.key] ?? null;
@@ -223,7 +248,7 @@ export async function getPillar(key: PillarKey): Promise<Pillar> {
     studio: async () => (await studio()).p,
     salute,
     allenamento,
-    conoscenza,
+    umore,
     lavoro,
   };
   return map[key]();

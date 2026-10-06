@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 import { addDays, todayKey } from "./time";
 
-export const KNOWLEDGE_AREAS = ["filosofia", "psicologia", "letteratura", "scienze", "fisica", "geografia", "storia", "lingue"] as const;
+export const KNOWLEDGE_AREAS = ["filosofia", "psicologia", "letteratura", "scienze", "fisica", "geografia", "storia", "lingue", "politica"] as const;
 export type KnowledgeArea = (typeof KNOWLEDGE_AREAS)[number];
 
 export interface KnowledgeStats {

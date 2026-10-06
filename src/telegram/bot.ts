@@ -3,6 +3,13 @@ import { Bot, InputFile } from "grammy";
 import { formatJobs, formatWorkers, parseCallback, parseFixCommand, parseJobCommand, queuedMessage } from "../lib/agentCore";
 import { createJob, decideAction, getActionDiff, listJobs, listWorkers, stopJob } from "../lib/agentJobs";
 import { getPassword } from "../lib/bitwarden";
+import { decideProposal, parseProposalCallback } from "../lib/kbProposals";
+import { KNOWLEDGE_AREAS } from "../lib/knowledge";
+import { saveLocation } from "../lib/location";
+import { MOOD_ASPECTS, getMood, moodKeyboard, moodPrompt, moodSummary, parseMoodCallback, saveMoodAnswer } from "../lib/mood";
+import { createPill, formatPill } from "../lib/pills";
+import { sendMoodCheckin } from "../lib/dailyJobs";
+import { todayKey } from "../lib/time";
 import { isDuplicateUpdate } from "../lib/dedup";
 import { bold, BULLET, escapeHtml, stripForSpeech } from "../lib/format";
 import { getExerciseHistory, getPR } from "../lib/workouts";
@@ -176,6 +183,84 @@ bot.command("stop", async (ctx) => {
   } catch (err) {
     reportError("telegram/stop", err);
     await ctx.reply("Non sono riuscito a fermare il job.");
+  }
+});
+
+// Diario della sera: un tap per aspetto, ogni risposta si salva subito (il check-in riprende da dove era rimasto)
+bot.callbackQuery(/^mood:/, async (ctx) => {
+  const cb = parseMoodCallback(ctx.callbackQuery.data);
+  if (!cb || cb.day > todayKey()) {
+    await ctx.answerCallbackQuery();
+    return;
+  }
+  try {
+    const { scores, next } = await saveMoodAnswer(cb.day, MOOD_ASPECTS[cb.idx].key, cb.value);
+    await ctx.answerCallbackQuery({ text: `${MOOD_ASPECTS[cb.idx].label}: ${cb.value}/5` });
+    if (next === -1) {
+      await ctx.editMessageText(`📓 <b>Diario della sera</b> — fatto, grazie.\n${moodSummary(scores)}\n\n<i>Se vuoi aggiungere cosa ha pesato, scrivilo nella pagina Umore.</i>`, { parse_mode: "HTML" });
+    } else {
+      await ctx.editMessageText(`📓 <b>Diario della sera</b>\n\n${moodPrompt(next)}`, { parse_mode: "HTML", reply_markup: moodKeyboard(cb.day, next) });
+    }
+  } catch (err) {
+    reportError("telegram/mood", err);
+    await ctx.answerCallbackQuery({ text: "Errore, riprova" }).catch(() => undefined);
+  }
+});
+
+// Conferma o scarto di una nota proposta per la knowledge base
+bot.callbackQuery(/^kb:/, async (ctx) => {
+  const cb = parseProposalCallback(ctx.callbackQuery.data);
+  if (!cb) {
+    await ctx.answerCallbackQuery();
+    return;
+  }
+  try {
+    const res = await decideProposal(cb.id, cb.accept);
+    await ctx.answerCallbackQuery({ text: res === "done" ? (cb.accept ? "Salvato" : "Scartato") : res === "already_decided" ? "Già deciso" : "Non trovata" });
+    await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => undefined);
+  } catch (err) {
+    reportError("telegram/kb-proposal", err);
+    await ctx.answerCallbackQuery({ text: "Errore, riprova" }).catch(() => undefined);
+  }
+});
+
+bot.command("umore", async (ctx) => {
+  try {
+    const cur = await getMood(todayKey());
+    if (cur?.completed) {
+      await ctx.reply(`📓 Il diario di oggi è già completo.\n${moodSummary(cur.scores)}`, { parse_mode: "HTML" });
+      return;
+    }
+    await sendMoodCheckin(todayKey());
+  } catch (err) {
+    reportError("telegram/umore", err);
+    await ctx.reply("Non riesco ad aprire il diario in questo momento.");
+  }
+});
+
+// Una pillola per ogni area di cultura generale, subito (poi ne arriva una al giorno alle 9)
+bot.command("pillole", async (ctx) => {
+  await ctx.reply(`💊 Preparo ${KNOWLEDGE_AREAS.length} pillole, una per area: arrivano una dopo l'altra.`);
+  let failed = 0;
+  for (const area of KNOWLEDGE_AREAS) {
+    const pill = await createPill(area);
+    if (!pill) {
+      failed++;
+      continue;
+    }
+    await ctx.reply(formatPill(pill), { parse_mode: "HTML" });
+  }
+  await ctx.reply(failed ? `Fatto, ma ${failed} area/e non sono riuscita a generarle: riprova con /pillole.` : "Fatto ✅ Le ho salvate: più avanti, col check mensile, vediamo quali hai assimilato davvero.");
+});
+
+// Posizione (solo se la condividi tu dal graffetta → Posizione): serve a personalizzare le pillole
+bot.on("message:location", async (ctx) => {
+  try {
+    const loc = await saveLocation(ctx.message.location.latitude, ctx.message.location.longitude);
+    await ctx.reply(`📍 Posizione salvata${loc.city ? `: ${loc.city}` : ""}. La uso per personalizzare le pillole; per aggiornarla rimandamela.`);
+  } catch (err) {
+    reportError("telegram/location", err);
+    await ctx.reply("Non sono riuscita a salvare la posizione.");
   }
 });
 

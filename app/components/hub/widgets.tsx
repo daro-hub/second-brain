@@ -4,6 +4,15 @@ import { todayKey } from "../../../src/lib/time";
 import { getBrainSnapshot } from "../../../src/lib/brain";
 import { logKnowledgeAction, logSocialAction, saveReflectionAction } from "../../actions/hub";
 import { BrainPanel } from "./BrainPanel";
+import { AreaLine } from "../viz/charts";
+import { WorkHeatmap } from "../viz/WorkHeatmap";
+import { MOOD_ASPECTS, aspectScore, moodIndex } from "../../../src/lib/mood";
+import { describeFactor, getMoodFactors } from "../../../src/lib/moodInsights";
+import { getCultureScore } from "../../../src/lib/pills";
+import { supabase } from "../../../src/lib/supabase";
+import { addDays, formatDayShort } from "../../../src/lib/time";
+import { crossWork, fmtHours, getOrgCommits, getWork, hourlyRate, minutesByDay, workStats } from "../../../src/lib/work";
+import { addWorkAction, deleteWorkAction, saveMoodNoteAction } from "../../actions/hub";
 
 export function Skeleton({ label }: { label: string }) {
   return (
@@ -71,6 +80,131 @@ export async function KnowledgePanel() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+export async function WorkTracker() {
+  const today = todayKey();
+  const from = addDays(today, -(26 * 7));
+  const [entries, commits] = await Promise.all([getWork(from, today).catch(() => null), getOrgCommits(from, today)]);
+  if (!entries) return <div className="card"><p className="muted small">Registro ore non disponibile: applica la migrazione <code>0016</code> su Supabase.</p></div>;
+  const perDay = minutesByDay(entries);
+  const within = (n: number) => entries.filter((e) => e.day > addDays(today, -n));
+  const [w7, w28, w90] = [workStats(within(7)), workStats(within(28)), workStats(within(90))];
+  const commitCounts = commits ? Object.fromEntries(Object.entries(commits.byDay).map(([d, c]) => [d, c.commits])) : undefined;
+  const cross = commits ? crossWork(Object.fromEntries(Object.entries(perDay).filter(([d]) => d > addDays(today, -90))), Object.fromEntries(Object.entries(commits.byDay).filter(([d]) => d > addDays(today, -90)))) : null;
+  const rate = hourlyRate();
+  return (
+    <>
+      <div className="grid grid-kpi">
+        {[["7 giorni", w7], ["28 giorni", w28], ["90 giorni", w90]].map(([label, st]) => {
+          const x = st as ReturnType<typeof workStats>;
+          return (
+            <div key={label as string} className="card kpi" style={{ ["--kpi" as string]: "#f5a524" }}>
+              <div className="kpi-top"><span>{label as string}</span></div>
+              <div className="kpi-value" style={{ fontSize: 22 }}>{fmtHours(x.totalMinutes)}</div>
+              <div className="kpi-sub">{x.daysWorked} giorni lavorati{x.avgMinutesPerWorkedDay ? ` · ${fmtHours(x.avgMinutesPerWorkedDay)} al giorno` : ""}{rate ? ` · ≈ ${Math.round((x.totalMinutes / 60) * rate).toLocaleString("it-IT")} €` : ""}</div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="card">
+        <div className="card-head"><h3>Registra ore</h3><span className="muted small">come il Tasks Tracker di Notion</span></div>
+        <form action={addWorkAction} className="hub-form">
+          <input name="day" type="date" defaultValue={today} max={today} required style={{ width: 150 }} />
+          <input name="hours" type="number" step="0.25" min="0.25" max="24" placeholder="ore" required />
+          <input name="task" placeholder="cosa hai fatto" maxLength={200} required style={{ flex: 1, minWidth: 160 }} />
+          <select name="type" defaultValue=""><option value="">tipo…</option><option>Feature request</option><option>Bug</option><option>Polish</option><option>Call</option><option>Assistenza</option></select>
+          <button type="submit">Aggiungi</button>
+        </form>
+      </div>
+      <div className="card">
+        <div className="card-head"><h3>Giorni lavorati</h3><span className="muted small">ultime 26 settimane</span></div>
+        <WorkHeatmap today={today} minutes={perDay} commits={commitCounts} />
+        {cross ? (
+          <p className="muted small">
+            Incrocio con GitHub ({commits!.org} · {commits!.user}, ultimi 90 giorni): {cross.both} giorni con ore e commit, {cross.hoursOnly} con ore ma senza commit (call, assistenza, analisi…){cross.commitsOnly.length ? `, ${cross.commitsOnly.length} con commit ma senza ore registrate${cross.commitsOnly.length <= 6 ? ` (${cross.commitsOnly.map(formatDayShort).join(", ")})` : ""}` : ""}.
+            {commits!.reposFailed ? ` ${commits!.reposFailed} repo non leggibili.` : ""}
+          </p>
+        ) : (
+          <p className="muted small">Incrocio coi commit non disponibile: serve GITHUB_TOKEN con accesso all&apos;organizzazione.</p>
+        )}
+      </div>
+      <div className="card">
+        <div className="card-head"><h3>Ultime registrazioni</h3>{w28.byType.length > 0 && <span className="muted small">28 gg: {w28.byType.slice(0, 3).map((t) => `${t.type} ${fmtHours(t.minutes)}`).join(" · ")}</span>}</div>
+        {entries.slice(0, 15).map((e) => (
+          <div className="agenda-row" key={e.id}>
+            <span className="time">{formatDayShort(e.day)}</span>
+            <span style={{ flex: 1 }}>{e.task}{e.taskType ? <span className="muted small"> · {e.taskType}</span> : null}</span>
+            <span className="muted small">{e.minutes ? fmtHours(e.minutes) : e.extraEur !== null ? `${e.extraEur} €` : "—"}</span>
+            <form action={deleteWorkAction}><input type="hidden" name="id" value={e.id} /><button type="submit" className="muted small" aria-label="Elimina" title="Elimina">✕</button></form>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+export async function MoodPanel() {
+  const { hist, factors } = await getMoodFactors(90).catch(() => ({ hist: null, factors: [] }));
+  if (!hist) return <div className="card"><p className="muted small">Diario non disponibile: applica la migrazione <code>0016</code> su Supabase.</p></div>;
+  const today = todayKey();
+  const recent = hist.filter((d) => d.day > addDays(today, -30));
+  const pts = recent.flatMap((d, i) => {
+    const v = moodIndex(d.scores);
+    return v === null ? [] : [{ x: i, y: v, label: d.day }];
+  });
+  const last7 = hist.filter((d) => d.day > addDays(today, -7));
+  const todayRow = hist.find((d) => d.day === today);
+  return (
+    <>
+      <div className="card">
+        <div className="card-head"><h3>Umore · ultimi 30 giorni</h3><span className="muted small">{todayRow?.completed ? "check-in di oggi fatto" : "il check-in arriva alle 22 su Telegram"}</span></div>
+        {pts.length >= 2 ? <AreaLine points={pts} color="#b78cff" height={180} xFormat={(v) => formatDayShort(recent[Math.round(v)]?.day ?? today)} /> : <p className="muted small">Servono almeno due sere di diario per disegnare l&apos;andamento.</p>}
+      </div>
+      <div className="card">
+        <div className="card-head"><h3>Aspetti</h3><span className="muted small">media ultimi 7 giorni</span></div>
+        {MOOD_ASPECTS.map((a) => {
+          const vals = last7.flatMap((d) => (typeof d.scores[a.key] === "number" ? [aspectScore(a.key, d.scores[a.key] as number)] : []));
+          const avg = vals.length ? Math.round(vals.reduce((x, y) => x + y, 0) / vals.length) : null;
+          return (
+            <div className="agenda-row" key={a.key}>
+              <span className="time">{a.label}</span>
+              <div className="hub-bar" style={{ flex: 1, margin: 0 }}><i style={{ width: `${avg ?? 0}%`, background: "#b78cff" }} /></div>
+              <span className="muted small">{avg === null ? "—" : avg}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="card">
+        <div className="card-head"><h3>Cosa si muove con l&apos;umore</h3><span className="muted small">correlazioni, non cause</span></div>
+        {factors.map((f) => <p key={f.key} className="muted small" style={{ margin: "4px 0" }}>{describeFactor(f)}</p>)}
+      </div>
+      <div className="card">
+        <div className="card-head"><h3>Nota di oggi</h3></div>
+        <form action={saveMoodNoteAction} className="hub-form col">
+          <textarea name="note" rows={3} maxLength={1000} defaultValue={todayRow?.note ?? ""} placeholder="Cosa ha pesato sull'umore oggi? (facoltativo)" />
+          <button type="submit">Salva</button>
+        </form>
+      </div>
+    </>
+  );
+}
+
+export async function PillsPanel() {
+  const [culture, { data }] = await Promise.all([getCultureScore(), supabase.from("knowledge_pills").select("id, area, title, key_fact, status, sent_on").order("sent_on", { ascending: false }).limit(10)]);
+  return (
+    <div className="card">
+      <div className="card-head"><h3>Pillole di cultura generale</h3><span className="muted small">{culture.score === null ? `${culture.pending} da verificare` : `punteggio ${culture.score}/100 · ${culture.known} assimilate · ${culture.review} da ripassare`}</span></div>
+      {(data ?? []).length === 0 && <p className="muted small">Nessuna pillola ancora: scrivi /pillole al bot.</p>}
+      {(data ?? []).map((p) => (
+        <div className="agenda-row" key={String(p.id)}>
+          <span className="time" style={{ textTransform: "capitalize" }}>{String(p.area)}</span>
+          <span style={{ flex: 1 }}>{String(p.title)}<span className="muted small"> · {String(p.key_fact)}</span></span>
+          <span className="muted small">{p.status === "known" ? "✓" : p.status === "review" ? "↻" : "·"}</span>
+        </div>
+      ))}
     </div>
   );
 }

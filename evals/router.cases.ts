@@ -70,6 +70,10 @@ export const ROUTER_CASES: RouterCase[] = [
   { id: "sito-forza", text: "come sta andando la forza?", expect: { type: ["site_query", "exercise_query"] } },
   { id: "sito-aira", text: "come sta Aira? le integrazioni funzionano?", expect: { type: "site_query" } },
   { id: "log-conoscenza", text: "ho letto 30 minuti di filosofia", expect: { type: "life_log", kind: "knowledge" } },
+  { id: "log-lavoro", text: "oggi ho lavorato 3 ore sul totem", expect: { type: "life_log", kind: "work" } },
+  { id: "log-lavoro-ieri", text: "segna ieri 90 minuti di call", expect: { type: "life_log", kind: "work" } },
+  { id: "sito-ore-lavoro", text: "quante ore ho lavorato questa settimana?", expect: { type: "site_query" } },
+  { id: "sito-umore", text: "come è andato il mio umore ultimamente?", expect: { type: "site_query" } },
   { id: "log-sociale", text: "sono uscito con gli amici", expect: { type: "life_log", kind: "social" } },
 
   // ── salute, altri servizi ──

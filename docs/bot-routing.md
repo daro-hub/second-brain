@@ -17,3 +17,13 @@ Ogni messaggio passa da `src/lib/respond.ts` (`route`) in quest'ordine:
 2. `npm test` controlla subito, senza modello, che nessuna scorciatoia rubi frasi.
 3. `npm run eval` (serve `OPENAI_API_KEY`) prova tutte le frasi contro il modello vero: usalo prima di cambiare i prompt di `intent.ts`.
 4. Se serve una nuova capacità: nuova categoria in `intent.ts` + gestore in `respond.ts` + test; se è una scelta esatta e sicura, una scorciatoia in `router.ts`.
+
+## Umore, pillole, ore di lavoro (ott 2026)
+
+- **Pilastri**: studio, salute, allenamento, **umore**, lavoro. Conoscenza è confluita in Studio (`?p=conoscenza` rimanda a `?p=studio`).
+- **Cron**: il job pg_cron ogni 5 minuti chiama `/api/cron/reminders`, che oltre ai promemoria lancia (in `after()`) i job giornalieri di `src/lib/scheduler.ts`: pillola alle 9, diario dell'umore alle 22 (ora italiana). Ogni job si prenota con un insert su `app_settings` (`job:<nome>:<giorno>`), quindi parte una volta sola.
+- **Diario**: `/umore` o alle 22; sette aspetti 1-5 con bottoni inline (`mood:<giorno>:<n>:<voto>`), ogni tap si salva subito (`mood_checkins`).
+- **Pillole**: `/pillole` ne manda una per area ora; poi una al giorno (area più "ferma"). Salvate in `knowledge_pills` con `key_fact` e `status` (`sent`/`known`/`review`) per il check mensile e il punteggio di cultura.
+- **Ore**: `work_log` (storico Notion importato con `external_id`), pagina Lavoro, intent `life_log` kind `work`, incrocio coi commit dell'org GitHub (`WORK_GITHUB_ORG`, `WORK_GITHUB_USER`).
+- **KB**: `rememberAndReply` salva solo fatti durevoli; se la nota è già presente (≥0,92) non duplica, se è simile (≥0,80) chiede conferma per sostituirla (`kb_proposals`, bottoni `kb:y|n:<id>`).
+- **Posizione**: solo se la mandi tu a Telegram (`message:location`), salvata in `app_settings.location`.

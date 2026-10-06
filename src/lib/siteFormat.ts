@@ -114,7 +114,7 @@ export function fmtKnowledge(
   const lines: string[] = [];
   if (!k) lines.push("Conoscenza: registro non disponibile");
   else {
-    lines.push(`Conoscenza (ultimi ${k.windowDays} giorni): ${k.totalMinutes} minuti totali, ${k.areasCovered.length} aree su 8 coperte`);
+    lines.push(`Conoscenza (ultimi ${k.windowDays} giorni): ${k.totalMinutes} minuti totali, ${k.areasCovered.length} aree su 9 coperte`);
     for (const [area, d] of Object.entries(k.daysSince)) lines.push(`- ${area}: ${k.minutesByArea[area] ?? 0} min, ultima sessione ${d === null ? "mai" : d === 0 ? "oggi" : `${d} giorni fa`}`);
   }
   lines.push(`Relazioni (ultimi 14 giorni): ${social === null ? "registro non disponibile" : `${social} contatti`}`);

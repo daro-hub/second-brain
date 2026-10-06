@@ -11,7 +11,7 @@ const hub: HubData = {
   nextExam: { name: "Analisi Matematica", date: "2026-10-17", daysLeft: 12 },
   pillars: [
     { key: "studio", label: "Studio", color: "#000", score: 72, trend: 3, measures: [{ key: "cfu", label: "Laurea", value: "126/180 CFU", detail: "54 CFU mancanti", score: 70, weight: 0.3 }] },
-    { key: "conoscenza", label: "Conoscenza", color: "#000", score: null, trend: null, measures: [] },
+    { key: "umore", label: "Umore", color: "#000", score: null, trend: null, measures: [] },
   ],
 };
 
@@ -21,7 +21,7 @@ describe("fmtPillars", () => {
     expect(t).toContain("Indice di equilibrio: 64/100");
     expect(t).toContain("Studio: 72/100 (+3 in 7 giorni)");
     expect(t).toContain("Laurea: 126/180 CFU — 54 CFU mancanti [70/100]");
-    expect(t).toContain("Conoscenza: nessun dato");
+    expect(t).toContain("Umore: nessun dato");
     expect(t).toContain("Analisi Matematica, fra 12 giorni");
   });
 });
@@ -123,7 +123,7 @@ describe("fmtTraining / fmtBalance / fmtScatter / fmtKnowledge / fmtAira", () =>
   });
   it("conoscenza con dati", () => {
     const t = fmtKnowledge({ areasCovered: ["filosofia"], minutesByArea: { filosofia: 90 }, totalMinutes: 90, daysSince: { filosofia: 2, storia: null }, windowDays: 28 }, 3, "voglio fare il CTO", "2026-10");
-    expect(t).toContain("90 minuti totali, 1 aree su 8");
+    expect(t).toContain("90 minuti totali, 1 aree su 9");
     expect(t).toContain("storia: 0 min, ultima sessione mai");
     expect(t).toContain("3 contatti");
     expect(t).toContain("voglio fare il CTO");

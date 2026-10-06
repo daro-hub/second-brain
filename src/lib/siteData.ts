@@ -12,10 +12,14 @@ import {
   getWeekBudget,
 } from "./insights";
 import { clock, dec, int } from "./numfmt";
+import { MOOD_ASPECTS, moodIndex } from "./mood";
+import { describeFactor, getMoodFactors } from "./moodInsights";
+import { getCultureScore } from "./pills";
+import { crossWork, fmtHours, getOrgCommits, getWork, hourlyRate, minutesByDay, workStats } from "./work";
 import { getDayBundle, getWeekStrip } from "./overview";
 import { reportError } from "./report";
 import { fmtAira, fmtBalance, fmtDay, fmtKnowledge, fmtPillars, fmtScatter, fmtStudy, fmtTraining } from "./siteFormat";
-import { formatDayLong, perceivedTodayKey, todayKey, weekdayShort } from "./time";
+import { addDays, formatDayLong, perceivedTodayKey, todayKey, weekdayShort } from "./time";
 import { getTrainingOverview } from "./training";
 import { getCourses, getPlannedExams } from "./uniExams";
 import { listDir } from "./university";
@@ -25,7 +29,7 @@ import { listDir } from "./university";
  * così i numeri del bot coincidono con quelli del sito. (Spesa, agenda, passi, metriche Apple Health, bilancio
  * calorico, Strava, costi AI, GitHub, Linear e mail hanno già un intent dedicato.)
  */
-export const SITE_TOPICS = ["pilastri", "oggi", "studio", "settimana", "allenamento", "equilibrio", "incroci", "aira", "conoscenza", "universita"] as const;
+export const SITE_TOPICS = ["pilastri", "oggi", "studio", "settimana", "allenamento", "equilibrio", "incroci", "aira", "conoscenza", "umore", "lavoro", "universita"] as const;
 export type SiteTopic = (typeof SITE_TOPICS)[number];
 
 const MAX_SECTION = 4000;
@@ -98,7 +102,39 @@ const PROVIDERS: Record<SiteTopic, (date: string | null) => Promise<string>> = {
   conoscenza: async () => {
     const month = todayKey().slice(0, 7);
     const [k, social, reflection] = await Promise.all([getKnowledgeStats(28), getSocialCount(14), getReflection(month)]);
-    return fmtKnowledge(k, social, reflection, month);
+    const culture = await getCultureScore().catch(() => null);
+    const pills = culture ? `\nPillole di cultura generale: ${culture.known} assimilate, ${culture.review} da ripassare, ${culture.pending} ancora da verificare${culture.score !== null ? `, punteggio cultura ${culture.score}/100` : " (nessun check fatto, nessun punteggio)"}` : "";
+    return fmtKnowledge(k, social, reflection, month) + pills;
+  },
+
+  umore: async () => {
+    const { hist, factors } = await getMoodFactors(90);
+    const rows = hist.slice(-14);
+    if (!rows.length) return "Diario serale: nessun check-in ancora registrato (arriva alle 22 su Telegram, oppure /umore).";
+    const lines = rows.map((d) => `- ${d.day}: indice ${moodIndex(d.scores) ?? "n/d"}/100 (${MOOD_ASPECTS.filter((a) => typeof d.scores[a.key] === "number").map((a) => `${a.label} ${d.scores[a.key]}/5`).join(", ")})${d.note ? ` — nota: ${d.note}` : ""}`);
+    return `Diario serale, ultimi ${rows.length} check-in (1 = male, 5 = benissimo; per lo stress 5 = molto stressato):\n${lines.join("\n")}\n\nCorrelazioni:\n${factors.map(describeFactor).join("\n")}`;
+  },
+
+  lavoro: async () => {
+    const today = todayKey();
+    const from = addDays(today, -89);
+    const [entries, commits] = await Promise.all([getWork(from, today), getOrgCommits(from, today)]);
+    const win = (n: number) => workStats(entries.filter((e) => e.day > addDays(today, -n)));
+    const [a, b, c] = [win(7), win(28), win(90)];
+    const rate = hourlyRate();
+    const line = (l: string, s: ReturnType<typeof workStats>) => `- ${l}: ${fmtHours(s.totalMinutes)} in ${s.daysWorked} giorni lavorati${s.avgMinutesPerWorkedDay ? ` (media ${fmtHours(s.avgMinutesPerWorkedDay)} nei giorni lavorati)` : ""}${rate ? `, circa ${Math.round((s.totalMinutes / 60) * rate)} €` : ""}`;
+    const recent = entries.slice(0, 8).map((e) => `- ${e.day}: ${e.minutes ? fmtHours(e.minutes) : "—"} ${e.task}${e.taskType ? ` [${e.taskType}]` : ""}`);
+    const cross = commits ? crossWork(minutesByDay(entries), commits.byDay) : null;
+    return [
+      "Ore di lavoro registrate nel tracker (storico importato da Notion):",
+      line("ultimi 7 giorni", a),
+      line("ultimi 28 giorni", b),
+      line("ultimi 90 giorni", c),
+      `Ultime registrazioni:\n${recent.join("\n") || "nessuna"}`,
+      cross && commits
+        ? `Incrocio con i commit GitHub (${commits.org}, utente ${commits.user}, 90 giorni): ${cross.both} giorni con ore e commit, ${cross.hoursOnly} con ore ma senza commit, ${cross.commitsOnly.length} con commit ma senza ore (${cross.commitsOnly.slice(-5).join(", ") || "nessuno"})`
+        : "Incrocio coi commit GitHub: non disponibile in questo momento.",
+    ].join("\n");
   },
 
   universita: async () => {
@@ -123,7 +159,9 @@ export const SITE_TOPIC_LABELS: Record<SiteTopic, string> = {
   equilibrio: "Equilibrio",
   incroci: "Incroci",
   aira: "Stato di Aira",
-  conoscenza: "Conoscenza e relazioni",
+  conoscenza: "Cultura generale e relazioni",
+  umore: "Diario dell'umore",
+  lavoro: "Ore di lavoro",
   universita: "Appunti dell'università",
 };
 

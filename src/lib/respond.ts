@@ -5,6 +5,8 @@ import { applyCalendarOps } from "./calendarEdit";
 import { createEvent, getEventsInRange, getUpcomingEvents, isStudySyncEvent } from "./calendar";
 import { addTurns, formatHistory, recentTurns, toPlain, type Turn } from "./chatHistory";
 import { bold, BULLET, dropEmptyIconLines, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
+import { addWork, fmtHours } from "./work";
+import { proposalKeyboard, saveOrPropose } from "./kbProposals";
 import { getOpenAiUsageSummary } from "./openaiUsage";
 import { formatUsageReport } from "./usageReport";
 import { maybeHandleUniUpload } from "./uniUploadJob";
@@ -276,6 +278,7 @@ export async function handleMessageTraced(text: string, trace?: Trace, channel =
 async function rememberAndReply(text: string, history: Turn[], trace?: Trace): Promise<string> {
   let note = text;
   let reply = "Capito, me lo ricordo 🙂";
+  let durable = true;
   try {
     const res = await openai.chat.completions.create({
       model: "gpt-6-luna",
@@ -283,7 +286,8 @@ async function rememberAndReply(text: string, history: Turn[], trace?: Trace): P
       messages: [
         {
           role: "system",
-          content: `Sei Aira, l'assistente personale di Daro (femminile, amichevole). Daro ti ha detto qualcosa che vale la pena ricordare. Rispondi SOLO con JSON: {"note": string, "reply": string}.
+          content: `Sei Aira, l'assistente personale di Daro (femminile, amichevole). Daro ti ha detto qualcosa che vale la pena ricordare. Rispondi SOLO con JSON: {"note": string, "reply": string, "durable": boolean}.
+- "durable": true SOLO se è un fatto che resterà vero e utile per mesi (persone importanti, preferenze, progetti, obiettivi, vincoli, abitudini, storia personale, decisioni prese). false per ciò che è passeggero o già nei dati del sito: umore del momento, cosa sta mangiando/facendo adesso, programmi solo per oggi, allenamenti e pasti (hanno già i loro registri), numeri che cambiano (peso, soldi, orari), opinioni buttate lì, domande.
 - "note": l'informazione riscritta come fatto AUTOSUFFICIENTE, in italiano, in terza persona ("Daro ..."), unendo il contesto della conversazione recente quando il messaggio da solo non basta (es. "Si chiama Nicole" dopo che ha parlato di una ragazza conosciuta -> "Daro ha conosciuto una ragazza di nome Nicole, ..."). Solo ciò che è stato detto, niente invenzioni.
 - "reply": la tua risposta a Daro, naturale come un'amica: reagisci al contenuto (un commento o una breve domanda di curiosità), 1-3 frasi. NON dire "salvato", "registrato" o "ho salvato" e non ripetere ciò che ha detto; al massimo fai capire che te lo ricorderai.
 
@@ -295,10 +299,33 @@ ${STYLE_GUIDE}${history.length ? `\n\nConversazione recente:\n${formatHistory(hi
     const parsed = JSON.parse(res.choices[0].message.content ?? "{}");
     if (typeof parsed.note === "string" && parsed.note.trim()) note = parsed.note.trim();
     if (typeof parsed.reply === "string" && parsed.reply.trim()) reply = sanitizeTelegramHtml(parsed.reply.trim());
+    if (parsed.durable === false) durable = false;
   } catch {
     // se la riscrittura fallisce si salva il testo originale: meglio un frammento che perdere l'informazione
   }
-  await ingest(note, "telegram");
+  if (!durable) {
+    src(trace, "kb", "Non salvato: informazione passeggera");
+    return reply;
+  }
+  const outcome = await saveOrPropose(note, "telegram");
+  if (outcome.action === "duplicate") {
+    src(trace, "kb", "Già nella knowledge base: non duplicato");
+    return reply;
+  }
+  if (outcome.action === "propose_merge" && outcome.proposalId) {
+    // somiglia a una nota che c'è già: non si accumula, si chiede se sostituirla (bottoni su Telegram)
+    const { sendTelegramMessage } = await import("./telegramSend");
+    await sendTelegramMessage(
+      `🧠 Ho già una nota simile:
+<i>${escapeHtml(outcome.existing.slice(0, 300))}</i>
+
+Vuoi che la sostituisca con:
+<b>${escapeHtml(note.slice(0, 400))}</b>`,
+      { html: true, markup: proposalKeyboard(outcome.proposalId) },
+    ).catch((err) => reportError("respond/proposal", err, { expected: true }));
+    src(trace, "kb", "Nota simile già presente: chiesta conferma per sostituirla");
+    return reply;
+  }
   src(trace, "kb", "Nuova nota salvata", { href: "/aira?view=brain", items: [{ text: note.length > 140 ? `${note.slice(0, 140)}…` : note }] });
   return reply;
 }
@@ -502,7 +529,9 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
         equilibrio: { id: "energy", href: "/?p=salute" },
         incroci: { id: "health", href: "/?p=incroci" },
         aira: { id: "kb", href: "/?p=aira" },
-        conoscenza: { id: "kb", href: "/?p=conoscenza" },
+        conoscenza: { id: "kb", href: "/?p=studio" },
+        umore: { id: "health", href: "/?p=umore" },
+        lavoro: { id: "github", href: "/?p=lavoro" },
         universita: { id: "study", href: "/?p=studio" },
       };
       for (const t of intent.topics) src(trace, TOPIC_SOURCE[t].id, SITE_TOPIC_LABELS[t], { href: TOPIC_SOURCE[t].href });
@@ -524,8 +553,15 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
           return `📚 Per registrarla mi servono l'area (${KNOWLEDGE_AREAS.join(", ")}) e quanti minuti.`;
         }
         await logKnowledge({ area: intent.area as KnowledgeArea, minutes: intent.minutes, note: intent.note });
-        src(trace, "kb", `Conoscenza: ${intent.area}, ${intent.minutes} min`, { href: "/?p=conoscenza" });
+        src(trace, "kb", `Conoscenza: ${intent.area}, ${intent.minutes} min`, { href: "/?p=studio" });
         return `📚 Registrato: ${bold(escapeHtml(intent.area))}, ${intent.minutes} minuti${intent.note ? ` — ${escapeHtml(intent.note)}` : ""}.`;
+      }
+      if (intent.kind === "work") {
+        if (!intent.minutes) return "⏱ Quante ore (o minuti) hai lavorato? Per esempio «oggi 3 ore sul totem».";
+        const day = intent.date && intent.date <= todayKey() ? intent.date : todayKey();
+        await addWork({ day, minutes: intent.minutes, task: intent.note || "lavoro" });
+        src(trace, "github", `Lavoro: ${fmtHours(intent.minutes)} il ${day}`, { href: "/?p=lavoro" });
+        return `⏱ Segnate ${bold(fmtHours(intent.minutes))}${intent.note ? ` — ${escapeHtml(intent.note)}` : ""} (${day === todayKey() ? "oggi" : day}).`;
       }
       if (intent.kind === "social") {
         await logSocial("uscita", intent.note);

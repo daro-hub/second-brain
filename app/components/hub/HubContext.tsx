@@ -9,7 +9,7 @@ import { SpesaView } from "../../spesa/SpesaView";
 import { UniView } from "../../uni/UniView";
 import { InsightsView } from "../../insights/InsightsView";
 import { WidgetBoundary } from "./WidgetBoundary";
-import { AiraPanel, KnowledgePanel, Skeleton, SocialQuickLog, WorkPanel } from "./widgets";
+import { AiraPanel, KnowledgePanel, MoodPanel, PillsPanel, Skeleton, SocialQuickLog, WorkPanel, WorkTracker } from "./widgets";
 
 const S = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <WidgetBoundary label={label}>
@@ -55,6 +55,8 @@ export function HubContext({ context, params = {} }: { context: string | undefin
       return (
         <>
           <S label="Università"><UniView path={params.path} /></S>
+          <S label="Cultura"><KnowledgePanel /></S>
+          <S label="Pillole"><PillsPanel /></S>
         </>
       );
     case "salute":
@@ -72,15 +74,16 @@ export function HubContext({ context, params = {} }: { context: string | undefin
           <S label="Allenamento"><PalestraView exercise={params.exercise} /></S>
         </>
       );
-    case "conoscenza":
+    case "umore":
       return (
         <>
-          <S label="Conoscenza"><KnowledgePanel /></S>
+          <S label="Umore"><MoodPanel /></S>
         </>
       );
     case "lavoro":
       return (
         <>
+          <S label="Ore"><WorkTracker /></S>
           <S label="Lavoro"><WorkPanel /></S>
         </>
       );
