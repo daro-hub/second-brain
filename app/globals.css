@@ -1632,6 +1632,15 @@ main > *:nth-child(n + 6) {
   font: inherit; font-size: 12px; padding: 5px 12px; cursor: pointer;
 }
 .aira-close:hover { color: var(--text); border-color: var(--a-cyan); }
+/* "Stato" sopra all'orb: porta alla pagina con lo status di Aira */
+.aira-state {
+  position: absolute; top: calc(50% - 27px - var(--co, 300px) / 2 - 46px); left: 50%; transform: translateX(-50%); z-index: 6;
+  display: inline-flex; align-items: center; gap: 7px; text-decoration: none;
+  background: rgba(8, 16, 26, 0.6); border: 1px solid var(--a-line); border-radius: 999px; color: var(--muted);
+  font: inherit; font-size: 12px; letter-spacing: 1.4px; text-transform: uppercase; padding: 6px 14px;
+}
+.aira-state .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--a-teal); box-shadow: 0 0 8px var(--a-teal); }
+.aira-state:hover { color: var(--text); border-color: var(--a-cyan); }
 .hub-stage.console .hub-home, .hub-stage.console .hub-bar-top { opacity: 0; pointer-events: none; }
 .hub-stage.console .hub-orbwrap { left: 50%; top: calc(50% - 27px); width: min(44vh, 400px, 26vw); height: min(44vh, 400px, 26vw); }
 .hub-stage.console { --co: min(44vh, 400px, 26vw); }
@@ -1730,6 +1739,7 @@ main > *:nth-child(n + 6) {
     display: grid; place-items: center; border-radius: 50%; font-size: 20px;
   }
   .aira-close .lbl { display: none; }
+  .aira-state { top: 20px; right: 12px; left: auto; transform: none; padding: 6px 12px; font-size: 11px; }
 
   /* messaggi */
   .aira-root.embedded .aira-log {

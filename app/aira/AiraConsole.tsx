@@ -288,6 +288,10 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
       </section>
 
       <section className="aira-core">
+        <Link href="/?p=aira" className="aira-state" aria-label="Stato di Aira">
+          <span className="dot" aria-hidden />
+          Stato
+        </Link>
         <div className="orb-wrap" aria-hidden />
         <div className="aira-name">Aira</div>
         <div className={`status status-${phase}`}>
@@ -296,9 +300,9 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
         </div>
         <div className="heard">{phase === "listening" ? "Parla pure, ti ascolto…" : heard ? `“${heard}”` : " "}</div>
         {notice && <div className="notice">{notice}</div>}
-        <button type="button" className="aira-close" onClick={onClose} aria-label="Torna alla panoramica">
-          <span className="arrow" aria-hidden>←</span>
-          <span className="lbl"> Panoramica</span>
+        <button type="button" className="aira-close" onClick={onClose} aria-label="Chiudi">
+          <span className="arrow" aria-hidden>✕</span>
+          <span className="lbl"> Chiudi</span>
         </button>
       </section>
 
