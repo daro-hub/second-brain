@@ -4,6 +4,15 @@ import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+/** Accessi rapidi nell'header: stessi chip dello stage (colore = pallino), la voce attiva segue ?p= */
+const NAV = [
+  { key: "oggi", label: "Oggi", color: "#8b98a8" },
+  { key: "aira", label: "Aira", color: "var(--c-good)", aira: true },
+  { key: "incroci", label: "Statistiche", color: "#ff7ad9" },
+  { key: "spesa", label: "Spesa", color: "#f5a524" },
+  { key: "passaggi", label: "Trasferisci", color: "#4de1ff" },
+] as const;
+
 const CONTEXT_TITLES: Record<string, string> = { studio: "studio", salute: "salute", allenamento: "allenamento", umore: "umore", lavoro: "lavoro", aira: "aira", incroci: "statistiche", passaggi: "trasferisci", spesa: "spesa" };
 
 /** Il progetto è nato il 3 ottobre 2026: il contatore "DAY" parte da lì. */
@@ -87,6 +96,14 @@ export function Topbar() {
             <i /> online
           </span>
         </div>
+        <nav className="topnav" aria-label="Sezioni">
+          {NAV.map((n) => (
+            <Link key={n.key} href={`/?p=${n.key}`} className={`hub-chip${"aira" in n ? " aira" : ""}${sp.get("p") === n.key ? " on" : ""}`}>
+              <i style={{ background: n.color }} />
+              {n.label}
+            </Link>
+          ))}
+        </nav>
         <div className="readouts" suppressHydrationWarning>
           <span>
             <span className="lbl">T</span>

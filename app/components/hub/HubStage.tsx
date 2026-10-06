@@ -222,25 +222,6 @@ function Stage() {
         <div className="hub-cc">
           <PillarRadar pillars={pillars} active={p} onSelect={select} />
           <div className="hub-text">
-            <div className="hub-actions">
-              <Link href="/?p=oggi" className="hub-chip">Oggi</Link>
-              <Link href="/?p=aira" className="hub-chip aira">
-                <i />
-                Aira
-              </Link>
-              <Link href="/?p=incroci" className="hub-chip">
-                <i style={{ background: "#ff7ad9" }} />
-                Statistiche
-              </Link>
-              <Link href="/?p=spesa" className="hub-chip">
-                <i style={{ background: "#f5a524" }} />
-                Spesa
-              </Link>
-              <Link href="/?p=passaggi" className="hub-chip">
-                <i style={{ background: "#4de1ff" }} />
-                Trasferisci
-              </Link>
-            </div>
             <p className="hub-hint">Tocca Aira per parlarci e scriverle</p>
           </div>
         </div>
@@ -263,26 +244,6 @@ function Stage() {
               {x.trend !== null && x.trend !== 0 && <em className={x.trend > 0 ? "up" : "down"}>{x.trend > 0 ? "▲" : "▼"}{Math.abs(x.trend)}</em>}
             </button>
           ))}
-          <Link href="/?p=aira" className={`hub-chip aira${p === "aira" ? " on" : ""}`}>
-            <i />
-            Aira
-          </Link>
-          <Link href="/?p=oggi" className={`hub-chip${p === "oggi" || (inside && !p) ? " on" : ""}`}>
-            <i style={{ background: "#8b98a8" }} />
-            Oggi
-          </Link>
-          <Link href="/?p=incroci" className={`hub-chip${p === "incroci" ? " on" : ""}`}>
-            <i style={{ background: "#ff7ad9" }} />
-            Statistiche
-          </Link>
-          <Link href="/?p=spesa" className={`hub-chip${p === "spesa" ? " on" : ""}`}>
-            <i style={{ background: "#f5a524" }} />
-            Spesa
-          </Link>
-          <Link href="/?p=passaggi" className={`hub-chip${p === "passaggi" ? " on" : ""}`}>
-            <i style={{ background: "#4de1ff" }} />
-            Trasferisci
-          </Link>
         </div>
       </div>
 

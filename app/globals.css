@@ -1613,6 +1613,8 @@ main > *:nth-child(n + 6) {
 .topbar .readouts .logout:hover { color: var(--text); border-color: var(--accent); }
 
 .topbar .readouts { margin-left: auto; }
+.topnav { display: flex; align-items: center; gap: 8px; margin-left: auto; min-width: 0; }
+.topnav + .readouts { margin-left: 0; }
 
 /* console di Aira dentro lo stage: chat a sinistra, fonti a destra, orb (dello stage) al centro */
 .aira-root.embedded {
@@ -1671,10 +1673,12 @@ main > *:nth-child(n + 6) {
 
 /* ───────── mobile (< 900px) ───────── */
 @media (max-width: 899px) {
-  /* barra in alto: resta solo "Esci" tra le letture */
-  .topbar .readouts { display: flex; }
-  .topbar .readouts > span { display: none; }
-  .crumbs .tag { display: none; }
+  /* header: solo i pulsanti di navigazione (niente indirizzo della pagina, niente "Esci"), su una riga scorrevole */
+  .topbar .readouts, .topbar .crumbs { display: none; }
+  .topbar-row { padding: 0 10px; }
+  .topnav { margin: 0; flex: 1; overflow-x: auto; scrollbar-width: none; justify-content: flex-start; }
+  .topnav::-webkit-scrollbar { display: none; }
+  .topnav .hub-chip { flex: 0 0 auto; white-space: nowrap; padding: 7px 12px; font-size: 13px; }
 
   .hub-stage { --bar-h: 112px; --gut: 12px; --S: clamp(200px, min(calc(100dvh - var(--top-h) - var(--txt) - 24px), calc((100vw - 8px) / 1.193)), 760px); }
   .hub-cc .hub-radar { max-width: 100vw; }
