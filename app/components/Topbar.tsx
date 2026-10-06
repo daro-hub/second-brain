@@ -2,21 +2,27 @@
 
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
-/** Navigazione unica dell'header: panoramica, i cinque pilastri e gli strumenti. Il colore è quello del pilastro; la voce attiva segue ?p=. */
-const NAV: { key: string; label: string; color: string; group: "home" | "pillar" | "tool" }[] = [
-  { key: "", label: "Panoramica", color: "#8b98a8", group: "home" },
-  { key: "studio", label: "Studio", color: "#5eead4", group: "pillar" },
-  { key: "salute", label: "Salute", color: "#3ecf8e", group: "pillar" },
-  { key: "allenamento", label: "Allenamento", color: "#4de1ff", group: "pillar" },
-  { key: "umore", label: "Umore", color: "#b78cff", group: "pillar" },
-  { key: "lavoro", label: "Lavoro", color: "#f5a524", group: "pillar" },
-  { key: "oggi", label: "Oggi", color: "#8b98a8", group: "tool" },
-  { key: "aira", label: "Aira", color: "#3ecf8e", group: "tool" },
-  { key: "incroci", label: "Statistiche", color: "#ff7ad9", group: "tool" },
-  { key: "spesa", label: "Spesa", color: "#f2a07b", group: "tool" },
-  { key: "passaggi", label: "Trasferisci", color: "#4de1ff", group: "tool" },
+type NavItem = { key: string; label: string; color: string };
+
+/** In alto, sempre: panoramica e strumenti. */
+const TOOLS: NavItem[] = [
+  { key: "", label: "Panoramica", color: "#8b98a8" },
+  { key: "oggi", label: "Oggi", color: "#8b98a8" },
+  { key: "aira", label: "Aira", color: "#3ecf8e" },
+  { key: "incroci", label: "Statistiche", color: "#ff7ad9" },
+  { key: "spesa", label: "Spesa", color: "#f2a07b" },
+  { key: "passaggi", label: "Trasferisci", color: "#4de1ff" },
+];
+
+/** I cinque pilastri: sotto l'header, centrati, solo quando non si è nella schermata iniziale. Colori come nel radar. */
+const PILLARS: NavItem[] = [
+  { key: "studio", label: "Studio", color: "#5eead4" },
+  { key: "salute", label: "Salute", color: "#3ecf8e" },
+  { key: "allenamento", label: "Allenamento", color: "#4de1ff" },
+  { key: "umore", label: "Umore", color: "#b78cff" },
+  { key: "lavoro", label: "Lavoro", color: "#f5a524" },
 ];
 
 const CONTEXT_TITLES: Record<string, string> = { studio: "studio", salute: "salute", allenamento: "allenamento", umore: "umore", lavoro: "lavoro", aira: "aira", incroci: "statistiche", passaggi: "trasferisci", spesa: "spesa" };
@@ -71,7 +77,7 @@ export function Topbar() {
   }, []);
 
   useEffect(() => {
-    document.querySelector(".topnav .tab.on")?.scrollIntoView({ inline: "center", block: "nearest" });
+    document.querySelectorAll(".topnav .tab.on").forEach((el) => el.scrollIntoView({ inline: "center", block: "nearest" }));
   }, [sp]);
 
   useEffect(() => {
@@ -86,6 +92,18 @@ export function Topbar() {
   }, [router]);
 
   if (pathname.startsWith("/login")) return null;
+
+  const p = sp.get("p") ?? "";
+  const showPillars = !(pathname === "/" && !p && sp.get("console") !== "1");
+  const renderTab = (n: NavItem) => {
+    const active = pathname === "/" && p === n.key;
+    return (
+      <Link key={n.key || "home"} href={n.key ? `/?p=${n.key}` : "/"} className={`tab${active ? " on" : ""}`} style={{ ["--tc" as string]: n.color }} aria-current={active ? "page" : undefined}>
+        <i />
+        {n.label}
+      </Link>
+    );
+  };
 
   const time = now?.toLocaleTimeString("it-IT", { timeZone: "Europe/Rome", hour12: false }) ?? "--:--:--";
   const day = now ? Math.floor((now.getTime() - BORN) / 86400000) + 1 : 0;
@@ -132,19 +150,13 @@ export function Topbar() {
         </div>
       </div>
       <nav className="topnav" aria-label="Sezioni">
-          {NAV.map((n, i) => {
-            const active = (sp.get("p") ?? "") === n.key && (pathname === "/" || !n.key);
-            return (
-              <Fragment key={n.key || "home"}>
-                {i > 0 && NAV[i - 1].group !== n.group && <span className="tab-sep" aria-hidden />}
-                <Link href={n.key ? `/?p=${n.key}` : "/"} className={`tab${active ? " on" : ""}`} style={{ ["--tc" as string]: n.color }} aria-current={active ? "page" : undefined}>
-                  <i />
-                  {n.label}
-                </Link>
-              </Fragment>
-            );
-          })}
+        {TOOLS.map((n) => renderTab(n))}
       </nav>
+      {showPillars && (
+        <nav className="topnav pillars" aria-label="Pilastri">
+          {PILLARS.map((n) => renderTab(n))}
+        </nav>
+      )}
       <Ruler />
     </header>
   );
