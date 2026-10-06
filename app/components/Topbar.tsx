@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const CONTEXT_TITLES: Record<string, string> = { studio: "studio", salute: "salute", allenamento: "allenamento", umore: "umore", lavoro: "lavoro", aira: "aira", incroci: "incroci" };
+const CONTEXT_TITLES: Record<string, string> = { studio: "studio", salute: "salute", allenamento: "allenamento", umore: "umore", lavoro: "lavoro", aira: "aira", incroci: "statistiche", passaggi: "trasferisci", spesa: "spesa" };
 
 /** Il progetto è nato il 3 ottobre 2026: il contatore "DAY" parte da lì. */
 const BORN = Date.UTC(2026, 9, 3);

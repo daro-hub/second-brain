@@ -35,7 +35,7 @@ async function universityProbe(): Promise<{ ok: boolean; detail: string }> {
     return { ok: true, detail: "repository degli appunti raggiungibile, in lettura" };
   } catch (err) {
     const m = (err as Error).message;
-    return { ok: false, detail: /not_found|40[134]/.test(m) ? "il token GitHub non vede daro-hub/university (serve Contents read+write)" : `non raggiungibile (${m.slice(0, 50)})` };
+    return { ok: false, detail: /not_found|40[134]/.test(m) ? "il token GitHub (UNI_GITHUB_TOKEN, altrimenti GITHUB_TOKEN) non vede daro-hub/university: serve Contents read+write su quel repo" : `non raggiungibile (${m.slice(0, 50)})` };
   }
 }
 

@@ -43,6 +43,13 @@ export function HubContext({ context, params = {} }: { context: string | undefin
       </S>
     );
   }
+  if (context === "spesa") {
+    return (
+      <S label="Spesa">
+        <SpesaView />
+      </S>
+    );
+  }
   if (context === "aira") {
     return (
       <>
@@ -73,7 +80,6 @@ export function HubContext({ context, params = {} }: { context: string | undefin
         <>
           <S label="Salute"><SaluteView date={params.date} /></S>
           <S label="Bilancio"><BilancioView /></S>
-          <S label="Spesa"><SpesaView /></S>
         </>
       );
     case "allenamento":

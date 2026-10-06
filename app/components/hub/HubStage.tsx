@@ -204,7 +204,7 @@ function Stage() {
 
   const pillars: HubPillar[] = data?.pillars ?? ["studio", "salute", "allenamento", "umore", "lavoro"].map((k) => ({ key: k, label: k[0].toUpperCase() + k.slice(1), color: "#5a6677", score: null, trend: null }));
   const current = pillars.find((x) => x.key === p);
-  const title = p === "aira" ? "Status di Aira" : p === "incroci" ? "Incroci" : p === "passaggi" ? "Passaggi" : current ? current.label : "Oggi";
+  const title = p === "aira" ? "Aira" : p === "incroci" ? "Statistiche" : p === "passaggi" ? "Trasferisci" : p === "spesa" ? "Spesa" : current ? current.label : "Oggi";
   const hasStrip = p === "aira" || Boolean(current);
   const cards: Card[] | null =
     p === "aira"
@@ -226,7 +226,19 @@ function Stage() {
               <Link href="/?p=oggi" className="hub-chip">Oggi</Link>
               <Link href="/?p=aira" className="hub-chip aira">
                 <i />
-                Status
+                Aira
+              </Link>
+              <Link href="/?p=incroci" className="hub-chip">
+                <i style={{ background: "#ff7ad9" }} />
+                Statistiche
+              </Link>
+              <Link href="/?p=spesa" className="hub-chip">
+                <i style={{ background: "#f5a524" }} />
+                Spesa
+              </Link>
+              <Link href="/?p=passaggi" className="hub-chip">
+                <i style={{ background: "#4de1ff" }} />
+                Trasferisci
               </Link>
             </div>
             <p className="hub-hint">Tocca Aira per parlarci e scriverle</p>
@@ -253,7 +265,7 @@ function Stage() {
           ))}
           <Link href="/?p=aira" className={`hub-chip aira${p === "aira" ? " on" : ""}`}>
             <i />
-            Status
+            Aira
           </Link>
           <Link href="/?p=oggi" className={`hub-chip${p === "oggi" || (inside && !p) ? " on" : ""}`}>
             <i style={{ background: "#8b98a8" }} />
@@ -261,11 +273,15 @@ function Stage() {
           </Link>
           <Link href="/?p=incroci" className={`hub-chip${p === "incroci" ? " on" : ""}`}>
             <i style={{ background: "#ff7ad9" }} />
-            Incroci
+            Statistiche
+          </Link>
+          <Link href="/?p=spesa" className={`hub-chip${p === "spesa" ? " on" : ""}`}>
+            <i style={{ background: "#f5a524" }} />
+            Spesa
           </Link>
           <Link href="/?p=passaggi" className={`hub-chip${p === "passaggi" ? " on" : ""}`}>
             <i style={{ background: "#4de1ff" }} />
-            Passaggi
+            Trasferisci
           </Link>
         </div>
       </div>

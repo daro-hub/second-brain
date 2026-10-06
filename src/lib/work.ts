@@ -103,7 +103,9 @@ export interface CommitsResult {
 }
 
 const GH = "https://api.github.com";
-const ghHeaders = () => ({ Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, "User-Agent": "second-brain-bot", Accept: "application/vnd.github+json" });
+/** Token per i repo di lavoro dell'organizzazione: dedicato (WORK_GITHUB_TOKEN) perché un token fine-grained non può coprire insieme l'org e i repo personali (es. daro-hub/university). */
+export const workGithubToken = (): string | undefined => process.env.WORK_GITHUB_TOKEN || process.env.GITHUB_TOKEN;
+const ghHeaders = () => ({ Authorization: `Bearer ${workGithubToken()}`, "User-Agent": "second-brain-bot", Accept: "application/vnd.github+json" });
 /** Perché l'ultimo tentativo è fallito (mostrato nella pagina Lavoro al posto di un generico «non disponibile»). */
 let lastCommitsError: string | null = null;
 export const commitsError = (): string | null => lastCommitsError;
@@ -127,8 +129,8 @@ export function groupCommits(perRepo: Record<string, string[]>): Record<string, 
 /** Commit dell'utente in tutti i repo dell'org nel periodo. null se il token manca o l'org non è raggiungibile. */
 export async function getOrgCommits(from: string, to: string): Promise<CommitsResult | null> {
   lastCommitsError = null;
-  if (!process.env.GITHUB_TOKEN) {
-    lastCommitsError = "GITHUB_TOKEN non impostato";
+  if (!workGithubToken()) {
+    lastCommitsError = "WORK_GITHUB_TOKEN (o GITHUB_TOKEN) non impostato";
     return null;
   }
   const org = process.env.WORK_GITHUB_ORG || "themostaza";

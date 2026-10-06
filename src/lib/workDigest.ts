@@ -3,11 +3,11 @@ import { getEventsInRange, isStudySyncEvent } from "./calendar";
 import { reportError } from "./report";
 import { supabase } from "./supabase";
 import { dayRangeUtc, localHHMM } from "./time";
-import { addWork, setWorkMinutes, fmtHours } from "./work";
+import { addWork, fmtHours, setWorkMinutes, workGithubToken } from "./work";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const GH = "https://api.github.com";
-const ghHeaders = () => ({ Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, "User-Agent": "second-brain-bot", Accept: "application/vnd.github+json" });
+const ghHeaders = () => ({ Authorization: `Bearer ${workGithubToken()}`, "User-Agent": "second-brain-bot", Accept: "application/vnd.github+json" });
 
 export interface DayCommit {
   repo: string;
@@ -34,7 +34,7 @@ export function pickCalls(events: { summary: string; start: string; end: string;
 
 /** Commit dell'utente nei repo dell'org in quel giorno (ora italiana), senza i merge automatici. */
 export async function getCommitsOfDay(day: string): Promise<DayCommit[]> {
-  if (!process.env.GITHUB_TOKEN) return [];
+  if (!workGithubToken()) return [];
   const org = process.env.WORK_GITHUB_ORG || "themostaza";
   const user = process.env.WORK_GITHUB_USER || process.env.GITHUB_USERNAME || "daro-hub";
   const { from, to } = dayRangeUtc(day);
