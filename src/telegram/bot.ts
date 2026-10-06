@@ -1,5 +1,7 @@
 import "dotenv/config";
 import { Bot, InputFile } from "grammy";
+import { formatJobs, formatWorkers, parseJobCommand, queuedMessage } from "../lib/agentCore";
+import { createJob, listJobs, listWorkers, stopJob } from "../lib/agentJobs";
 import { getPassword } from "../lib/bitwarden";
 import { isDuplicateUpdate } from "../lib/dedup";
 import { bold, BULLET, escapeHtml, stripForSpeech } from "../lib/format";
@@ -108,6 +110,57 @@ bot.command("note", async (ctx) => {
   const note = rest.join(":").trim();
   await ingest(note, "fitness_note", { exercise: exercise.trim().toLowerCase() });
   await ctx.reply(`✅ Nota salvata per ${bold(escapeHtml(exercise.trim()))}`, { parse_mode: "HTML" });
+});
+
+// Agente remoto: i job li esegue un worker acceso (PC fisso o Mac), vedi src/worker/ e docs/agent-worker-plan.md.
+bot.command("job", async (ctx) => {
+  const cmd = parseJobCommand(ctx.match ?? "");
+  if (!cmd.ok) {
+    await ctx.reply(cmd.error);
+    return;
+  }
+  try {
+    const job = await createJob({ prompt: cmd.prompt, repo: cmd.repo });
+    await ctx.reply(queuedMessage(job.short_id, await listWorkers(), Date.now()), { parse_mode: "HTML" });
+  } catch (err) {
+    reportError("telegram/job", err);
+    await ctx.reply("Non sono riuscito a mettere il job in coda. Riprova tra poco.");
+  }
+});
+
+bot.command("jobs", async (ctx) => {
+  try {
+    await ctx.reply(formatJobs(await listJobs(5), Date.now()), { parse_mode: "HTML" });
+  } catch (err) {
+    reportError("telegram/jobs", err);
+    await ctx.reply("Non riesco a leggere la coda dei job.");
+  }
+});
+
+bot.command("workers", async (ctx) => {
+  try {
+    await ctx.reply(formatWorkers(await listWorkers(), Date.now()), { parse_mode: "HTML" });
+  } catch (err) {
+    reportError("telegram/workers", err);
+    await ctx.reply("Non riesco a leggere lo stato dei worker.");
+  }
+});
+
+bot.command("stop", async (ctx) => {
+  const id = ctx.match?.trim();
+  if (!id) {
+    await ctx.reply("Usa: /stop <id del job> (lo vedi con /jobs)");
+    return;
+  }
+  try {
+    const out = await stopJob(id);
+    await ctx.reply(
+      { not_found: "Nessun job con questo id.", cancelled: "🚫 Job annullato.", stop_requested: "🛑 Stop richiesto: il worker si ferma entro qualche secondo.", already_finished: "Il job è già finito." }[out],
+    );
+  } catch (err) {
+    reportError("telegram/stop", err);
+    await ctx.reply("Non sono riuscito a fermare il job.");
+  }
 });
 
 bot.on("message:text", async (ctx) => {

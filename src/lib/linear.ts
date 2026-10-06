@@ -69,3 +69,54 @@ export async function getMyRecentActivity(days = 7): Promise<WorkActivity> {
   const nodes = data.viewer.assignedIssues.nodes;
   return { updated: nodes.length, completed: nodes.filter((n) => n.completedAt && n.completedAt >= since).length };
 }
+
+export interface LinearIssueDetail extends LinearIssue {
+  description: string | null;
+  labels: string[];
+  comments: Array<{ author: string | null; body: string; createdAt: string }>;
+}
+
+/** Dettaglio di un'issue per identificatore (es. AMU-812): descrizione, label e ultimi commenti. Sola lettura. */
+export async function getIssueDetail(identifier: string): Promise<LinearIssueDetail | null> {
+  const data = await query<{
+    issue: {
+      identifier: string;
+      title: string;
+      url: string;
+      description: string | null;
+      state: { name: string };
+      assignee: { name: string } | null;
+      labels: { nodes: Array<{ name: string }> };
+      comments: { nodes: Array<{ body: string; createdAt: string; user: { name: string } | null }> };
+    } | null;
+  }>(
+    `query($id: String!) {
+      issue(id: $id) {
+        identifier
+        title
+        url
+        description
+        state { name }
+        assignee { name }
+        labels { nodes { name } }
+        comments(first: 20) { nodes { body createdAt user { name } } }
+      }
+    }`,
+    { id: identifier },
+  ).catch((err: Error) => {
+    if (/not found|entity not found/i.test(err.message)) return { issue: null };
+    throw err;
+  });
+  const n = data.issue;
+  if (!n) return null;
+  return {
+    identifier: n.identifier,
+    title: n.title,
+    url: n.url,
+    state: n.state.name,
+    assignee: n.assignee?.name ?? null,
+    description: n.description,
+    labels: n.labels.nodes.map((l) => l.name),
+    comments: n.comments.nodes.map((c) => ({ author: c.user?.name ?? null, body: c.body, createdAt: c.createdAt })),
+  };
+}
