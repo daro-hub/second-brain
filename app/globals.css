@@ -1658,6 +1658,13 @@ main > *:nth-child(n + 6) {
   background: rgba(8, 16, 26, 0.6); border: 1px solid var(--a-line); border-radius: 999px; color: var(--muted);
   font: inherit; font-size: 12px; letter-spacing: 1.4px; text-transform: uppercase; padding: 6px 14px;
 }
+.aira-clear {
+  position: absolute; bottom: 4px; left: calc(50% + 70px); z-index: 6; white-space: nowrap;
+  background: transparent; border: 1px solid var(--a-line); border-radius: 999px; color: var(--muted);
+  font: inherit; font-size: 12px; padding: 5px 12px; cursor: pointer;
+}
+.aira-clear:hover { color: var(--c-bad); border-color: var(--c-bad); }
+.bubble .via-tag { display: block; margin-bottom: 3px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.6px; color: var(--faint); }
 .aira-state .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--a-teal); box-shadow: 0 0 8px var(--a-teal); }
 .aira-state:hover { color: var(--text); border-color: var(--a-cyan); }
 .hub-stage.console .hub-home, .hub-stage.console .hub-bar-top { opacity: 0; pointer-events: none; }
@@ -1767,6 +1774,8 @@ main > *:nth-child(n + 6) {
   }
   .aira-close .lbl { display: none; }
   .aira-state { top: 20px; right: 12px; left: auto; transform: none; padding: 6px 12px; font-size: 11px; }
+  .aira-clear { top: 20px; bottom: auto; right: 92px; left: auto; padding: 6px 10px; font-size: 13px; }
+  .aira-clear .lbl { display: none; }
 
   /* messaggi */
   .aira-root.embedded .aira-log {

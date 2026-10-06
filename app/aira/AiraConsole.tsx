@@ -18,6 +18,8 @@ interface Msg {
   pending?: boolean;
   error?: boolean;
   viaVoice?: boolean;
+  /** messaggio di una conversazione precedente (caricato dalla cronologia condivisa) e da dove arrivava */
+  via?: string;
 }
 
 const ICONS: Record<SourceId, string> = {
@@ -57,6 +59,21 @@ const INTENT_LABELS: Record<string, string> = {
   none: "Conversazione",
 };
 
+const WELCOME: Msg = {
+  id: 0,
+  role: "aira",
+  html: "Ciao Daro, sono <b>Aira</b>. Scrivimi, oppure attiva la modalità live e parliamo: ti dico anche da quali dati prendo le risposte.",
+  sources: [],
+};
+
+const escapeHtml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+interface HistoryTurn {
+  role: "user" | "assistant";
+  content: string;
+  channel?: string;
+}
+
 const SUGGESTIONS = ["Cosa ho in agenda oggi?", "Quante calorie ho mangiato oggi?", "Cosa devo comprare?", "Come stanno andando le mie corse?"];
 
 const STATUS: Record<Phase, string> = {
@@ -81,14 +98,7 @@ function safeHtml(html: string): string {
  * cronologia non si perde tornando alla panoramica.
  */
 export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; active: boolean; onClose: () => void }) {
-  const [messages, setMessages] = useState<Msg[]>([
-    {
-      id: 0,
-      role: "aira",
-      html: "Ciao Daro, sono <b>Aira</b>. Scrivimi, oppure attiva la modalità live e parliamo: ti dico anche da quali dati prendo le risposte.",
-      sources: [],
-    },
-  ]);
+  const [messages, setMessages] = useState<Msg[]>([WELCOME]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [input, setInput] = useState("");
 
@@ -128,6 +138,45 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
     // istantaneo (non "smooth"): l'animazione viene sospesa se la scheda non è in primo piano e l'ultimo messaggio restava fuori vista
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [messages]);
+
+  // La conversazione è una sola, condivisa con Telegram: all'apertura (e ogni volta che si riapre la console) si ricaricano
+  // gli ultimi messaggi. Se in questa sessione hai già scritto qui, si tiene quello che vedi (ha anche le fonti dati).
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    fetch("/api/aira/history", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { turns?: HistoryTurn[] } | null) => {
+        if (cancelled || !data?.turns || sendingRef.current) return;
+        const onlyHistory = messagesRef.current.every((m) => m.id === 0 || m.via);
+        if (!onlyHistory) return;
+        const past: Msg[] = data.turns.map((t) => {
+          const id = idRef.current++;
+          return t.role === "user"
+            ? { id, role: "user", text: t.content, sources: [], via: t.channel }
+            : { id, role: "aira", html: escapeHtml(t.content), sources: [], via: t.channel };
+        });
+        setMessages(past.length ? past : [WELCOME]);
+      })
+      .catch(() => undefined); // senza cronologia si riparte dal saluto: non è un errore da mostrare
+    return () => {
+      cancelled = true;
+    };
+  }, [active]);
+
+  const clearChat = async () => {
+    if (sendingRef.current) return;
+    if (!window.confirm("Svuotare la chat? Aira dimentica la conversazione recente, anche su Telegram. I messaggi già inviati su Telegram restano lì.")) return;
+    const res = await fetch("/api/aira/history", { method: "DELETE" }).catch(() => null);
+    if (!res?.ok) {
+      setNotice("Non sono riuscita a svuotare la chat.");
+      return;
+    }
+    setSelectedId(null);
+    setMessages([WELCOME]);
+  };
 
   // ───────── chat ─────────
   const send = useCallback(
@@ -223,6 +272,7 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
             className={`bubble ${m.role}${m.error ? " error" : ""}${shown?.id === m.id ? " selected" : ""}`}
             onClick={() => m.role === "aira" && setSelectedId(m.id)}
           >
+            {m.via === "telegram" && <span className="via-tag">📨 Telegram</span>}
             {m.role === "user" ? (
               <>
                 {m.viaVoice && <span className="mic-tag">🎙</span>}
@@ -292,6 +342,10 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
           <span className="dot" aria-hidden />
           Stato
         </Link>
+        <button type="button" className="aira-clear" onClick={() => void clearChat()} aria-label="Svuota chat" title="Svuota chat">
+          <span aria-hidden>🗑</span>
+          <span className="lbl"> Svuota chat</span>
+        </button>
         <div className="orb-wrap" aria-hidden />
         <div className="aira-name">Aira</div>
         <div className={`status status-${phase}`}>
