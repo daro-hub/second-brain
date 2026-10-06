@@ -1526,7 +1526,7 @@ main > *:nth-child(n + 6) {
 .hub-vertex .v-dot { fill: var(--pc); transform-box: fill-box; transform-origin: center; transition: transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1), filter 0.3s ease; }
 .hub-vertex .v-dot.empty { fill: none; stroke: var(--pc); stroke-dasharray: 2 2; }
 .hub-vertex .v-ring { fill: none; stroke: var(--pc); stroke-width: 1.5; opacity: 0; transform-box: fill-box; transform-origin: center; }
-.hub-vertex .v-label { fill: #8b98a8; transform-box: fill-box; transform-origin: center; transition: fill 0.3s ease, transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1); }
+.hub-vertex .v-label { fill: var(--pc); transform-box: fill-box; transform-origin: center; transition: fill 0.3s ease, transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1); }
 .hub-vertex .v-score { fill: #e6edf3; transform-box: fill-box; transform-origin: center; transition: transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1); }
 .hub-vertex.on .v-wedge { opacity: 0.1; }
 .hub-vertex.on .v-label { fill: var(--pc); }
