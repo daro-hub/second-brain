@@ -1,5 +1,6 @@
 import { getDocumentPoints, getWebhookStatus, getWorkoutStats } from "./dashboard";
 import { pca2d } from "./pca";
+import { listDir } from "./university";
 import { supabase } from "./supabase";
 
 export interface BrainDoc {
@@ -27,6 +28,17 @@ export interface BrainSnapshot {
   integrations: Integration[];
 }
 
+/** Prova DAVVERO a raggiungere il repo degli appunti (il token può esistere ma non avere accesso). */
+async function universityProbe(): Promise<{ ok: boolean; detail: string }> {
+  try {
+    await Promise.race([listDir(""), new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 4000))]);
+    return { ok: true, detail: "repository degli appunti raggiungibile, in lettura" };
+  } catch (err) {
+    const m = (err as Error).message;
+    return { ok: false, detail: /not_found|40[134]/.test(m) ? "il token GitHub non vede daro-hub/university (serve Contents read+write)" : `non raggiungibile (${m.slice(0, 50)})` };
+  }
+}
+
 const env = (...names: string[]) => names.every((n) => Boolean(process.env[n]));
 
 async function lastHealthIngest(): Promise<string | null> {
@@ -36,11 +48,12 @@ async function lastHealthIngest(): Promise<string | null> {
 
 /** Tutto ciò che descrive "il cervello": base di conoscenza, bot e integrazioni, in un'unica fotografia. */
 export async function getBrainSnapshot(): Promise<BrainSnapshot> {
-  const [points, stats, webhook, lastHealth] = await Promise.all([
+  const [points, stats, webhook, lastHealth, uni] = await Promise.all([
     getDocumentPoints().catch(() => []),
     getWorkoutStats().catch(() => ({ totalLogs: 0, totalDocuments: 0 })),
     getWebhookStatus(),
     lastHealthIngest().catch(() => null),
+    universityProbe(),
   ]);
 
   const coords = pca2d(points.map((d) => d.embedding));
@@ -64,6 +77,7 @@ export async function getBrainSnapshot(): Promise<BrainSnapshot> {
     { id: "calendar", label: "Google Calendar", ok: env("GOOGLE_CLIENT_ID", "GOOGLE_REFRESH_TOKEN"), detail: "agenda e Gmail" },
     { id: "strava", label: "Strava", ok: env("STRAVA_CLIENT_ID", "STRAVA_REFRESH_TOKEN"), detail: "corse e sessioni" },
     { id: "github", label: "GitHub", ok: env("GITHUB_TOKEN"), detail: "repository" },
+    { id: "university", label: "Appunti (GitHub)", ok: uni.ok, detail: uni.detail },
     { id: "linear", label: "Linear", ok: env("LINEAR_API_KEY"), detail: "issue di lavoro" },
     { id: "bitwarden", label: "Bitwarden", ok: env("BW_CLIENTID", "BW_MASTER_PASSWORD"), detail: "password (mai via OpenAI)" },
   ];

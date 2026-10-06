@@ -130,7 +130,7 @@ describe("runUniUpload", () => {
     putFail = true;
     const msg = await runUniUpload([pdf("a")], target, deps());
     expect(msg).toContain("Errore nel salvare su GitHub");
-    expect(msg).toContain("UNI_GITHUB_TOKEN");
+    expect(msg).toContain("GITHUB_TOKEN");
   });
 
   it("Markdown troncato o con passaggi illeggibili: avvisa", async () => {

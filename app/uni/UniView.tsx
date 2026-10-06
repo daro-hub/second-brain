@@ -126,7 +126,7 @@ export async function UniView({ path: rawPath }: { path?: string }) {
         <h2>🎓 Università</h2>
         <Breadcrumbs path={path} />
         <div className="card">
-          <p>{notFound ? "Percorso non trovato." : "Impossibile leggere il repo (controlla UNI_GITHUB_TOKEN)."}</p>
+          <p>{notFound ? "Percorso non trovato." : "Impossibile leggere il repo (controlla GITHUB_TOKEN: deve poter leggere daro-hub/university)."}</p>
         </div>
       </>
     );

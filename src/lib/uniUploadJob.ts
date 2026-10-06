@@ -87,7 +87,7 @@ export async function runUniUpload(files: PendingPdf[], target: UniTarget, deps:
     }
   } catch (err) {
     reportError("uniUpload/raw", err);
-    return `⚠️ Errore nel salvare su GitHub${saved.length ? ` (salvati ${saved.length} di ${buffers.length})` : ""}: ${escapeHtml((err as Error).message.slice(0, 120))}. Controlla UNI_GITHUB_TOKEN.`;
+    return `⚠️ Errore nel salvare su GitHub${saved.length ? ` (salvati ${saved.length} di ${buffers.length})` : ""}: ${escapeHtml((err as Error).message.slice(0, 120))}. Controlla GITHUB_TOKEN (deve poter scrivere su daro-hub/university).`;
   }
   lines.push(`📄 Originali${buffers.length > 1 ? ` (${buffers.length})` : ""}: ${saved.map((p) => `<a href="${blobUrl(p)}">${escapeHtml(p.split("/").pop()!)}</a>`).join(", ")}`);
 

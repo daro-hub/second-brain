@@ -1,7 +1,7 @@
 /**
  * Client GitHub per il repo dei materiali universitari (daro-hub/university, privato).
- * Legge cartelle e file, e scrive via Contents API. Usa un token dedicato (UNI_GITHUB_TOKEN,
- * fine-grained, Contents read+write solo su quel repo); in mancanza ripiega su GITHUB_TOKEN.
+ * Legge cartelle e file, e scrive via Contents API. Usa GITHUB_TOKEN (lo stesso del resto del bot: serve Contents
+ * read+write su quel repo). UNI_GITHUB_TOKEN è opzionale: se impostata ha la precedenza (token dedicato più ristretto).
  */
 const GITHUB_API = "https://api.github.com";
 
