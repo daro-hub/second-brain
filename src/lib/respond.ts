@@ -8,6 +8,8 @@ import { bold, BULLET, dropEmptyIconLines, escapeHtml, sanitizeTelegramHtml, STY
 import { getOpenAiUsageSummary } from "./openaiUsage";
 import { formatUsageReport } from "./usageReport";
 import { maybeHandleUniUpload } from "./uniUploadJob";
+import { earlyRoute, lateRoute } from "./router";
+import { describeTopic, getTopic, setTopic, type ActiveTopic } from "./topic";
 import { gatherSiteData, SITE_TOPIC_LABELS } from "./siteData";
 import { KNOWLEDGE_AREAS, logKnowledge, logSocial, saveReflection, type KnowledgeArea } from "./knowledge";
 import { fmtSet, formatRoutinePreview, groupsFromText, isGroupAnnouncement, latestAnnouncedGroups, routineForGroups, wantsGymPlan } from "./gym";
@@ -48,7 +50,7 @@ function src(trace: Trace | undefined, id: SourceId, summary: string, extra: Par
   trace?.source({ id, label: SOURCE_LABELS[id], summary, ...extra });
 }
 
-async function respondConversationally(text: string, trace?: Trace, history: Turn[] = []): Promise<string> {
+async function respondConversationally(text: string, trace?: Trace, history: Turn[] = [], topic: ActiveTopic | null = null): Promise<string> {
   // Niente soglia numerica sulla similarity: con text-embedding-3-small, risposte
   // corrette su fatti personali spesso cadono a 0.3-0.45 (osservato con "dove lavoro?",
   // "con chi vivo?", "quanto peso ora?" — tutte scartate da una soglia 0.5, con risposta
@@ -79,7 +81,7 @@ Regole di conversazione:
 - Rispondi sempre in italiano.
 - Calibra la lunghezza della risposta alla domanda: a una domanda breve e informale ("come stai", "ciao") rispondi in una frase o due, non di più.
 - Non ripetere la domanda, non riassumere quello che ti ha appena detto prima di rispondere.
-- Hai la conversazione recente qui sotto: usala per capire a cosa si riferisce ("quello", "ti ho appena detto", risposte brevi). Se Daro dice che gli hai scritto o detto qualcosa e non lo trovi né nella conversazione né nel contesto, dì che non lo ritrovi: NON inventare mai dettagli e non attribuire a una cosa informazioni che riguardano un'altra.
+- Hai la conversazione recente qui sotto: usala SOLO per capire a cosa si riferisce ("quello", "ti ho appena detto", risposte brevi). NON è una fonte di dati sulla vita di Daro: non dedurne il suo piano, la scheda, l'agenda, la spesa, orari o numeri. Se ti chiede un dato suo che non è nel contesto sotto, dì chiaramente che non ce l'hai e proponi cosa puoi fare (agenda, spesa, scheda e allenamenti, salute, studio, progetti, costi, email): non rispondere a memoria né "per coerenza" con ciò che ha detto prima. Se Daro dice che gli hai scritto o detto qualcosa e non lo trovi né nella conversazione né nel contesto, dì che non lo ritrovi: NON inventare mai dettagli e non attribuire a una cosa informazioni che riguardano un'altra.
 - Puoi registrare allenamenti e leggere i dati: non dire mai di non avere "accesso operativo al database". Se Daro vuole registrare o correggere una serie e manca qualcosa, chiedi esattamente cosa manca (esercizio, peso, ripetizioni).
 - Se non sai qualcosa, dillo chiaramente invece di inventare — meglio "non lo so" che un'informazione falsa su di lui.
 - Puoi avere un tono leggero e simpatico — non essere né robotica né eccessivamente formale/burocratica.
@@ -101,7 +103,7 @@ ${BULLET} capisci sia messaggi scritti che vocali
 ${BULLET} ogni mattina gli mandi un riassunto delle notizie principali, ogni sera il programma del giorno dopo, in automatico
 
 Contesto dalla knowledge base:
-${contextText}${history.length ? `\n\nConversazione recente:\n${formatHistory(history)}` : ""}`,
+${describeTopic(topic) ? `${describeTopic(topic)}\n\n` : ""}${contextText}${history.length ? `\n\nConversazione recente:\n${formatHistory(history)}` : ""}`,
       },
       { role: "user", content: text },
     ],
@@ -248,6 +250,7 @@ export async function handleMessage(text: string): Promise<string> {
  */
 export async function handleMessageTraced(text: string, trace?: Trace, channel = "telegram"): Promise<string> {
   const history = await recentTurns(channel).catch(() => [] as Turn[]);
+  const topic = await getTopic();
   let intentType = "none";
   const wrapped: Trace = {
     intent: (t) => {
@@ -256,9 +259,11 @@ export async function handleMessageTraced(text: string, trace?: Trace, channel =
     },
     source: (x) => trace?.source(x),
   };
-  const reply = await route(text, wrapped, history);
+  const reply = await route(text, wrapped, history, topic);
   // le password non passano mai dallo storico (né la richiesta né la risposta)
   if (intentType !== "password_request") {
+    // ricorda di cosa si sta parlando (per i seguiti brevi); una conversazione generica non cambia l'argomento attivo
+    if (intentType !== "none") await setTopic({ intent: intentType, text: text.slice(0, 200), at: Date.now() });
     await addTurns(channel, [
       { role: "user", content: text },
       { role: "assistant", content: toPlain(reply) },
@@ -298,16 +303,14 @@ ${STYLE_GUIDE}${history.length ? `\n\nConversazione recente:\n${formatHistory(hi
   return reply;
 }
 
-async function route(text: string, trace: Trace | undefined, history: Turn[]): Promise<string> {
-  // Parola d'ordine: "spesa" da sola risponde subito con la lista, senza passare dal
-  // classificatore LLM — zero costo/latenza per il caso d'uso più comune.
-  if (text.trim().toLowerCase() === "spesa") {
+async function route(text: string, trace: Trace | undefined, history: Turn[], topic: ActiveTopic | null = null): Promise<string> {
+  // Scorciatoie esatte (router.ts, coperte da test): "spesa" → lista, "gym" → scheda di oggi
+  const early = earlyRoute(text);
+  if (early === "shopping_query") {
     trace?.intent("shopping_query");
     return replyWithShoppingList(trace);
   }
-
-  // Stesso principio: "gym" da sola -> piano di oggi, solo Supabase + calcoli, zero LLM.
-  if (text.trim().toLowerCase() === "gym") {
+  if (early === "gym_keyword") {
     trace?.intent("gym_plan");
     return replyWithGymPlan(trace, history);
   }
@@ -318,14 +321,13 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
     return routinePreviewReply(routineName, trace);
   }
 
-  // "Schiena e bicipiti", "Ah no scusa devo fare schiena e petto": solo gruppi muscolari → sessioni/scheda, senza passare dal modello
-  if (isGroupAnnouncement(text)) {
+  // solo gruppi muscolari ("Schiena e bicipiti") oppure «cosa devo allenare oggi / dammi la scheda»
+  const late = lateRoute(text);
+  if (late === "group_announcement") {
     trace?.intent("session_query");
     return groupsReply(groupsFromText(text), trace);
   }
-
-  // "Cosa devo allenare oggi", "dammi la scheda", "dammi i pesi"
-  if (wantsGymPlan(text)) {
+  if (late === "gym_plan") {
     trace?.intent("gym_plan");
     return replyWithGymPlan(trace, history);
   }
@@ -334,8 +336,18 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
   const uniReply = await maybeHandleUniUpload(text);
   if (uniReply) return uniReply;
 
-  const intent = (await bareShoppingIntent(text, history)) ?? (await classifyMessage(text, history));
+  const intent = (await bareShoppingIntent(text, history)) ?? (await classifyMessage(text, history, topic));
   trace?.intent(intent.type);
+
+  // poco sicuro: una domanda breve invece di una risposta sbagliata
+  if (intent.type === "ask") {
+    return `❓ ${escapeHtml(intent.question)}`;
+  }
+
+  // chiede un dato o un'azione che il bot non ha: lo dice, invece di forzarla nella categoria più vicina o inventare
+  if (intent.type === "unsupported") {
+    return `🤷 ${escapeHtml(intent.what.charAt(0).toUpperCase() + intent.what.slice(1))}: questo non riesco a leggerlo o farlo da qui.\n\nPosso aiutarti con agenda e calendario, spesa, allenamenti e scheda, salute e alimentazione, studio ed esami, progetti e link, costi OpenAI, email, password e appunti in PDF.`;
+  }
 
   if (intent.type === "clarify") {
     return `🏋️ ${escapeHtml(intent.question)}`;
@@ -838,7 +850,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[]): P
   }
 
   if (!intent.save) {
-    return respondConversationally(text, trace, history);
+    return respondConversationally(text, trace, history, topic);
   }
 
   return rememberAndReply(text, history, trace);

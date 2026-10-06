@@ -10,7 +10,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "vitest run"
+    "test": "vitest run",
+    "eval": "tsx scripts/eval-router.ts"
   },
   "dependencies": {
     "@bitwarden/cli": "^2026.9.1",
