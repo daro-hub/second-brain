@@ -3,12 +3,14 @@ import { Bot, InputFile, type Context } from "grammy";
 import { formatJobs, formatWorkers, parseCallback, parseFixCommand, parseJobCommand, queuedMessage } from "../lib/agentCore";
 import { createJob, decideAction, getActionDiff, listJobs, listWorkers, stopJob } from "../lib/agentJobs";
 import { getPassword } from "../lib/bitwarden";
-import { decideProposal, parseProposalCallback } from "../lib/kbProposals";
+import { applyAllPending, decideProposal, parseProposalCallback } from "../lib/kbProposals";
 import { KNOWLEDGE_AREAS } from "../lib/knowledge";
 import { saveLocation } from "../lib/location";
 import { MOOD_ASPECTS, getMood, moodKeyboard, moodPrompt, moodSummary, parseMoodCallback, saveMoodAnswer } from "../lib/mood";
 import { createPill, formatPill } from "../lib/pills";
 import { sendMoodCheckin } from "../lib/dailyJobs";
+import { clearPending, parseWorkCallback, tryApplyHoursReply } from "../lib/workDigest";
+import { fmtHours, setWorkMinutes } from "../lib/work";
 import { todayKey } from "../lib/time";
 import { isDuplicateUpdate } from "../lib/dedup";
 import { bold, BULLET, escapeHtml, stripForSpeech } from "../lib/format";
@@ -225,6 +227,31 @@ bot.callbackQuery(/^kb:/, async (ctx) => {
   }
 });
 
+// Ore lavorate sotto il riassunto di mezzanotte
+bot.callbackQuery(/^wk:/, async (ctx) => {
+  const cb = parseWorkCallback(ctx.callbackQuery.data);
+  if (!cb) {
+    await ctx.answerCallbackQuery();
+    return;
+  }
+  try {
+    await setWorkMinutes(cb.id, cb.minutes);
+    await clearPending();
+    await ctx.answerCallbackQuery({ text: cb.minutes ? `Segnate ${fmtHours(cb.minutes)}` : "Nessuna ora" });
+    await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => undefined);
+    await ctx.reply(cb.minutes ? `⏱ Segnate ${fmtHours(cb.minutes)}.` : "Ok, nessuna ora per quel giorno.");
+  } catch (err) {
+    reportError("telegram/work-hours", err);
+    await ctx.answerCallbackQuery({ text: "Errore, riprova" }).catch(() => undefined);
+  }
+});
+
+// Applica in blocco le note proposte per la KB che Daro ha già confermato a voce
+bot.command("applica", async (ctx) => {
+  const r = await applyAllPending();
+  await ctx.reply(`🧠 Applicate ${r.applied} note alla knowledge base${r.failed ? `, ${r.failed} non riuscite` : ""}.`);
+});
+
 bot.command("umore", async (ctx) => {
   try {
     const cur = await getMood(todayKey());
@@ -295,6 +322,12 @@ bot.on("callback_query:data", async (ctx) => {
 });
 
 bot.on("message:text", async (ctx) => {
+  // risposta secca con le ore («3», «2,5h», «90 min») al riassunto di mezzanotte
+  const hours = await tryApplyHoursReply(ctx.message.text).catch(() => null);
+  if (hours) {
+    await ctx.reply(hours);
+    return;
+  }
   const reply = await handleMessage(ctx.message.text);
   await ctx.reply(reply, { parse_mode: "HTML" });
 });

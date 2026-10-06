@@ -3,6 +3,7 @@ import { dateKey, localHourDecimal } from "./time";
 
 /** Job giornalieri guidati dal cron ogni 5 minuti: scattano al primo giro dopo l'orario, una volta sola al giorno. */
 export const JOBS = [
+  { name: "work_summary", fromHour: 0, toHour: 2 },
   { name: "daily_pill", fromHour: 9, toHour: 21 },
   { name: "mood_checkin", fromHour: 22, toHour: 24 },
 ] as const;

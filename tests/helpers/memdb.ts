@@ -10,6 +10,7 @@ export class Q {
   private inserted: Row[] | null = null;
   private err: { code: string; message: string } | null = null;
   private deleting = false;
+  private patch: Row | null = null;
   constructor(private table: string) {
     db[table] ??= [];
   }
@@ -33,6 +34,7 @@ export class Q {
     return Promise.resolve({ error: null });
   }
   delete() { this.deleting = true; return this; }
+  update(p: Row) { this.patch = p; return this; }
   eq(c: string, v: unknown) { this.filters.push((r) => r[c] === v); return this; }
   neq(c: string, v: unknown) { this.filters.push((r) => r[c] !== v); return this; }
   is(c: string, v: unknown) { this.filters.push((r) => (r[c] ?? null) === v); return this; }
@@ -46,6 +48,11 @@ export class Q {
     if (this.deleting) {
       const gone = db[this.table].filter((x) => this.filters.every((f) => f(x)));
       db[this.table] = db[this.table].filter((x) => !gone.includes(x));
+      return [];
+    }
+    if (this.patch) {
+      const hit = db[this.table].filter((x) => this.filters.every((f) => f(x)));
+      for (const r of hit) Object.assign(r, this.patch);
       return [];
     }
     if (this.inserted) return this.inserted;

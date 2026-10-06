@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { KNOWLEDGE_AREAS, logKnowledge, logSocial, saveReflection, type KnowledgeArea } from "../../src/lib/knowledge";
 import { reportError } from "../../src/lib/report";
-import { addWork, deleteWork } from "../../src/lib/work";
+import { addPayment, addWork, deletePayment, deleteWork, setHourlyRate, setWorkMinutes } from "../../src/lib/work";
 import { saveMoodNote } from "../../src/lib/mood";
 import { todayKey } from "../../src/lib/time";
 
@@ -76,6 +76,60 @@ export async function saveMoodNoteAction(fd: FormData): Promise<void> {
     await saveMoodNote(todayKey(), note);
   } catch (err) {
     reportError("actions/saveMoodNote", err);
+    return;
+  }
+  revalidatePath("/");
+}
+
+const isDay = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+export async function addPaymentAction(fd: FormData): Promise<void> {
+  const paidOn = text(fd, "paidOn", 10);
+  const coversUntil = text(fd, "coversUntil", 10);
+  const raw = text(fd, "amount", 20).replace(",", ".");
+  const amount = raw === "" ? null : Number(raw);
+  if (!isDay(paidOn) || !isDay(coversUntil) || (amount !== null && !Number.isFinite(amount))) return;
+  try {
+    await addPayment({ paidOn, amountEur: amount, coversUntil, note: text(fd, "note", 200) });
+  } catch (err) {
+    reportError("actions/addPayment", err);
+    return;
+  }
+  revalidatePath("/");
+}
+
+export async function deletePaymentAction(fd: FormData): Promise<void> {
+  const id = text(fd, "id", 60);
+  if (!id) return;
+  try {
+    await deletePayment(id);
+  } catch (err) {
+    reportError("actions/deletePayment", err);
+    return;
+  }
+  revalidatePath("/");
+}
+
+export async function setRateAction(fd: FormData): Promise<void> {
+  const rate = Number(text(fd, "rate", 10).replace(",", "."));
+  if (!Number.isFinite(rate) || rate <= 0 || rate > 500) return;
+  try {
+    await setHourlyRate(rate);
+  } catch (err) {
+    reportError("actions/setRate", err);
+    return;
+  }
+  revalidatePath("/");
+}
+
+export async function setWorkHoursAction(fd: FormData): Promise<void> {
+  const id = text(fd, "id", 60);
+  const hours = Number(text(fd, "hours", 10).replace(",", "."));
+  if (!id || !Number.isFinite(hours) || hours < 0 || hours > 24) return;
+  try {
+    await setWorkMinutes(id, Math.round(hours * 60));
+  } catch (err) {
+    reportError("actions/setWorkHours", err);
     return;
   }
   revalidatePath("/");

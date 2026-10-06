@@ -27,3 +27,6 @@ Ogni messaggio passa da `src/lib/respond.ts` (`route`) in quest'ordine:
 - **Ore**: `work_log` (storico Notion importato con `external_id`), pagina Lavoro, intent `life_log` kind `work`, incrocio coi commit dell'org GitHub (`WORK_GITHUB_ORG`, `WORK_GITHUB_USER`).
 - **KB**: `rememberAndReply` salva solo fatti durevoli; se la nota è già presente (≥0,92) non duplica, se è simile (≥0,80) chiede conferma per sostituirla (`kb_proposals`, bottoni `kb:y|n:<id>`).
 - **Posizione**: solo se la mandi tu a Telegram (`message:location`), salvata in `app_settings.location`.
+- **Riassunto di mezzanotte** (job `work_summary`, 00:00-02:00): commit dell'org + call del calendario del giorno finito → voce `source='auto'` a 0 ore nel tracker e messaggio Telegram con titolo, punti e bottoni per le ore (`wk:<id>:<minuti>`). Una risposta secca («3», «2,5h», «90 min») al bot la completa (`work_pending` in `app_settings`, 36 h).
+- **Pagamenti**: `work_payments` (data ricevuta, quota, «coperto fino al»); «da incassare» = ore dopo l'ultimo «coperto fino al» × tariffa (`app_settings.work_hourly_rate`).
+- `/applica` applica in blocco le proposte KB in attesa.

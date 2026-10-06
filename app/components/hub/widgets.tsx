@@ -11,8 +11,8 @@ import { describeFactor, getMoodFactors } from "../../../src/lib/moodInsights";
 import { getCultureScore } from "../../../src/lib/pills";
 import { supabase } from "../../../src/lib/supabase";
 import { addDays, formatDayShort } from "../../../src/lib/time";
-import { crossWork, fmtHours, getOrgCommits, getWork, hourlyRate, minutesByDay, workStats } from "../../../src/lib/work";
-import { addWorkAction, deleteWorkAction, saveMoodNoteAction } from "../../actions/hub";
+import { crossWork, fmtHours, getHourlyRate, getOrgCommits, getPayments, getWork, minutesByDay, outstanding, workStats } from "../../../src/lib/work";
+import { addPaymentAction, addWorkAction, deletePaymentAction, deleteWorkAction, saveMoodNoteAction, setRateAction, setWorkHoursAction } from "../../actions/hub";
 
 export function Skeleton({ label }: { label: string }) {
   return (
@@ -87,16 +87,40 @@ export async function KnowledgePanel() {
 export async function WorkTracker() {
   const today = todayKey();
   const from = addDays(today, -(26 * 7));
-  const [entries, commits] = await Promise.all([getWork(from, today).catch(() => null), getOrgCommits(from, today)]);
+  const [entries, commits, payments, rate] = await Promise.all([getWork(from, today).catch(() => null), getOrgCommits(from, today), getPayments().catch(() => []), getHourlyRate().catch(() => null)]);
   if (!entries) return <div className="card"><p className="muted small">Registro ore non disponibile: applica la migrazione <code>0016</code> su Supabase.</p></div>;
   const perDay = minutesByDay(entries);
   const within = (n: number) => entries.filter((e) => e.day > addDays(today, -n));
   const [w7, w28, w90] = [workStats(within(7)), workStats(within(28)), workStats(within(90))];
   const commitCounts = commits ? Object.fromEntries(Object.entries(commits.byDay).map(([d, c]) => [d, c.commits])) : undefined;
   const cross = commits ? crossWork(Object.fromEntries(Object.entries(perDay).filter(([d]) => d > addDays(today, -90))), Object.fromEntries(Object.entries(commits.byDay).filter(([d]) => d > addDays(today, -90)))) : null;
-  const rate = hourlyRate();
+  const due = outstanding(await getWork("2000-01-01", today).catch(() => entries), payments, rate);
   return (
     <>
+      <div className="card">
+        <div className="card-head"><h3>Da incassare</h3><span className="muted small">{due.paidUntil ? `pagato fino al ${formatDayShort(due.paidUntil)}` : "nessun pagamento registrato"}</span></div>
+        <div className="kpi-value" style={{ fontSize: 26 }}>{due.dueEur === null ? fmtHours(due.minutes) : `≈ ${due.dueEur.toLocaleString("it-IT")} €`}</div>
+        <p className="muted small">{fmtHours(due.minutes)} in {due.days} giorni dopo l&apos;ultimo pagamento{due.extraEur ? `, extra ${due.extraEur} €` : ""}{rate ? ` · tariffa ${rate} €/h` : " · imposta la tariffa per vedere gli euro"}{due.received ? ` · incassato finora (registrato): ${due.received.toLocaleString("it-IT")} €` : ""}</p>
+        <form action={addPaymentAction} className="hub-form">
+          <input name="paidOn" type="date" defaultValue={today} max={today} required style={{ width: 150 }} title="Data in cui è arrivato il pagamento" />
+          <input name="amount" type="number" step="0.01" placeholder="quota €" style={{ width: 100 }} />
+          <input name="coversUntil" type="date" defaultValue={today} max={today} required style={{ width: 150 }} title="Il pagamento copre le ore fino a questo giorno" />
+          <input name="note" placeholder="nota (opzionale)" maxLength={200} />
+          <button type="submit">Registra pagamento</button>
+        </form>
+        <p className="muted small">Data ricevuto · quota · coperto fino al.</p>
+        {payments.slice(0, 6).map((p) => (
+          <div className="agenda-row" key={p.id}>
+            <span className="time">{formatDayShort(p.paidOn)}</span>
+            <span style={{ flex: 1 }}>{p.amountEur === null ? "importo n/d" : `${p.amountEur.toLocaleString("it-IT")} €`}<span className="muted small"> · coperto fino al {formatDayShort(p.coversUntil)}{p.note ? ` · ${p.note}` : ""}</span></span>
+            <form action={deletePaymentAction}><input type="hidden" name="id" value={p.id} /><button type="submit" className="muted small" aria-label="Elimina">✕</button></form>
+          </div>
+        ))}
+        <form action={setRateAction} className="hub-form" style={{ marginTop: 8 }}>
+          <input name="rate" type="number" step="0.5" min="1" defaultValue={rate ?? ""} placeholder="€/h" style={{ width: 90 }} />
+          <button type="submit">Aggiorna tariffa</button>
+        </form>
+      </div>
       <div className="grid grid-kpi">
         {[["7 giorni", w7], ["28 giorni", w28], ["90 giorni", w90]].map(([label, st]) => {
           const x = st as ReturnType<typeof workStats>;
@@ -136,8 +160,12 @@ export async function WorkTracker() {
         {entries.slice(0, 15).map((e) => (
           <div className="agenda-row" key={e.id}>
             <span className="time">{formatDayShort(e.day)}</span>
-            <span style={{ flex: 1 }}>{e.task}{e.taskType ? <span className="muted small"> · {e.taskType}</span> : null}</span>
-            <span className="muted small">{e.minutes ? fmtHours(e.minutes) : e.extraEur !== null ? `${e.extraEur} €` : "—"}</span>
+            <span style={{ flex: 1 }}>{e.task}{e.taskType ? <span className="muted small"> · {e.taskType}</span> : null}{e.source === "auto" ? <span className="muted small"> · riassunto automatico</span> : null}{e.details ? <span className="muted small" style={{ display: "block", whiteSpace: "pre-line" }}>{e.details}</span> : null}</span>
+            {e.minutes === 0 && e.extraEur === null ? (
+              <form action={setWorkHoursAction} className="hub-form"><input type="hidden" name="id" value={e.id} /><input name="hours" type="number" step="0.25" min="0" max="24" placeholder="ore?" style={{ width: 70 }} /><button type="submit">OK</button></form>
+            ) : (
+              <span className="muted small">{e.minutes ? fmtHours(e.minutes) : e.extraEur !== null ? `${e.extraEur} €` : "—"}</span>
+            )}
             <form action={deleteWorkAction}><input type="hidden" name="id" value={e.id} /><button type="submit" className="muted small" aria-label="Elimina" title="Elimina">✕</button></form>
           </div>
         ))}

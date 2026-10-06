@@ -10,6 +10,7 @@ export interface WorkEntry {
   taskType: string | null;
   extraEur: number | null;
   source: string;
+  details: string | null;
 }
 
 const toEntry = (r: Record<string, unknown>): WorkEntry => ({
@@ -20,16 +21,22 @@ const toEntry = (r: Record<string, unknown>): WorkEntry => ({
   taskType: (r.task_type as string | null) ?? null,
   extraEur: r.extra_eur === null || r.extra_eur === undefined ? null : Number(r.extra_eur),
   source: String(r.source ?? "manual"),
+  details: (r.details as string | null) ?? null,
 });
 
-export async function addWork(e: { day?: string; minutes: number; task: string; taskType?: string | null; extraEur?: number | null }): Promise<WorkEntry> {
+export async function addWork(e: { day?: string; minutes: number; task: string; taskType?: string | null; extraEur?: number | null; details?: string | null; source?: string; externalId?: string }): Promise<WorkEntry> {
   const { data, error } = await supabase
     .from("work_log")
-    .insert({ day: e.day ?? todayKey(), minutes: Math.max(0, Math.round(e.minutes)), task: e.task.trim().slice(0, 200), task_type: e.taskType ?? null, extra_eur: e.extraEur ?? null })
+    .insert({ day: e.day ?? todayKey(), minutes: Math.max(0, Math.round(e.minutes)), task: e.task.trim().slice(0, 200), task_type: e.taskType ?? null, extra_eur: e.extraEur ?? null, details: e.details ?? null, source: e.source ?? "manual", external_id: e.externalId ?? null })
     .select("*")
     .single();
   if (error) throw error;
   return toEntry(data);
+}
+
+export async function setWorkMinutes(id: string, minutes: number): Promise<void> {
+  const { error } = await supabase.from("work_log").update({ minutes: Math.max(0, Math.round(minutes)) }).eq("id", id);
+  if (error) throw error;
 }
 
 export async function deleteWork(id: string): Promise<void> {
@@ -172,5 +179,68 @@ export function crossWork(perDay: Record<string, number>, commits: Record<string
     both: days.filter((d) => commits[d]).length,
     hoursOnly: days.filter((d) => !commits[d]).length,
     commitsOnly: Object.keys(commits).filter((d) => !(perDay[d] > 0)).sort(),
+  };
+}
+
+// ───────── pagamenti ricevuti e quanto resta da incassare ─────────
+
+export interface WorkPayment {
+  id: string;
+  paidOn: string;
+  amountEur: number | null;
+  coversUntil: string;
+  note: string;
+}
+
+export async function getPayments(): Promise<WorkPayment[]> {
+  const { data, error } = await supabase.from("work_payments").select("*").order("paid_on", { ascending: false }).limit(200);
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ id: String(r.id), paidOn: String(r.paid_on), amountEur: r.amount_eur === null ? null : Number(r.amount_eur), coversUntil: String(r.covers_until), note: String(r.note ?? "") }));
+}
+
+export async function addPayment(p: { paidOn: string; amountEur: number | null; coversUntil: string; note?: string }): Promise<void> {
+  const { error } = await supabase.from("work_payments").insert({ paid_on: p.paidOn, amount_eur: p.amountEur, covers_until: p.coversUntil, note: p.note ?? "" });
+  if (error) throw error;
+}
+
+export async function deletePayment(id: string): Promise<void> {
+  const { error } = await supabase.from("work_payments").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/** Tariffa oraria: impostazione modificabile dal sito (app_settings), con l'env come ripiego. */
+export async function getHourlyRate(): Promise<number | null> {
+  const { data } = await supabase.from("app_settings").select("value").eq("key", "work_hourly_rate").maybeSingle();
+  const v = Number(data?.value);
+  return Number.isFinite(v) && v > 0 ? v : hourlyRate();
+}
+
+export async function setHourlyRate(eur: number): Promise<void> {
+  const { error } = await supabase.from("app_settings").upsert({ key: "work_hourly_rate", value: String(eur), updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
+export interface Outstanding {
+  paidUntil: string | null;
+  minutes: number;
+  days: number;
+  extraEur: number;
+  dueEur: number | null;
+  received: number;
+}
+
+/** Puro: le ore dopo l'ultimo "pagato fino a" sono da incassare; extra e rimborsi dopo quella data si sommano. */
+export function outstanding(entries: WorkEntry[], payments: WorkPayment[], rate: number | null): Outstanding {
+  const paidUntil = payments.reduce<string | null>((m, p) => (m === null || p.coversUntil > m ? p.coversUntil : m), null);
+  const open = entries.filter((e) => paidUntil === null || e.day > paidUntil);
+  const minutes = open.reduce((a, e) => a + e.minutes, 0);
+  const extraEur = open.reduce((a, e) => a + (e.extraEur ?? 0), 0);
+  return {
+    paidUntil,
+    minutes,
+    days: new Set(open.filter((e) => e.minutes > 0).map((e) => e.day)).size,
+    extraEur,
+    dueEur: rate === null ? null : Math.round((minutes / 60) * rate + extraEur),
+    received: payments.reduce((a, p) => a + (p.amountEur ?? 0), 0),
   };
 }

@@ -9,7 +9,8 @@ import { MOOD_ASPECTS, aspectScore, getMood, moodIndex, nextAspectIndex, parseMo
 import { factorCorrelation } from "../src/lib/moodInsights";
 import { parsePill, pillPrompt } from "../src/lib/pills";
 import { claimJob, jobsInWindow, releaseJob } from "../src/lib/scheduler";
-import { crossWork, groupCommits, minutesByDay, workStats, type WorkEntry } from "../src/lib/work";
+import { crossWork, groupCommits, minutesByDay, outstanding, workStats, type WorkEntry } from "../src/lib/work";
+import { fallbackSummary, hoursKeyboard, parseHoursReply, parseSummary, parseWorkCallback, pickCalls, setPending, tryApplyHoursReply } from "../src/lib/workDigest";
 
 beforeEach(() => resetDb());
 
@@ -50,7 +51,8 @@ describe("scheduler", () => {
     expect(jobsInWindow(new Date("2026-10-06T06:00:00Z"))).toEqual([]); // 08:00
     expect(jobsInWindow(new Date("2026-10-06T07:30:00Z"))).toEqual(["daily_pill"]); // 09:30
     expect(jobsInWindow(new Date("2026-10-06T20:05:00Z"))).toEqual(["mood_checkin"]); // 22:05
-    expect(jobsInWindow(new Date("2026-10-06T22:30:00Z"))).toEqual([]); // 00:30
+    expect(jobsInWindow(new Date("2026-10-06T22:30:00Z"))).toEqual(["work_summary"]); // 00:30 (riassunto del giorno finito)
+    expect(jobsInWindow(new Date("2026-10-07T00:30:00Z"))).toEqual([]); // 02:30
   });
 
   it("un job si prenota una volta al giorno e si può rilasciare per riprovare", async () => {
@@ -93,7 +95,7 @@ describe("proposte per la KB", () => {
 });
 
 describe("ore di lavoro", () => {
-  const e = (day: string, minutes: number, taskType: string | null = null): WorkEntry => ({ id: day + minutes, day, minutes, task: "t", taskType, extraEur: null, source: "manual" });
+  const e = (day: string, minutes: number, taskType: string | null = null): WorkEntry => ({ id: day + minutes, day, minutes, task: "t", taskType, extraEur: null, source: "manual", details: null });
 
   it("somma per giorno e conta i giorni lavorati", () => {
     const entries = [e("2026-10-01", 120, "Bug"), e("2026-10-01", 60, "Bug"), e("2026-10-02", 240), e("2026-10-03", 0)];
@@ -127,6 +129,57 @@ describe("correlazione umore", () => {
     const hist = Array.from({ length: 10 }, (_, i) => ({ day: `2026-10-${String(i + 1).padStart(2, "0")}`, scores: { umore: ((i % 5) + 1) as number }, note: "", completed: false }));
     const factor = Object.fromEntries(hist.map((d, i) => [d.day, (i % 5) + 1]));
     expect(factorCorrelation("x", "X", hist as never, factor).correlation?.r).toBeCloseTo(1, 5);
+  });
+});
+
+describe("pagamenti", () => {
+  const e = (day: string, minutes: number, extra: number | null = null): WorkEntry => ({ id: day, day, minutes, task: "t", taskType: null, extraEur: extra, source: "manual", details: null });
+  it("da incassare = ore dopo l'ultimo «pagato fino a», con tariffa", () => {
+    const o = outstanding([e("2026-05-09", 600), e("2026-05-10", 120), e("2026-05-11", 60, 10)], [{ id: "1", paidOn: "2026-05-12", amountEur: 500, coversUntil: "2026-05-09", note: "" }], 15);
+    expect(o).toMatchObject({ paidUntil: "2026-05-09", minutes: 180, days: 2, dueEur: 55, received: 500 });
+  });
+  it("senza tariffa niente euro, senza pagamenti conta tutto", () => {
+    const o = outstanding([e("2026-05-09", 60)], [], null);
+    expect(o).toMatchObject({ paidUntil: null, minutes: 60, dueEur: null });
+  });
+});
+
+describe("riassunto di mezzanotte", () => {
+  it("capisce solo risposte che sono una durata", () => {
+    expect(parseHoursReply("3")).toBe(180);
+    expect(parseHoursReply("2,5")).toBe(150);
+    expect(parseHoursReply("2h30")).toBe(150);
+    expect(parseHoursReply("90 min")).toBe(90);
+    expect(parseHoursReply("3 ore")).toBe(180);
+    expect(parseHoursReply("ho lavorato 3 ore")).toBeNull();
+    expect(parseHoursReply("20")).toBeNull();
+    expect(parseHoursReply("0")).toBeNull();
+  });
+  it("callback e tastiera", () => {
+    const id = "11111111-2222-3333-4444-555555555555";
+    expect(parseWorkCallback(`wk:${id}:180`)).toEqual({ id, minutes: 180 });
+    expect(parseWorkCallback("wk:x:1")).toBeNull();
+    expect(hoursKeyboard(id).inline_keyboard[0]).toHaveLength(6);
+  });
+  it("tiene solo le call vere e ripiega senza modello", () => {
+    const calls = pickCalls([
+      { summary: "Call con Marco", start: "2026-10-05T09:00:00Z", end: "2026-10-05T09:30:00Z", allDay: false },
+      { summary: "Compleanno", start: "2026-10-05", end: "2026-10-06", allDay: true },
+      { summary: "Palestra", start: "2026-10-05T10:00:00Z", end: "2026-10-05T11:00:00Z", allDay: false },
+    ]);
+    expect(calls).toEqual([{ title: "Call con Marco", start: "2026-10-05T09:00:00Z", minutes: 30 }]);
+    const f = fallbackSummary({ commits: [{ repo: "webapp", message: "fix" }, { repo: "webapp", message: "feat" }], calls });
+    expect(f.title).toBe("Sviluppo webapp");
+    expect(f.bullets).toEqual(["webapp: 2 commit", "Call: Call con Marco (30 min)"]);
+    expect(parseSummary('{"title":"T","bullets":[]}')).toBeNull();
+  });
+  it("la risposta con le ore aggiorna la voce in attesa una sola volta", async () => {
+    db.work_log = [{ id: "w1", day: "2026-10-05", minutes: 0 }];
+    await setPending("w1", "2026-10-05");
+    expect(await tryApplyHoursReply("ciao")).toBeNull();
+    expect(await tryApplyHoursReply("2,5")).toContain("2,5 h");
+    expect(db.work_log[0].minutes).toBe(150);
+    expect(await tryApplyHoursReply("3")).toBeNull();
   });
 });
 

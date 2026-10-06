@@ -68,3 +68,18 @@ export async function saveOrPropose(content: string, source: string): Promise<Sa
   }
   return decision;
 }
+
+/** Applica in blocco tutte le proposte in attesa (per quando Daro le ha già confermate a voce). */
+export async function applyAllPending(): Promise<{ applied: number; failed: number }> {
+  const { data } = await supabase.from("kb_proposals").select("id").eq("status", "pending").order("created_at", { ascending: true });
+  let applied = 0;
+  let failed = 0;
+  for (const r of data ?? []) {
+    try {
+      if ((await decideProposal(String(r.id), true)) === "done") applied++;
+    } catch {
+      failed++;
+    }
+  }
+  return { applied, failed };
+}
