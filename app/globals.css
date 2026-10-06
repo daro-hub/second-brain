@@ -1730,7 +1730,13 @@ main > *:nth-child(n + 6) {
   .content-col:has(.hub-stage.pillar) .hub-detail { flex: none; min-height: auto; overflow-x: clip; overflow-y: visible; }
   .hub-detail .grid-2, .hub-detail .grid-3 { grid-template-columns: minmax(0, 1fr); }
   .hub-detail .grid-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .hub-detail .card { overflow-x: auto; scrollbar-width: none; }
+  /* scorrimento orizzontale solo dove serve (tabelle, grafici larghi): MAI anche verticale, altrimenti ogni sezione diventa un
+     contenitore a sé e il dito resta "agganciato" dentro invece di far scorrere la pagina */
+  .hub-detail .card,
+  .hub-detail [style*="overflow-x"],
+  .hub-detail .viz-scroll,
+  .hub-detail .uni-week-scroll { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: none; }
+  .hub-detail .pass-text { max-height: none; overflow: visible; }
   .hub-detail .card::-webkit-scrollbar { display: none; }
   .hub-detail svg, .hub-detail img, .hub-detail iframe { max-width: 100%; }
   .hub-detail svg { height: auto; }
