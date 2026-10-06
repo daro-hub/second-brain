@@ -63,7 +63,6 @@ export function HubContext({ context, params = {} }: { context: string | undefin
     case "salute":
       return (
         <>
-          <SocialQuickLog />
           <S label="Salute"><SaluteView date={params.date} /></S>
           <S label="Bilancio"><BilancioView /></S>
           <S label="Spesa"><SpesaView /></S>
@@ -78,6 +77,7 @@ export function HubContext({ context, params = {} }: { context: string | undefin
     case "umore":
       return (
         <>
+          <SocialQuickLog />
           <S label="Umore"><MoodPanel /></S>
         </>
       );
