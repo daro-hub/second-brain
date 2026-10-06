@@ -15,6 +15,7 @@ import { clock, dec, int } from "./numfmt";
 import { MOOD_ASPECTS, moodIndex } from "./mood";
 import { describeFactor, getMoodFactors } from "./moodInsights";
 import { getCultureScore } from "./pills";
+import { formatProfile, getProfile } from "./profile";
 import { crossWork, fmtHours, getHourlyRate, getOrgCommits, getPayments, getWork, minutesByDay, outstanding, workStats } from "./work";
 import { getDayBundle, getWeekStrip } from "./overview";
 import { reportError } from "./report";
@@ -29,7 +30,7 @@ import { listDir } from "./university";
  * così i numeri del bot coincidono con quelli del sito. (Spesa, agenda, passi, metriche Apple Health, bilancio
  * calorico, Strava, costi AI, GitHub, Linear e mail hanno già un intent dedicato.)
  */
-export const SITE_TOPICS = ["pilastri", "oggi", "studio", "settimana", "allenamento", "equilibrio", "incroci", "aira", "conoscenza", "umore", "lavoro", "universita"] as const;
+export const SITE_TOPICS = ["pilastri", "oggi", "studio", "settimana", "allenamento", "equilibrio", "incroci", "aira", "conoscenza", "umore", "lavoro", "profilo", "universita"] as const;
 export type SiteTopic = (typeof SITE_TOPICS)[number];
 
 const MAX_SECTION = 4000;
@@ -139,6 +140,8 @@ const PROVIDERS: Record<SiteTopic, (date: string | null) => Promise<string>> = {
     ].join("\n");
   },
 
+  profilo: async () => formatProfile(await getProfile()),
+
   universita: async () => {
     const lines: string[] = [];
     for (const year of [1, 2, 3]) {
@@ -164,6 +167,7 @@ export const SITE_TOPIC_LABELS: Record<SiteTopic, string> = {
   conoscenza: "Cultura generale e relazioni",
   umore: "Diario dell'umore",
   lavoro: "Ore di lavoro",
+  profilo: "Dati formali",
   universita: "Appunti dell'università",
 };
 

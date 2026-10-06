@@ -1,3 +1,5 @@
+import { buildEveningDigest } from "./digest";
+import { supabase } from "./supabase";
 import { getMood, moodKeyboard, moodPrompt, nextAspectIndex } from "./mood";
 import { createPill, formatPill, nextArea } from "./pills";
 import { reportError } from "./report";
@@ -21,6 +23,18 @@ export async function sendDailyPill(): Promise<boolean> {
   if (!pill) return false;
   await sendTelegramMessage(formatPill(pill), { html: true });
   return true;
+}
+
+/** Buonanotte con il programma di domani (studio, calendario, allenamento). */
+export async function sendEveningDigest(): Promise<boolean> {
+  await sendTelegramMessage(await buildEveningDigest(), { html: true });
+  return true;
+}
+
+/** Ultimo errore di un job, leggibile da `app_settings` per capire perché un messaggio non è arrivato. */
+async function recordJobError(job: JobName, err: unknown): Promise<void> {
+  const msg = err instanceof Error ? err.message : String(err);
+  await supabase.from("app_settings").upsert({ key: `job_error:${job}`, value: `${new Date().toISOString()} ${msg}`.slice(0, 500), updated_at: new Date().toISOString() });
 }
 
 /** A mezzanotte: riassume commit e call del giorno appena finito nel tracker (0 ore) e chiede le ore su Telegram. */
@@ -48,11 +62,16 @@ export async function runDueJobs(now: Date, dry = false): Promise<JobResult[]> {
     if (!(await claimJob(job, now))) continue;
     try {
       const sent =
-        job === "mood_checkin" ? await sendMoodCheckin(dateKey(now)) : job === "work_summary" ? await sendWorkSummary(addDays(dateKey(now), -1)) : await sendDailyPill();
+        job === "mood_checkin" ? await sendMoodCheckin(dateKey(now)) : job === "work_summary"
+          ? await sendWorkSummary(addDays(dateKey(now), -1))
+          : job === "evening_digest"
+            ? await sendEveningDigest()
+            : await sendDailyPill();
       if (!sent) await releaseJob(job, now).catch(() => undefined);
       out.push({ job, status: sent ? "sent" : "skipped" });
     } catch (err) {
       reportError(`dailyJobs/${job}`, err);
+      await recordJobError(job, err).catch(() => undefined);
       await releaseJob(job, now).catch(() => undefined);
       out.push({ job, status: "failed" });
     }

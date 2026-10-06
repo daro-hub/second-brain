@@ -9,7 +9,7 @@ import { SpesaView } from "../../spesa/SpesaView";
 import { UniView } from "../../uni/UniView";
 import { InsightsView } from "../../insights/InsightsView";
 import { WidgetBoundary } from "./WidgetBoundary";
-import { AiraPanel, KnowledgePanel, MoodPanel, PillsPanel, Skeleton, SocialQuickLog, WorkPanel, WorkTracker } from "./widgets";
+import { AiraPanel, KnowledgePanel, ProfilePanel, MoodPanel, PillsPanel, Skeleton, SocialQuickLog, WorkPanel, WorkTracker } from "./widgets";
 
 const S = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <WidgetBoundary label={label}>
@@ -39,6 +39,7 @@ export function HubContext({ context, params = {} }: { context: string | undefin
     return (
       <>
         <S label="Stato di Aira"><AiraPanel /></S>
+        <S label="Profilo"><ProfilePanel /></S>
         <S label="Costi AI"><CostiView /></S>
       </>
     );

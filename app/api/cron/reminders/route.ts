@@ -1,4 +1,5 @@
 import { after, NextRequest, NextResponse } from "next/server";
+import { applyConfirmed } from "../../../../src/lib/kbProposals";
 import { runDueJobs } from "../../../../src/lib/dailyJobs";
 import { collectReminders, markReminderSent } from "../../../../src/lib/reminders";
 import { sendTelegramMessage } from "../../../../src/lib/telegramSend";
@@ -33,7 +34,10 @@ export async function GET(req: NextRequest) {
     // la pillola chiede un giro al modello (lento) e pg_net non aspetta oltre pochi secondi: in coda, dopo la risposta
     let jobs: Awaited<ReturnType<typeof runDueJobs>> = [];
     if (dry) jobs = await runDueJobs(now, true);
-    else after(() => runDueJobs(now).catch((err) => console.error("[daily-jobs] errore:", err)));
+    else {
+      after(() => runDueJobs(now).catch((err) => console.error("[daily-jobs] errore:", err)));
+      after(() => applyConfirmed().catch((err) => console.error("[kb-proposals] errore:", err)));
+    }
     return NextResponse.json({ ok: true, dry, jobs, sent: reminders.map((r) => ({ summary: r.summary, startsAt: r.startsAt, minutesLeft: r.minutesLeft })) });
   } catch (err) {
     console.error("[reminders] errore:", err);

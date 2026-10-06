@@ -47,7 +47,8 @@ export async function decideProposal(id: string, accept: boolean): Promise<"done
   if (!data) return "not_found";
   if (data.status !== "pending") return "already_decided";
   if (accept) {
-    await ingest(String(data.content), String(data.source), (data.metadata ?? {}) as Record<string, unknown>);
+    const { confirmed: _confirmed, ...meta } = (data.metadata ?? {}) as Record<string, unknown>;
+    await ingest(String(data.content), String(data.source), meta);
     for (const old of (data.replaces ?? []) as string[]) await supabase.from("documents").delete().eq("id", old);
   }
   const { error } = await supabase.from("kb_proposals").update({ status: accept ? "accepted" : "rejected", decided_at: new Date().toISOString() }).eq("id", id);
@@ -82,4 +83,18 @@ export async function applyAllPending(): Promise<{ applied: number; failed: numb
     }
   }
   return { applied, failed };
+}
+
+/** Proposte che Daro ha già confermato a voce (metadata.confirmed): le pubblica il cron, senza bisogno di un tap. */
+export async function applyConfirmed(): Promise<number> {
+  const { data } = await supabase.from("kb_proposals").select("id").eq("status", "pending").eq("metadata->>confirmed", "true");
+  let applied = 0;
+  for (const r of data ?? []) {
+    try {
+      if ((await decideProposal(String(r.id), true)) === "done") applied++;
+    } catch (err) {
+      console.error("[kb-proposals] applicazione fallita:", err);
+    }
+  }
+  return applied;
 }

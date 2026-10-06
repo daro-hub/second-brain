@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { KNOWLEDGE_AREAS, logKnowledge, logSocial, saveReflection, type KnowledgeArea } from "../../src/lib/knowledge";
 import { reportError } from "../../src/lib/report";
 import { addPayment, addWork, deletePayment, deleteWork, setHourlyRate, setWorkMinutes } from "../../src/lib/work";
+import { setProfileFact } from "../../src/lib/profile";
 import { saveMoodNote } from "../../src/lib/mood";
 import { todayKey } from "../../src/lib/time";
 
@@ -130,6 +131,18 @@ export async function setWorkHoursAction(fd: FormData): Promise<void> {
     await setWorkMinutes(id, Math.round(hours * 60));
   } catch (err) {
     reportError("actions/setWorkHours", err);
+    return;
+  }
+  revalidatePath("/");
+}
+
+export async function setProfileFactAction(fd: FormData): Promise<void> {
+  const key = text(fd, "key", 40);
+  if (!key) return;
+  try {
+    await setProfileFact(key, text(fd, "value", 500));
+  } catch (err) {
+    reportError("actions/setProfileFact", err);
     return;
   }
   revalidatePath("/");

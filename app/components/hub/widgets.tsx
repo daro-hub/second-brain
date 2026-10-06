@@ -8,11 +8,12 @@ import { AreaLine } from "../viz/charts";
 import { WorkHeatmap } from "../viz/WorkHeatmap";
 import { MOOD_ASPECTS, aspectScore, moodIndex } from "../../../src/lib/mood";
 import { describeFactor, getMoodFactors } from "../../../src/lib/moodInsights";
+import { getProfile } from "../../../src/lib/profile";
 import { getCultureScore } from "../../../src/lib/pills";
 import { supabase } from "../../../src/lib/supabase";
 import { addDays, formatDayShort } from "../../../src/lib/time";
 import { crossWork, fmtHours, getHourlyRate, getOrgCommits, getPayments, getWork, minutesByDay, outstanding, workStats } from "../../../src/lib/work";
-import { addPaymentAction, addWorkAction, deletePaymentAction, deleteWorkAction, saveMoodNoteAction, setRateAction, setWorkHoursAction } from "../../actions/hub";
+import { addPaymentAction, addWorkAction, deletePaymentAction, deleteWorkAction, saveMoodNoteAction, setProfileFactAction, setRateAction, setWorkHoursAction } from "../../actions/hub";
 
 export function Skeleton({ label }: { label: string }) {
   return (
@@ -276,5 +277,23 @@ export async function AiraPanel() {
     <>
       <BrainPanel brain={brain} />
     </>
+  );
+}
+
+export async function ProfilePanel() {
+  const facts = await getProfile().catch(() => null);
+  if (!facts) return <div className="card"><p className="muted small">Dati formali non disponibili: applica la migrazione <code>profile_facts</code>.</p></div>;
+  return (
+    <div className="card">
+      <div className="card-head"><h3>Dati formali</h3><span className="muted small">anagrafica e contatti, solo nel database</span></div>
+      {facts.map((f) => (
+        <form action={setProfileFactAction} className="hub-form" key={f.key} style={{ marginBottom: 6 }}>
+          <input type="hidden" name="key" value={f.key} />
+          <span className="time" style={{ width: 140 }}>{f.label}</span>
+          <input name="value" defaultValue={f.value} placeholder="—" maxLength={500} style={{ flex: 1, minWidth: 160 }} />
+          <button type="submit">Salva</button>
+        </form>
+      ))}
+    </div>
   );
 }

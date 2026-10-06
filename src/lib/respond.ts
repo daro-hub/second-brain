@@ -532,6 +532,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
         conoscenza: { id: "kb", href: "/?p=studio" },
         umore: { id: "health", href: "/?p=umore" },
         lavoro: { id: "github", href: "/?p=lavoro" },
+        profilo: { id: "kb", href: "/?p=aira" },
         universita: { id: "study", href: "/?p=studio" },
       };
       for (const t of intent.topics) src(trace, TOPIC_SOURCE[t].id, SITE_TOPIC_LABELS[t], { href: TOPIC_SOURCE[t].href });
