@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { Bot, InputFile } from "grammy";
+import { Bot, InputFile, type Context } from "grammy";
 import { formatJobs, formatWorkers, parseCallback, parseFixCommand, parseJobCommand, queuedMessage } from "../lib/agentCore";
 import { createJob, decideAction, getActionDiff, listJobs, listWorkers, stopJob } from "../lib/agentJobs";
 import { getPassword } from "../lib/bitwarden";
@@ -20,6 +20,7 @@ import { TELEGRAM_MAX_BYTES } from "../lib/uniUpload";
 import { registerPdf } from "../lib/uniUploadJob";
 import { searchSemantic } from "../lib/search";
 import { textToSpeech, transcribe } from "../lib/voice";
+import { describePhoto, MAX_PHOTO_BYTES, photoToMessage } from "../lib/vision";
 
 const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN!);
 const allowedUserId = Number(process.env.TELEGRAM_ALLOWED_USER_ID);
@@ -302,6 +303,10 @@ bot.on("message:text", async (ctx) => {
 // lezione 4» parte subito.
 bot.on("message:document", async (ctx) => {
   const doc = ctx.message.document;
+  if (doc.mime_type?.startsWith("image/")) {
+    await replyToPhoto(ctx, doc.file_id, doc.mime_type, doc.file_size ?? 0, ctx.message.caption);
+    return;
+  }
   if (doc.mime_type !== "application/pdf" && !doc.file_name?.toLowerCase().endsWith(".pdf")) {
     await ctx.reply("Per ora riesco a gestire solo PDF (per gli appunti).");
     return;
@@ -327,6 +332,34 @@ bot.on("message:document", async (ctx) => {
     await ctx.reply("Non sono riuscito a registrare il PDF. Riprova tra poco.");
   }
 });
+
+// Una foto: Aira la "guarda", la trasforma in testo (con la didascalia) e risponde come a un normale messaggio.
+bot.on("message:photo", async (ctx) => {
+  const largest = ctx.message.photo.at(-1)!;
+  await replyToPhoto(ctx, largest.file_id, "image/jpeg", largest.file_size ?? 0, ctx.message.caption);
+});
+
+async function replyToPhoto(ctx: Context, fileId: string, mime: string, size: number, caption?: string) {
+  if (size > MAX_PHOTO_BYTES) {
+    await ctx.reply("Questa immagine è troppo pesante per me (oltre 12 MB): mandamela come foto normale, non come file.");
+    return;
+  }
+  await ctx.replyWithChatAction("typing").catch(() => {});
+  let message: string;
+  try {
+    const file = await ctx.api.getFile(fileId);
+    const res = await fetch(`https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file.file_path}`);
+    if (!res.ok) throw new Error(`download ${res.status}`);
+    const description = await describePhoto(Buffer.from(await res.arrayBuffer()), mime, caption?.trim());
+    message = photoToMessage(description, caption);
+  } catch (err) {
+    reportError("telegram/photo", err);
+    await ctx.reply("Non sono riuscita a guardare la foto. Riprova tra poco, o scrivimi cosa c'è.");
+    return;
+  }
+  const reply = await handleMessage(message);
+  await ctx.reply(reply, { parse_mode: "HTML" });
+}
 
 bot.on("message:voice", async (ctx) => {
   const file = await ctx.getFile();
