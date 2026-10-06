@@ -1699,7 +1699,12 @@ main > *:nth-child(n + 6) {
 @media (max-width: 899px) {
   body.hub-console-open { overflow: hidden; overscroll-behavior: none; }
   body.hub-console-open .topbar { display: none; }
-  body.hub-console-open .content-col { height: var(--vvh, 100dvh); }
+  /* La colonna è ancorata all'area VISIBILE (visual viewport): con la tastiera aperta iOS sposta la pagina e un'altezza
+     "normale" lascia la barra di scrittura sotto la tastiera. --vvt/--vvh arrivano da HubStage. */
+  body.hub-console-open .content-col { position: fixed; left: 0; right: 0; top: var(--vvt, 0px); height: var(--vvh, 100dvh); }
+  /* sfondo a griglia e scanline fisse a schermo intero fanno sfarfallare e scattare lo scorrimento su telefono */
+  body.hub-console-open::before { display: none; }
+  body::after { display: none; }
 
   .aira-root.embedded {
     grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;

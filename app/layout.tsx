@@ -1,4 +1,5 @@
 import { Suspense, type ReactNode } from "react";
+import type { Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Topbar } from "./components/Topbar";
@@ -10,6 +11,9 @@ const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", displ
 export const metadata = {
   title: "Second Brain",
 };
+
+// Chrome Android ridimensiona la pagina quando compare la tastiera (come fa già lo stage con visualViewport)
+export const viewport: Viewport = { width: "device-width", initialScale: 1, interactiveWidget: "resizes-content" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

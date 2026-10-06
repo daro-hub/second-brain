@@ -152,17 +152,25 @@ function Stage() {
     if (!console_) return;
     document.body.classList.add("hub-console-open");
     const vv = window.visualViewport;
-    const sync = () => {
+    let raf = 0;
+    const apply = () => {
+      raf = 0;
       if (!vv) return;
+      // la colonna è fixed: segue l'area visibile anche quando iOS scorre la pagina per mostrare il campo con la tastiera aperta
       document.documentElement.style.setProperty("--vvh", `${vv.height}px`);
-      window.scrollTo(0, 0); // iOS sposta la pagina quando compare la tastiera: la si riporta su
+      document.documentElement.style.setProperty("--vvt", `${vv.offsetTop}px`);
     };
-    sync();
+    const sync = () => {
+      if (!raf) raf = requestAnimationFrame(apply);
+    };
+    apply();
     vv?.addEventListener("resize", sync);
     vv?.addEventListener("scroll", sync);
     return () => {
       document.body.classList.remove("hub-console-open");
       document.documentElement.style.removeProperty("--vvh");
+      document.documentElement.style.removeProperty("--vvt");
+      if (raf) cancelAnimationFrame(raf);
       vv?.removeEventListener("resize", sync);
       vv?.removeEventListener("scroll", sync);
     };
