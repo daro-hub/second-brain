@@ -6,6 +6,32 @@ import { useEffect, useState } from "react";
 
 type NavItem = { key: string; label: string; color: string };
 
+/** Icone degli strumenti (solo mobile, al posto delle scritte): tratto 1.7, 20px, colore del testo. */
+const ICONS: Record<string, React.ReactNode> = {
+  oggi: (
+    <>
+      <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+      <path d="M3.5 10h17M8 3v4M16 3v4" />
+    </>
+  ),
+  aira: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  incroci: <path d="M5 20V11M12 20V4M19 20v-6" />,
+  spesa: (
+    <>
+      <path d="M3 4h2.5l2.2 10.5h9.6L19.5 8H6.3" />
+      <circle cx="9" cy="19" r="1.3" />
+      <circle cx="17" cy="19" r="1.3" />
+    </>
+  ),
+  passaggi: <path d="M4 8h14m-4-4 4 4-4 4M20 16H6m4 4-4-4 4-4" />,
+};
+
+
 /** In alto, sempre: gli strumenti (la panoramica si raggiunge toccando l'orb). */
 const TOOLS: NavItem[] = [
   { key: "oggi", label: "Oggi", color: "#8b98a8" },
@@ -97,9 +123,14 @@ export function Topbar() {
   const renderTab = (n: NavItem) => {
     const active = pathname === "/" && p === n.key;
     return (
-      <Link key={n.key || "home"} href={n.key ? `/?p=${n.key}` : "/"} className={`tab${active ? " on" : ""}`} style={{ ["--tc" as string]: n.color }} aria-current={active ? "page" : undefined}>
+      <Link key={n.key || "home"} href={n.key ? `/?p=${n.key}` : "/"} className={`tab${active ? " on" : ""}`} style={{ ["--tc" as string]: n.color }} aria-current={active ? "page" : undefined} aria-label={n.label} title={n.label}>
         <i />
-        {n.label}
+        {ICONS[n.key] && (
+          <svg className="tab-ico" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            {ICONS[n.key]}
+          </svg>
+        )}
+        <span className="tab-lbl">{n.label}</span>
       </Link>
     );
   };
