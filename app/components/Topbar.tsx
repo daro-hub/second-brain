@@ -2,16 +2,22 @@
 
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
-/** Accessi rapidi nell'header: stessi chip dello stage (colore = pallino), la voce attiva segue ?p= */
-const NAV = [
-  { key: "oggi", label: "Oggi", color: "#8b98a8" },
-  { key: "aira", label: "Aira", color: "var(--c-good)", aira: true },
-  { key: "incroci", label: "Statistiche", color: "#ff7ad9" },
-  { key: "spesa", label: "Spesa", color: "#f5a524" },
-  { key: "passaggi", label: "Trasferisci", color: "#4de1ff" },
-] as const;
+/** Navigazione unica dell'header: panoramica, i cinque pilastri e gli strumenti. Il colore è quello del pilastro; la voce attiva segue ?p=. */
+const NAV: { key: string; label: string; color: string; group: "home" | "pillar" | "tool" }[] = [
+  { key: "", label: "Panoramica", color: "#8b98a8", group: "home" },
+  { key: "studio", label: "Studio", color: "#5eead4", group: "pillar" },
+  { key: "salute", label: "Salute", color: "#3ecf8e", group: "pillar" },
+  { key: "allenamento", label: "Allenamento", color: "#4de1ff", group: "pillar" },
+  { key: "umore", label: "Umore", color: "#b78cff", group: "pillar" },
+  { key: "lavoro", label: "Lavoro", color: "#f5a524", group: "pillar" },
+  { key: "oggi", label: "Oggi", color: "#8b98a8", group: "tool" },
+  { key: "aira", label: "Aira", color: "#3ecf8e", group: "tool" },
+  { key: "incroci", label: "Statistiche", color: "#ff7ad9", group: "tool" },
+  { key: "spesa", label: "Spesa", color: "#f2a07b", group: "tool" },
+  { key: "passaggi", label: "Trasferisci", color: "#4de1ff", group: "tool" },
+];
 
 const CONTEXT_TITLES: Record<string, string> = { studio: "studio", salute: "salute", allenamento: "allenamento", umore: "umore", lavoro: "lavoro", aira: "aira", incroci: "statistiche", passaggi: "trasferisci", spesa: "spesa" };
 
@@ -65,6 +71,10 @@ export function Topbar() {
   }, []);
 
   useEffect(() => {
+    document.querySelector(".topnav .tab.on")?.scrollIntoView({ inline: "center", block: "nearest" });
+  }, [sp]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -96,14 +106,6 @@ export function Topbar() {
             <i /> online
           </span>
         </div>
-        <nav className="topnav" aria-label="Sezioni">
-          {NAV.map((n) => (
-            <Link key={n.key} href={`/?p=${n.key}`} className={`hub-chip${"aira" in n ? " aira" : ""}${sp.get("p") === n.key ? " on" : ""}`}>
-              <i style={{ background: n.color }} />
-              {n.label}
-            </Link>
-          ))}
-        </nav>
         <div className="readouts" suppressHydrationWarning>
           <span>
             <span className="lbl">T</span>
@@ -129,6 +131,20 @@ export function Topbar() {
           </span>
         </div>
       </div>
+      <nav className="topnav" aria-label="Sezioni">
+          {NAV.map((n, i) => {
+            const active = (sp.get("p") ?? "") === n.key && (pathname === "/" || !n.key);
+            return (
+              <Fragment key={n.key || "home"}>
+                {i > 0 && NAV[i - 1].group !== n.group && <span className="tab-sep" aria-hidden />}
+                <Link href={n.key ? `/?p=${n.key}` : "/"} className={`tab${active ? " on" : ""}`} style={{ ["--tc" as string]: n.color }} aria-current={active ? "page" : undefined}>
+                  <i />
+                  {n.label}
+                </Link>
+              </Fragment>
+            );
+          })}
+      </nav>
       <Ruler />
     </header>
   );

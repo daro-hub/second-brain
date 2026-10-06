@@ -186,11 +186,6 @@ function Stage() {
   const aira = useCached<AiraStatus>("/api/hub/aira", p === "aira", 2 * 60_000);
   const data = hub.data;
 
-  // su telefono i chip stanno su una riga scorrevole: il chip attivo deve restare visibile
-  useEffect(() => {
-    document.querySelector(".hub-chips .on")?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
-  }, [p, mode]);
-
   const select = (key: string) => router.push(p === key && mode === "pillar" ? "/" : `/?p=${key}`);
   const onOrb = () => {
     if (mode === "home") router.push("/?console=1"); // dalla panoramica l'orb apre la console
@@ -235,16 +230,6 @@ function Stage() {
 
       <div className="hub-bar-top">
         <span className="hub-title">{title}</span>
-        <div className="hub-chips">
-          {pillars.map((x) => (
-            <button key={x.key} type="button" className={`hub-chip${p === x.key ? " on" : ""}`} style={{ ["--pc" as string]: x.color }} onClick={() => select(x.key)}>
-              <i />
-              {x.label}
-              <b>{x.score ?? "—"}</b>
-              {x.trend !== null && x.trend !== 0 && <em className={x.trend > 0 ? "up" : "down"}>{x.trend > 0 ? "▲" : "▼"}{Math.abs(x.trend)}</em>}
-            </button>
-          ))}
-        </div>
       </div>
 
       {mode === "pillar" && hasStrip && (
