@@ -1503,7 +1503,7 @@ main > *:nth-child(n + 6) {
 
 /* ───────── hub: schermata fissa con Aira al centro ───────── */
 .content-col:has(.hub-stage) { height: 100vh; height: 100dvh; overflow: hidden; }
-.hub-stage { --bar-h: 76px; --gut: 34px; --top-h: 109px; --txt: 92px; --S: clamp(220px, min(calc(100vh - var(--top-h) - var(--txt) - 50px), calc((100vw - 120px) / 1.193)), 760px); position: relative; flex: 1; min-height: 0; }
+.hub-stage { --bar-h: 76px; --gut: 34px; --top-h: 67px; --txt: 92px; --S: clamp(220px, min(calc(100vh - var(--top-h) - var(--txt) - 50px), calc((100vw - 120px) / 1.193)), 760px); position: relative; flex: 1; min-height: 0; }
 .hub-stage.pillar { flex: 0 0 auto; min-height: var(--bar-h); }
 
 /* panoramica: colonna sinistra · Aira + radar · colonna destra */
@@ -1600,14 +1600,22 @@ main > *:nth-child(n + 6) {
 .topbar .readouts .logout:hover { color: var(--text); border-color: var(--accent); }
 
 .topbar .readouts { margin-left: auto; }
-/* navigazione a schede: voce attiva = testo pieno + filo colorato sotto, gruppi separati da una linea sottile */
+/* navigazione a schede: voce attiva = testo pieno + filo colorato sotto */
 .topnav {
-  display: flex; align-items: stretch; gap: 2px; height: 42px; padding: 0 28px; overflow-x: auto; overscroll-behavior-x: contain;
-  scrollbar-width: none; -webkit-overflow-scrolling: touch; border-top: 1px solid var(--border-soft);
+  display: flex; align-items: stretch; gap: 2px; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
 }
 .topnav::-webkit-scrollbar { display: none; }
+/* strumenti: sulla stessa riga dell'indirizzo, fra indirizzo e orologio */
+.topbar-row .topnav { flex: 1; height: 100%; justify-content: center; }
 /* pilastri: sotto l'header, centrati (se non ci stanno, scorrono) */
-.topnav.pillars { justify-content: safe center; height: 40px; background: rgba(8, 11, 16, 0.5); }
+.topnav.pillars { justify-content: safe center; height: 40px; padding: 0 28px; border-top: 1px solid var(--border-soft); background: rgba(8, 11, 16, 0.5); }
+@media (max-width: 1280px) {
+  .crumbs .owner, .crumbs .owner + .sep, .crumbs .tag { display: none; }
+}
+@media (max-width: 1050px) {
+  .topbar .readouts > span { display: none; }
+}
 .topnav .tab {
   --tc: var(--accent);
   position: relative; display: inline-flex; align-items: center; gap: 7px; padding: 0 11px; height: 100%;
@@ -1683,14 +1691,14 @@ main > *:nth-child(n + 6) {
 @media (max-width: 899px) {
   /* header: solo i pulsanti di navigazione (niente indirizzo della pagina, niente "Esci"), su una riga scorrevole */
   .topbar .readouts, .topbar .crumbs { display: none; }
-  .topbar-row { display: none; }
-  .topnav { padding: 0 8px; border-top: 0; }
+  .topbar-row { padding: 0 8px; }
+  .topbar-row .topnav { justify-content: flex-start; }
   .topnav .tab { flex: 0 0 auto; padding: 0 12px; font-size: 12px; }
   /* i cinque pilastri devono stare tutti e centrati nella larghezza di un telefono */
   .topnav.pillars { padding: 0 4px; gap: 0; }
   .topnav.pillars .tab { padding: 0 7px; font-size: 10.5px; letter-spacing: 0.04em; gap: 5px; }
 
-  .hub-stage { --bar-h: 76px; --gut: 12px; --top-h: 57px; --S: clamp(200px, min(calc(100dvh - var(--top-h) - var(--txt) - 24px), calc((100vw - 8px) / 1.193)), 760px); }
+  .hub-stage { --bar-h: 76px; --gut: 12px; --S: clamp(200px, min(calc(100dvh - var(--top-h) - var(--txt) - 24px), calc((100vw - 8px) / 1.193)), 760px); }
   .hub-cc .hub-radar { max-width: 100vw; }
 
   /* schermata di un pilastro: orb piccolo e titolo (la navigazione sta nell'header) */

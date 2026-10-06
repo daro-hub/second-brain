@@ -6,9 +6,8 @@ import { useEffect, useState } from "react";
 
 type NavItem = { key: string; label: string; color: string };
 
-/** In alto, sempre: panoramica e strumenti. */
+/** In alto, sempre: gli strumenti (la panoramica si raggiunge toccando l'orb). */
 const TOOLS: NavItem[] = [
-  { key: "", label: "Panoramica", color: "#8b98a8" },
   { key: "oggi", label: "Oggi", color: "#8b98a8" },
   { key: "aira", label: "Aira", color: "#3ecf8e" },
   { key: "incroci", label: "Statistiche", color: "#ff7ad9" },
@@ -124,6 +123,9 @@ export function Topbar() {
             <i /> online
           </span>
         </div>
+        <nav className="topnav" aria-label="Sezioni">
+          {TOOLS.map((n) => renderTab(n))}
+        </nav>
         <div className="readouts" suppressHydrationWarning>
           <span>
             <span className="lbl">T</span>
@@ -149,9 +151,6 @@ export function Topbar() {
           </span>
         </div>
       </div>
-      <nav className="topnav" aria-label="Sezioni">
-        {TOOLS.map((n) => renderTab(n))}
-      </nav>
       {showPillars && (
         <nav className="topnav pillars" aria-label="Pilastri">
           {PILLARS.map((n) => renderTab(n))}
