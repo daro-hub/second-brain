@@ -12,7 +12,7 @@ import { getProfile } from "../../../src/lib/profile";
 import { getCultureScore } from "../../../src/lib/pills";
 import { supabase } from "../../../src/lib/supabase";
 import { addDays, formatDayShort } from "../../../src/lib/time";
-import { crossWork, fmtHours, getHourlyRate, getOrgCommits, getPayments, getWork, minutesByDay, outstanding, workStats } from "../../../src/lib/work";
+import { crossWork, fmtHours, commitsError, getHourlyRate, getOrgCommits, getPayments, getWork, minutesByDay, outstanding, workStats } from "../../../src/lib/work";
 import { addPaymentAction, addWorkAction, deletePaymentAction, deleteWorkAction, saveMoodNoteAction, setProfileFactAction, setRateAction, setWorkHoursAction } from "../../actions/hub";
 
 export function Skeleton({ label }: { label: string }) {
@@ -153,7 +153,7 @@ export async function WorkTracker() {
             {commits!.reposFailed ? ` ${commits!.reposFailed} repo non leggibili.` : ""}
           </p>
         ) : (
-          <p className="muted small">Incrocio coi commit non disponibile: serve GITHUB_TOKEN con accesso all&apos;organizzazione.</p>
+          <p className="muted small">Incrocio coi commit non disponibile: {commitsError() ?? "motivo sconosciuto"}.</p>
         )}
       </div>
       <div className="card">

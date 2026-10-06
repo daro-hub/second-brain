@@ -104,6 +104,10 @@ export interface CommitsResult {
 
 const GH = "https://api.github.com";
 const ghHeaders = () => ({ Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, "User-Agent": "second-brain-bot", Accept: "application/vnd.github+json" });
+/** Perché l'ultimo tentativo è fallito (mostrato nella pagina Lavoro al posto di un generico «non disponibile»). */
+let lastCommitsError: string | null = null;
+export const commitsError = (): string | null => lastCommitsError;
+
 let cache: { key: string; at: number; value: CommitsResult } | null = null;
 
 /** Puro: raggruppa per giorno (ora italiana) i timestamp dei commit di ogni repo. */
@@ -122,15 +126,25 @@ export function groupCommits(perRepo: Record<string, string[]>): Record<string, 
 
 /** Commit dell'utente in tutti i repo dell'org nel periodo. null se il token manca o l'org non è raggiungibile. */
 export async function getOrgCommits(from: string, to: string): Promise<CommitsResult | null> {
-  if (!process.env.GITHUB_TOKEN) return null;
+  lastCommitsError = null;
+  if (!process.env.GITHUB_TOKEN) {
+    lastCommitsError = "GITHUB_TOKEN non impostato";
+    return null;
+  }
   const org = process.env.WORK_GITHUB_ORG || "themostaza";
   const user = process.env.WORK_GITHUB_USER || process.env.GITHUB_USERNAME || "daro-hub";
   const key = `${org}|${user}|${from}|${to}`;
   if (cache && cache.key === key && Date.now() - cache.at < 10 * 60_000) return cache.value;
   try {
     const rr = await fetch(`${GH}/orgs/${org}/repos?per_page=100&type=all`, { headers: ghHeaders() });
-    if (!rr.ok) throw new Error(`org repos ${rr.status}`);
-    const repos = ((await rr.json()) as { name: string; archived: boolean; pushed_at: string | null }[]).filter((r) => !r.archived && r.pushed_at && r.pushed_at.slice(0, 10) >= from);
+    if (!rr.ok) {
+      const sso = rr.headers.get("x-github-sso");
+      const body = (await rr.json().catch(() => ({}))) as { message?: string };
+      throw new Error(`GitHub ha risposto ${rr.status} sull'organizzazione «${org}»${sso ? " (serve autorizzare il token per l'SSO dell'organizzazione)" : ""}${body.message ? `: ${body.message}` : ""}`);
+    }
+    const all = (await rr.json()) as { name: string; archived: boolean; pushed_at: string | null }[];
+    if (!all.length) throw new Error(`il token non vede nessun repo di «${org}» (mancano i permessi sui repo privati o l'organizzazione non ha approvato il token)`);
+    const repos = all.filter((r) => !r.archived && r.pushed_at && r.pushed_at.slice(0, 10) >= from);
     const since = new Date(`${addDays(from, -1)}T00:00:00Z`).toISOString();
     const until = new Date(`${addDays(to, 2)}T00:00:00Z`).toISOString();
     let failed = 0;
@@ -159,6 +173,7 @@ export async function getOrgCommits(from: string, to: string): Promise<CommitsRe
     cache = { key, at: Date.now(), value };
     return value;
   } catch (err) {
+    lastCommitsError = err instanceof Error ? err.message : String(err);
     reportError("work/commits", err, { expected: true });
     return null;
   }
