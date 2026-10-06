@@ -75,7 +75,7 @@ export async function searchEmails(query: string, maxResults = 5): Promise<Email
   url.searchParams.set("maxResults", String(maxResults));
 
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok) throw new Error(`Gmail API error: ${res.status}`);
+  if (!res.ok) throw new Error(`Gmail API error: ${res.status} ${(await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 300)}`);
   const data = await res.json();
   const ids: string[] = (data.messages ?? []).map((m: { id: string }) => m.id);
 
