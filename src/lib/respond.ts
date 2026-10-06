@@ -3,7 +3,7 @@ import { getPassword } from "./bitwarden";
 import { addMinutes, asksForMeetingLink, describeOverlap, findOverlaps, formatWhen } from "./agenda";
 import { applyCalendarOps } from "./calendarEdit";
 import { createEvent, getEventsInRange, getUpcomingEvents, isStudySyncEvent } from "./calendar";
-import { addTurns, formatHistory, recentTurns, toPlain, type Turn } from "./chatHistory";
+import { addTurns, formatHistory, freshTurns, recentTurns, toPlain, type Turn } from "./chatHistory";
 import { bold, BULLET, dropEmptyIconLines, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
 import { addWork, fmtHours } from "./work";
 import { proposalKeyboard, saveOrPropose } from "./kbProposals";
@@ -146,7 +146,7 @@ ${context}`,
  * la parola è una risposta ("Pane" a "cosa hai mangiato?"), non un acquisto.
  */
 async function bareShoppingIntent(text: string, history: Turn[]): Promise<MessageIntent | null> {
-  const last = history[history.length - 1];
+  const last = freshTurns(history).at(-1); // una domanda di ieri non rende «Pane» una risposta
   if (last?.role === "assistant" && last.content.includes("?")) return null;
   if (text.length > 50 || text.includes("?")) return null;
   let known: string[] = [];
@@ -217,7 +217,7 @@ async function groupsReply(groups: string[], trace: Trace | undefined): Promise<
  * (la correzione più recente); altrimenti la routine di oggi del ciclo (quella in corso se ha già registrato serie).
  */
 async function replyWithGymPlan(trace: Trace | undefined, history: Turn[]): Promise<string> {
-  const announced = latestAnnouncedGroups(history);
+  const announced = latestAnnouncedGroups(freshTurns(history)); // «oggi» = annunci recenti, non di giorni fa
   if (announced?.length) return groupsReply(announced, trace);
   const routine = await getRoutineForToday(perceivedTodayKey());
   src(trace, "gym", routine === "riposo" ? "Giorno di riposo" : `Routine di oggi: ${routine}`, { href: "/?p=allenamento" });
@@ -251,7 +251,7 @@ export async function handleMessage(text: string): Promise<string> {
  * si capiscono nel loro contesto.
  */
 export async function handleMessageTraced(text: string, trace?: Trace, channel = "telegram"): Promise<string> {
-  const history = await recentTurns(channel).catch(() => [] as Turn[]);
+  const history = await recentTurns().catch(() => [] as Turn[]);
   const topic = await getTopic();
   let intentType = "none";
   const wrapped: Trace = {
@@ -480,7 +480,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
       let repo = isGenericLinkWord(intent.repoName) ? null : await getRepoInfo(intent.repoName);
       if (!repo) {
         // "vercel", "il sito", "online": non sono nomi di repository ma si riferiscono al progetto di cui si stava parlando
-        const fromChat = lastRepoInHistory(await listRepos(), history);
+        const fromChat = lastRepoInHistory(await listRepos(), freshTurns(history));
         if (fromChat) repo = await getRepoInfo(fromChat.name);
       }
       if (!repo) return `Nessun repository trovato per "${escapeHtml(intent.repoName)}".`;

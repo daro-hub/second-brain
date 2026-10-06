@@ -30,3 +30,12 @@ export async function setTopic(t: ActiveTopic): Promise<void> {
   }
 }
 
+
+/** «Svuota chat»: anche l'argomento attivo riparte da zero. */
+export async function clearTopic(): Promise<void> {
+  try {
+    await supabase.from("app_settings").delete().eq("key", KEY);
+  } catch (err) {
+    reportError("topic/clear", err, { expected: true });
+  }
+}

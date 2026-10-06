@@ -1716,6 +1716,11 @@ main > *:nth-child(n + 6) {
 
   /* contenuto del pilastro: una colonna, niente overflow orizzontale */
   .hub-detail { padding: 8px 12px calc(36px + env(safe-area-inset-bottom)); overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+  /* schermata di un pilastro: punteggi e contenuto scorrono INSIEME (prima i punteggi restavano fissi e lasciavano poco spazio);
+     l'header resta sticky in cima alla colonna */
+  .shell:has(.hub-stage.pillar) { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
+  .content-col:has(.hub-stage.pillar) { min-height: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
+  .content-col:has(.hub-stage.pillar) .hub-detail { flex: none; min-height: auto; overflow-x: clip; overflow-y: visible; }
   .hub-detail .grid-2, .hub-detail .grid-3 { grid-template-columns: minmax(0, 1fr); }
   .hub-detail .grid-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hub-detail .card { overflow-x: auto; scrollbar-width: none; }
