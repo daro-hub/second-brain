@@ -138,7 +138,7 @@ export async function getOrgCommits(from: string, to: string): Promise<CommitsRe
   const key = `${org}|${user}|${from}|${to}`;
   if (cache && cache.key === key && Date.now() - cache.at < 10 * 60_000) return cache.value;
   try {
-    const rr = await fetch(`${GH}/orgs/${org}/repos?per_page=100&type=all`, { headers: ghHeaders() });
+    const rr = await fetch(`${GH}/orgs/${org}/repos?per_page=100&type=all&sort=pushed&direction=desc`, { headers: ghHeaders() });
     if (!rr.ok) {
       const sso = rr.headers.get("x-github-sso");
       const body = (await rr.json().catch(() => ({}))) as { message?: string };

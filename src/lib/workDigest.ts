@@ -38,7 +38,7 @@ export async function getCommitsOfDay(day: string): Promise<DayCommit[]> {
   const org = process.env.WORK_GITHUB_ORG || "themostaza";
   const user = process.env.WORK_GITHUB_USER || process.env.GITHUB_USERNAME || "daro-hub";
   const { from, to } = dayRangeUtc(day);
-  const rr = await fetch(`${GH}/orgs/${org}/repos?per_page=100&type=all`, { headers: ghHeaders() });
+  const rr = await fetch(`${GH}/orgs/${org}/repos?per_page=100&type=all&sort=pushed&direction=desc`, { headers: ghHeaders() });
   if (!rr.ok) throw new Error(`org repos ${rr.status}`);
   const repos = ((await rr.json()) as { name: string; archived: boolean; pushed_at: string | null }[]).filter((r) => !r.archived && r.pushed_at && r.pushed_at >= from.toISOString());
   const out: DayCommit[] = [];
