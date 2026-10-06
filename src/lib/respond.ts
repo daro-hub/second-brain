@@ -881,7 +881,8 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
         `Email trovate per "${intent.query}":\n\n${context}`,
         "Se la domanda chiede un link/URL specifico, riportalo per intero e segnala da quale email viene (mittente/oggetto). Se ci sono più email candidate, indica quale sembra la più pertinente invece di elencarle tutte alla pari.",
       );
-    } catch {
+    } catch (err) {
+      reportError("respond/gmail", err);
       return "Errore nel recupero da Gmail.";
     }
   }
