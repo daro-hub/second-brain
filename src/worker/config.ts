@@ -12,6 +12,8 @@ export interface WorkerConfig {
   id: string;
   priority: number;
   devRoot: string;
+  /** Dove vivono i worktree dei job di scrittura (fuori da DEV_ROOT, così nessun tool li scambia per repo). */
+  workRoot: string;
   repos: string[];
   model: string;
   maxTurns: number;
@@ -33,6 +35,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     id: env.WORKER_ID || os.hostname().toLowerCase(),
     priority: int("WORKER_PRIORITY", 0),
     devRoot: path.resolve(env.DEV_ROOT || path.join(os.homedir(), "Desktop", "dev")),
+    workRoot: path.resolve(env.AGENT_WORK_ROOT || path.join(os.homedir(), "agent-work")),
     repos: env.AGENT_REPOS ? env.AGENT_REPOS.split(",").map((s) => s.trim()).filter(Boolean) : [...AGENT_REPOS],
     model: env.AGENT_MODEL || "sonnet",
     maxTurns: int("AGENT_MAX_TURNS", 40),

@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { Bot, InputFile } from "grammy";
-import { formatJobs, formatWorkers, parseJobCommand, queuedMessage } from "../lib/agentCore";
-import { createJob, listJobs, listWorkers, stopJob } from "../lib/agentJobs";
+import { formatJobs, formatWorkers, parseCallback, parseFixCommand, parseJobCommand, queuedMessage } from "../lib/agentCore";
+import { createJob, decideAction, getActionDiff, listJobs, listWorkers, stopJob } from "../lib/agentJobs";
 import { getPassword } from "../lib/bitwarden";
 import { isDuplicateUpdate } from "../lib/dedup";
 import { bold, BULLET, escapeHtml, stripForSpeech } from "../lib/format";
@@ -128,6 +128,22 @@ bot.command("job", async (ctx) => {
   }
 });
 
+// Come /job ma l'agente può modificare codice (in un worktree) e proporre il push: lo esegue il worker solo dopo il tap su «Approva».
+bot.command("fix", async (ctx) => {
+  const cmd = parseFixCommand(ctx.match ?? "");
+  if (!cmd.ok) {
+    await ctx.reply(cmd.error);
+    return;
+  }
+  try {
+    const job = await createJob({ prompt: cmd.prompt, repo: cmd.repo, mode: "write" });
+    await ctx.reply(queuedMessage(job.short_id, await listWorkers(), Date.now()) + "\n✏️ Modalità scrittura: ti chiedo l'approvazione prima di ogni push.", { parse_mode: "HTML" });
+  } catch (err) {
+    reportError("telegram/fix", err);
+    await ctx.reply("Non sono riuscito a mettere il job in coda. Riprova tra poco.");
+  }
+});
+
 bot.command("jobs", async (ctx) => {
   try {
     await ctx.reply(formatJobs(await listJobs(5), Date.now()), { parse_mode: "HTML" });
@@ -160,6 +176,35 @@ bot.command("stop", async (ctx) => {
   } catch (err) {
     reportError("telegram/stop", err);
     await ctx.reply("Non sono riuscito a fermare il job.");
+  }
+});
+
+// Bottoni Approva / Rifiuta / Diff sotto la proposta di un job di scrittura (la allowlist sull'utente è nel middleware in cima).
+bot.on("callback_query:data", async (ctx) => {
+  const cb = parseCallback(ctx.callbackQuery.data);
+  if (!cb) {
+    await ctx.answerCallbackQuery();
+    return;
+  }
+  try {
+    if (cb.kind === "diff") {
+      const diff = await getActionDiff(cb.id);
+      await ctx.answerCallbackQuery({ text: diff ? "Ti mando il diff" : "Diff non disponibile" });
+      if (diff) await ctx.replyWithDocument(new InputFile(Buffer.from(diff, "utf8"), `job-${cb.id.slice(0, 8)}.diff`));
+      return;
+    }
+    const approve = cb.kind === "approve";
+    const res = await decideAction(cb.id, approve);
+    if (!res.ok) {
+      await ctx.answerCallbackQuery({ text: res.reason === "already_decided" ? "Già deciso" : "Azione non trovata" });
+      return;
+    }
+    await ctx.answerCallbackQuery({ text: approve ? "Approvato" : "Rifiutato" });
+    await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => undefined);
+    await ctx.reply(approve ? `✅ Approvato. Il worker ${res.action.worker_id} rilancia i controlli e pusha a breve.` : "🚫 Rifiutato: non pusho niente e scarto il lavoro.");
+  } catch (err) {
+    reportError("telegram/callback", err);
+    await ctx.answerCallbackQuery({ text: "Errore, riprova" }).catch(() => undefined);
   }
 });
 

@@ -86,3 +86,58 @@ describe("agentEnv", () => {
     expect(env).toEqual({ PATH: "/bin", HOME: "/home/f", CLAUDE_CODE_OAUTH_TOKEN: "oauth" });
   });
 });
+
+describe("decideTool: job di scrittura", () => {
+  const w: PolicyContext = {
+    roots: ["/work/second-brain/ab12cd34", "/dev/amuse3-webapp"],
+    cwd: "/work/second-brain/ab12cd34",
+    writeRoot: "/work/second-brain/ab12cd34",
+    platform: "linux",
+  };
+  it("consente Edit/Write dentro il worktree, anche file nuovi", () => {
+    expect(allowed(w, "Edit", { file_path: "/work/second-brain/ab12cd34/src/lib/a.ts" })).toBe(true);
+    expect(allowed(w, "Write", { file_path: "tests/new.test.ts" })).toBe(true);
+  });
+  it("nega scritture fuori dal worktree: checkout principale, altri repo, home", () => {
+    expect(allowed(w, "Edit", { file_path: "/dev/second-brain/src/lib/a.ts" })).toBe(false);
+    expect(allowed(w, "Write", { file_path: "/dev/amuse3-webapp/src/a.ts" })).toBe(false);
+    expect(allowed(w, "Write", { file_path: "../../../.bashrc" })).toBe(false);
+  });
+  it("nega i file che definiscono cosa viene eseguito", () => {
+    for (const f of ["package.json", "package-lock.json", ".npmrc", ".github/workflows/ci.yml", ".husky/pre-commit", "vitest.config.ts", "next.config.mjs", ".eslintrc.json", ".git/config", ".claude/settings.json", "sub/package.json", ".env.local"]) {
+      expect(allowed(w, "Write", { file_path: `/work/second-brain/ab12cd34/${f}` }), f).toBe(false);
+    }
+    expect(allowed(w, "Write", { file_path: "/work/second-brain/ab12cd34/src/lib/packageInfo.ts" })).toBe(true);
+    expect(allowed(w, "Write", { file_path: "/work/second-brain/ab12cd34/.gitignore" })).toBe(true);
+  });
+  it("nega la scrittura attraverso node_modules (symlink verso il checkout principale)", () => {
+    const ctx: PolicyContext = { ...w, realpath: (p) => p.replace("/work/second-brain/ab12cd34/node_modules", "/dev/second-brain/node_modules") };
+    expect(allowed(ctx, "Write", { file_path: "/work/second-brain/ab12cd34/node_modules/x/index.js" })).toBe(false);
+  });
+  it("un symlink nel worktree verso fuori non permette scritture", () => {
+    const ctx: PolicyContext = { ...w, realpath: (p) => p.replace("/work/second-brain/ab12cd34/trap", "/home/f/.ssh") };
+    expect(allowed(ctx, "Write", { file_path: "/work/second-brain/ab12cd34/trap/authorized_keys" })).toBe(false);
+  });
+  it("consente run_checks e commit solo nei job di scrittura; mai Bash, push o altri MCP", () => {
+    expect(allowed(w, "mcp__repo__run_checks", {})).toBe(true);
+    expect(allowed(w, "mcp__repo__commit", { message: "fix: x" })).toBe(true);
+    expect(allowed(posix, "mcp__repo__commit", { message: "fix: x" })).toBe(false);
+    expect(allowed(posix, "Edit", { file_path: "/dev/second-brain/a.ts" })).toBe(false); // job di sola lettura
+    for (const t of ["Bash", "NotebookEdit", "mcp__repo__push", "mcp__repo__exec"]) expect(allowed(w, t, { command: "git push" })).toBe(false);
+  });
+});
+
+describe("radici che sono symlink (es. /var → /private/var su macOS)", () => {
+  const real = (p: string) => p.replace(/^\/var\//, "/private/var/");
+  const ctx: PolicyContext = { roots: ["/var/work/sb/ab12"], cwd: "/var/work/sb/ab12", writeRoot: "/var/work/sb/ab12", platform: "linux", realpath: real };
+  it("lettura e scrittura funzionano con percorso lessicale e reale", () => {
+    expect(allowed(ctx, "Read", { file_path: "/var/work/sb/ab12/a.ts" })).toBe(true);
+    expect(allowed(ctx, "Read", { file_path: "/private/var/work/sb/ab12/a.ts" })).toBe(true);
+    expect(allowed(ctx, "Write", { file_path: "/private/var/work/sb/ab12/src/new.ts" })).toBe(true);
+  });
+  it("restano negati i percorsi fuori dalla radice e i file di esecuzione", () => {
+    expect(allowed(ctx, "Read", { file_path: "/private/var/work/sb/OTHER/a.ts" })).toBe(false);
+    expect(allowed(ctx, "Write", { file_path: "/private/var/work/sb/ab12/package.json" })).toBe(false);
+    expect(allowed(ctx, "Write", { file_path: "/private/var/work/sb/ab12/../OTHER/a.ts" })).toBe(false);
+  });
+});

@@ -1,10 +1,13 @@
 import { loadConfig } from "./config"; // per primo: carica .env.worker prima che supabase.ts legga l'ambiente
 import { spawn } from "node:child_process";
+import path from "node:path";
 import { reportError } from "../lib/report";
 import { supabase } from "../lib/supabase";
-import type { AgentJob, AgentWorker } from "../lib/agentCore";
+import type { AgentAction, AgentJob, AgentWorker } from "../lib/agentCore";
+import { runApprovedAction } from "./actions";
 import { shouldYield } from "./priority";
 import { runJob } from "./runJob";
+import { sweep } from "./sweep";
 
 /**
  * Worker dell'agente: `npm run worker` sul PC fisso (priorità 0) e/o sul Mac (priorità 1). Fa polling della coda
@@ -37,6 +40,17 @@ function keepAwake(): void {
 
 async function tick(): Promise<void> {
   await register(null);
+
+  // Le azioni approvate hanno la precedenza: il worktree è su questa macchina e l'approvazione è già stata data.
+  const { data: approved, error: aErr } = await supabase.rpc("claim_approved_action", { p_worker: cfg.id });
+  if (aErr) throw aErr;
+  const action = (approved as AgentAction[] | null)?.[0];
+  if (action) {
+    console.log(`[worker ${cfg.id}] azione approvata ${action.id.slice(0, 8)} (${action.kind})`);
+    await runApprovedAction(action, { repoDir: path.join(cfg.devRoot, action.payload.repo), dir: action.payload.worktree, branch: action.payload.branch });
+    return;
+  }
+
   const { error: reclaimErr } = await supabase.rpc("reclaim_stale_jobs", { p_stale_seconds: cfg.staleSeconds });
   if (reclaimErr) throw reclaimErr;
 
@@ -63,8 +77,13 @@ async function tick(): Promise<void> {
 async function main(): Promise<void> {
   keepAwake();
   console.log(`[worker ${cfg.id}] priorità ${cfg.priority}, root ${cfg.devRoot}, repo: ${cfg.repos.join(", ")}`);
+  let lastSweep = 0;
   while (!stopping) {
     try {
+      if (Date.now() - lastSweep > 10 * 60_000) {
+        lastSweep = Date.now();
+        await sweep(cfg);
+      }
       await tick();
     } catch (err) {
       reportError("worker/tick", err);

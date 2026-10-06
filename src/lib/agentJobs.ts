@@ -1,14 +1,14 @@
 import { supabase } from "./supabase";
-import type { AgentJob, AgentWorker } from "./agentCore";
+import type { AgentAction, AgentJob, AgentWorker, JobMode } from "./agentCore";
 
 /** Accesso al database dei job per il lato Vercel (bot). Il worker usa lo stesso schema da src/worker/. */
 
-const JOB_COLUMNS = "id, short_id, created_at, prompt, repo, status, worker_id, result, error, cost_usd, cancel_requested";
+const JOB_COLUMNS = "id, short_id, created_at, prompt, repo, mode, status, worker_id, result, error, cost_usd, cancel_requested";
 
-export async function createJob(input: { prompt: string; repo: string | null; source?: string }): Promise<AgentJob> {
+export async function createJob(input: { prompt: string; repo: string | null; mode?: JobMode; source?: string }): Promise<AgentJob> {
   const { data, error } = await supabase
     .from("agent_jobs")
-    .insert({ prompt: input.prompt, repo: input.repo, source: input.source ?? "telegram" })
+    .insert({ prompt: input.prompt, repo: input.repo, mode: input.mode ?? "read", source: input.source ?? "telegram" })
     .select(JOB_COLUMNS)
     .single();
   if (error) throw error;
@@ -52,4 +52,35 @@ export async function stopJob(shortId: string): Promise<StopOutcome> {
     return "stop_requested";
   }
   return "already_finished";
+}
+
+export type DecideOutcome = { ok: true; action: AgentAction } | { ok: false; reason: "not_found" | "already_decided" };
+
+/**
+ * Approva o rifiuta un'azione proposta. L'UPDATE è condizionato a status='proposed', quindi un secondo tap (o un
+ * callback ripetuto da Telegram) non può né riapprovare né far ripartire nulla.
+ */
+export async function decideAction(id: string, approve: boolean): Promise<DecideOutcome> {
+  const { data, error } = await supabase
+    .from("agent_actions")
+    .update({ status: approve ? "approved" : "rejected", decided_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("status", "proposed")
+    .select("id, job_id, worker_id, kind, status, payload, created_at")
+    .maybeSingle();
+  if (error) throw error;
+  if (data) {
+    // Rifiutato: il lavoro non serve più, il job si chiude (il worker rimuove il worktree al prossimo giro di pulizia)
+    if (!approve) await supabase.from("agent_jobs").update({ status: "cancelled", finished_at: new Date().toISOString(), error: "push rifiutato" }).eq("id", data.job_id);
+    return { ok: true, action: data as AgentAction };
+  }
+  const { data: exists, error: e2 } = await supabase.from("agent_actions").select("id").eq("id", id).maybeSingle();
+  if (e2) throw e2;
+  return { ok: false, reason: exists ? "already_decided" : "not_found" };
+}
+
+export async function getActionDiff(id: string): Promise<string | null> {
+  const { data, error } = await supabase.from("agent_actions").select("diff").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return (data?.diff as string | null) ?? null;
 }
