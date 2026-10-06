@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Source, SourceId } from "../../src/lib/trace";
 import type { Phase } from "./Orb";
 import type { AiraVoice } from "./useAiraVoice";
+import { RestTimer } from "./RestTimer";
 import "./aira.css";
 
 interface Msg {
@@ -73,6 +74,9 @@ interface HistoryTurn {
   content: string;
   channel?: string;
 }
+
+/** Intenti che parlano di allenamento: con questi compaiono i pulsanti del timer di recupero. */
+const GYM_INTENTS = new Set(["workout", "exercise_query", "session_query", "gym_plan", "routine_preview", "clarify"]);
 
 const SUGGESTIONS = ["Cosa ho in agenda oggi?", "Quante calorie ho mangiato oggi?", "Cosa devo comprare?", "Come stanno andando le mie corse?"];
 
@@ -320,6 +324,7 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
             )}
           </div>
         ))}
+        <RestTimer show={Boolean(lastAira?.intent && GYM_INTENTS.has(lastAira.intent))} />
         {messages.length === 1 && (
           <div className="suggestions">
             {SUGGESTIONS.map((s) => (
@@ -425,8 +430,15 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={live ? "Sto ascoltando… oppure scrivi qui" : "Scrivi ad Aira…"}
+          name="aira-message"
           autoComplete="off"
+          autoCorrect="on"
+          autoCapitalize="sentences"
           enterKeyHint="send"
+          data-1p-ignore
+          data-lpignore="true"
+          data-bwignore
+          data-form-type="other"
           aria-label="Messaggio per Aira"
         />
         <button

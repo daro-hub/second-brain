@@ -35,6 +35,23 @@ export async function recentTurns(limit = HISTORY_LIMIT): Promise<Turn[]> {
 
 let lastStamp = 0;
 
+/** Quanto indietro mostra la chat del sito: tutto ciò che è stato scritto nelle ultime 24 ore (il contesto per il modello resta HISTORY_LIMIT). */
+export const DISPLAY_HOURS = 24;
+
+export async function turnsSince(hours = DISPLAY_HOURS, max = 300, now = Date.now()): Promise<Turn[]> {
+  const since = new Date(now - hours * 3_600_000).toISOString();
+  const { data, error } = await supabase
+    .from("chat_history")
+    .select("role, content, channel, created_at")
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(max);
+  if (error) throw error;
+  return (data ?? [])
+    .reverse()
+    .map((r) => ({ role: r.role as Turn["role"], content: String(r.content), at: String(r.created_at), channel: String(r.channel) }));
+}
+
 export async function addTurns(channel: string, turns: Turn[]): Promise<void> {
   // Un solo INSERT dà a tutte le righe lo stesso now(): con created_at identici l'ordine tra la domanda e la risposta
   // era casuale (nel sito la risposta finiva sopra il messaggio, e il modello rileggeva il dialogo al contrario).

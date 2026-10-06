@@ -1,16 +1,16 @@
 import { airaGate } from "../../../../src/lib/airaAuth";
-import { clearHistory, recentTurns } from "../../../../src/lib/chatHistory";
+import { clearHistory, turnsSince } from "../../../../src/lib/chatHistory";
 import { clearTopic } from "../../../../src/lib/topic";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Gli ultimi messaggi della conversazione, condivisa tra sito e Telegram. */
+/** I messaggi delle ultime 24 ore della conversazione, condivisa tra sito e Telegram. */
 export async function GET(req: Request) {
   const denied = airaGate(req);
   if (denied) return denied;
   try {
-    return Response.json({ turns: await recentTurns() }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ turns: await turnsSince() }, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     console.error("[aira/history] lettura fallita:", err);
     return Response.json({ error: "history_failed" }, { status: 500 });

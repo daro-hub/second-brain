@@ -846,3 +846,42 @@
     animation: none;
   }
 }
+
+/* ───── timer di recupero (2 / 3 min) ───── */
+.rest-timer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: stretch;
+  flex-shrink: 0;
+  padding: 6px 0 2px;
+}
+.rest-timer button {
+  flex: 1 1 0;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: #d8f3ff;
+  background: rgba(77, 225, 255, 0.16);
+  border: 1px solid var(--a-line);
+  border-radius: 999px;
+  padding: 10px 14px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.rest-timer button:active { background: rgba(77, 225, 255, 0.3); }
+.rest-timer.running, .rest-timer.done {
+  justify-content: space-between;
+  background: rgba(8, 16, 26, 0.92);
+  border: 1px solid var(--a-line);
+  border-radius: 999px;
+  padding: 6px 8px 6px 16px;
+}
+.rest-timer.running button, .rest-timer.done button { flex: 0 0 auto; padding: 8px 18px; }
+.rest-timer .rt-left { font-size: 15px; color: #d8f3ff; }
+.rest-timer .rt-left b { font-size: 22px; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+.rest-timer.done { border-color: rgba(255, 190, 90, 0.7); animation: rtpulse 0.9s ease-in-out infinite alternate; }
+@keyframes rtpulse { from { background: rgba(255, 190, 90, 0.08); } to { background: rgba(255, 190, 90, 0.28); } }
