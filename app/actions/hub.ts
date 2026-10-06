@@ -5,7 +5,8 @@ import { KNOWLEDGE_AREAS, logKnowledge, logSocial, saveReflection, type Knowledg
 import { reportError } from "../../src/lib/report";
 import { addPayment, addWork, deletePayment, deleteWork, setHourlyRate, setWorkMinutes } from "../../src/lib/work";
 import { setProfileFact } from "../../src/lib/profile";
-import { saveMoodNote } from "../../src/lib/mood";
+import { MOOD_ASPECTS, saveMoodAnswer, saveMoodNote, type MoodKey } from "../../src/lib/mood";
+import { decideProposal } from "../../src/lib/kbProposals";
 import { todayKey } from "../../src/lib/time";
 
 const text = (fd: FormData, k: string, max: number) => String(fd.get(k) ?? "").trim().slice(0, max);
@@ -143,6 +144,33 @@ export async function setProfileFactAction(fd: FormData): Promise<void> {
     await setProfileFact(key, text(fd, "value", 500));
   } catch (err) {
     reportError("actions/setProfileFact", err);
+    return;
+  }
+  revalidatePath("/");
+}
+
+/** Una risposta del diario di oggi (1-5): sostituisce i bottoni del check-in su Telegram. */
+export async function saveMoodScoreAction(fd: FormData): Promise<void> {
+  const key = text(fd, "key", 30) as MoodKey;
+  const value = Number(text(fd, "value", 2));
+  if (!MOOD_ASPECTS.some((a) => a.key === key) || !Number.isInteger(value) || value < 1 || value > 5) return;
+  try {
+    await saveMoodAnswer(todayKey(), key, value);
+  } catch (err) {
+    reportError("actions/saveMoodScore", err);
+    return;
+  }
+  revalidatePath("/");
+}
+
+/** Conferma o scarta una nota proposta da Aira (prima c'erano i bottoni su Telegram). */
+export async function decideProposalAction(fd: FormData): Promise<void> {
+  const id = text(fd, "id", 40);
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return;
+  try {
+    await decideProposal(id, fd.get("accept") === "1");
+  } catch (err) {
+    reportError("actions/decideProposal", err);
     return;
   }
   revalidatePath("/");

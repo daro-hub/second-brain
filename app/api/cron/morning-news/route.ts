@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
   if (digest.newsItems.length > 0) {
     try {
-      await sendTelegramMessage(formatNewsMessage(digest.newsItems), { html: true });
+      await sendTelegramMessage(formatNewsMessage(digest.newsItems), { html: true, notice: { title: "🗞 Notizie del mattino", url: "/?p=studio", tag: "morning-news" } });
       sent.general = true;
     } catch (err) {
       console.error("[morning-news] errore nell'invio del riassunto generale:", err);
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 
   if (digest.aiBreakthrough) {
     try {
-      await sendTelegramMessage(formatAiBreakthroughMessage(digest.aiBreakthrough), { html: true });
+      await sendTelegramMessage(formatAiBreakthroughMessage(digest.aiBreakthrough), { html: true, notice: { title: "🤖 Novità dall'AI", url: "/?p=studio", tag: "ai-news" } });
       sent.aiBreakthrough = true;
     } catch (err) {
       console.error("[morning-news] errore nell'invio della novità AI:", err);

@@ -13,7 +13,7 @@ export async function sendMoodCheckin(day: string): Promise<boolean> {
   const cur = await getMood(day);
   const idx = cur ? nextAspectIndex(cur.scores) : 0;
   if (idx === -1) return false;
-  await sendTelegramMessage(`📓 <b>Diario della sera</b>\nSette domande veloci, un tap ciascuna.\n\n${moodPrompt(idx)}`, { html: true, markup: moodKeyboard(day, idx) });
+  await sendTelegramMessage(`📓 <b>Diario della sera</b>\nSette domande veloci, un tap ciascuna.\n\n${moodPrompt(idx)}`, { html: true, markup: moodKeyboard(day, idx), notice: { title: "📓 Diario della sera", body: idx === 0 ? "Sette domande veloci: tocca per rispondere." : "Mancano ancora alcune domande del diario.", url: "/?p=umore", tag: `mood:${day}` } });
   return true;
 }
 
@@ -21,13 +21,13 @@ export async function sendMoodCheckin(day: string): Promise<boolean> {
 export async function sendDailyPill(): Promise<boolean> {
   const pill = await createPill(await nextArea());
   if (!pill) return false;
-  await sendTelegramMessage(formatPill(pill), { html: true });
+  await sendTelegramMessage(formatPill(pill), { html: true, notice: { title: "💡 Pillola del giorno", url: "/?p=studio", tag: `pill:${dateKey(new Date())}` } });
   return true;
 }
 
 /** Buonanotte con il programma di domani (studio, calendario, allenamento). */
 export async function sendEveningDigest(): Promise<boolean> {
-  await sendTelegramMessage(await buildEveningDigest(), { html: true });
+  await sendTelegramMessage(await buildEveningDigest(), { html: true, notice: { title: "🌙 Buonanotte · il programma di domani", url: "/?p=oggi", tag: `digest:${dateKey(new Date())}` } });
   return true;
 }
 
@@ -42,7 +42,7 @@ export async function sendWorkSummary(day: string): Promise<boolean> {
   const made = await createDigestEntry(day);
   if (!made) return false;
   await setPending(made.id, day);
-  await sendTelegramMessage(digestMessage(day, made.summary), { html: true, markup: hoursKeyboard(made.id) });
+  await sendTelegramMessage(digestMessage(day, made.summary), { html: true, markup: hoursKeyboard(made.id), notice: { title: "💼 Quante ore hai lavorato?", body: "Ho riassunto commit e call di ieri: conferma le ore.", url: "/?p=lavoro", tag: `work:${day}` } });
   return true;
 }
 

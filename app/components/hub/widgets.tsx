@@ -4,6 +4,8 @@ import { todayKey } from "../../../src/lib/time";
 import { getBrainSnapshot } from "../../../src/lib/brain";
 import { logKnowledgeAction, logSocialAction } from "../../actions/hub";
 import { BrainPanel } from "./BrainPanel";
+import { PushToggle } from "./PushToggle";
+import { WidgetCard } from "./WidgetCard";
 import { AreaLine } from "../viz/charts";
 import { WorkHeatmap } from "../viz/WorkHeatmap";
 import { MOOD_ASPECTS, aspectScore, moodIndex } from "../../../src/lib/mood";
@@ -13,7 +15,7 @@ import { getCultureScore } from "../../../src/lib/pills";
 import { supabase } from "../../../src/lib/supabase";
 import { addDays, formatDayShort } from "../../../src/lib/time";
 import { crossWork, fmtHours, commitsError, getHourlyRate, getOrgCommits, getPayments, getWork, minutesByDay, outstanding, workStats } from "../../../src/lib/work";
-import { addPaymentAction, addWorkAction, deletePaymentAction, deleteWorkAction, saveMoodNoteAction, setProfileFactAction, setRateAction, setWorkHoursAction } from "../../actions/hub";
+import { addPaymentAction, addWorkAction, deletePaymentAction, deleteWorkAction, decideProposalAction, saveMoodNoteAction, saveMoodScoreAction, setProfileFactAction, setRateAction, setWorkHoursAction } from "../../actions/hub";
 
 export function Skeleton({ label }: { label: string }) {
   return (
@@ -189,7 +191,25 @@ export async function MoodPanel() {
   return (
     <>
       <div className="card">
-        <div className="card-head"><h3>Umore · ultimi 30 giorni</h3><span className="muted small">{todayRow?.completed ? "check-in di oggi fatto" : "il check-in arriva alle 22 su Telegram"}</span></div>
+        <div className="card-head"><h3>Diario di oggi</h3><span className="muted small">{todayRow?.completed ? "completo ✓" : "tocca un numero · 1 male, 5 benissimo"}</span></div>
+        {MOOD_ASPECTS.map((a) => {
+          const cur = todayRow?.scores[a.key];
+          return (
+            <form action={saveMoodScoreAction} className="mood-row" key={a.key}>
+              <input type="hidden" name="key" value={a.key} />
+              <span className="time" title={a.question}>{a.label}</span>
+              <span className="mood-scale">
+                {[1, 2, 3, 4, 5].map((v) => (
+                  <button key={v} type="submit" name="value" value={v} className={cur === v ? "on" : ""} aria-label={`${a.label} ${v}`}>{v}</button>
+                ))}
+              </span>
+            </form>
+          );
+        })}
+        <p className="muted small" style={{ marginTop: 6 }}>Stress: 5 = tantissimo. Il promemoria arriva alle 22 come notifica (e su Telegram).</p>
+      </div>
+      <div className="card">
+        <div className="card-head"><h3>Umore · ultimi 30 giorni</h3><span className="muted small">{todayRow?.completed ? "check-in di oggi fatto" : "il check-in arriva alle 22"}</span></div>
         {pts.length >= 2 ? <AreaLine points={pts} color="#b78cff" height={180} xFormat={(v) => formatDayShort(recent[Math.round(v)]?.day ?? today)} /> : <p className="muted small">Servono almeno due sere di diario per disegnare l&apos;andamento.</p>}
       </div>
       <div className="card">
@@ -257,6 +277,9 @@ export async function AiraPanel() {
   const brain = await getBrainSnapshot();
   return (
     <>
+      <PushToggle />
+      <WidgetCard />
+      <ProposalsPanel />
       <BrainPanel brain={brain} />
     </>
   );
@@ -276,6 +299,40 @@ export async function ProfilePanel() {
           <button type="submit">Salva</button>
         </form>
       ))}
+    </div>
+  );
+}
+
+/** Note proposte da Aira in attesa di conferma (prima si confermavano con i bottoni su Telegram). */
+export async function ProposalsPanel() {
+  const { data } = await supabase.from("kb_proposals").select("id, content, replaces, created_at").eq("status", "pending").order("created_at", { ascending: false }).limit(10);
+  const pending = data ?? [];
+  if (!pending.length) return null;
+  const oldIds = [...new Set(pending.flatMap((p) => (p.replaces ?? []) as string[]))];
+  const old = new Map<string, string>();
+  if (oldIds.length) {
+    const { data: docs } = await supabase.from("documents").select("id, content").in("id", oldIds);
+    for (const d of docs ?? []) old.set(String(d.id), String(d.content));
+  }
+  return (
+    <div className="card">
+      <div className="card-head"><h3>Note da confermare</h3><span className="muted small">{pending.length} in attesa</span></div>
+      {pending.map((p) => {
+        const replaced = ((p.replaces ?? []) as string[]).map((id) => old.get(id)).filter(Boolean);
+        return (
+          <div className="agenda-row" key={String(p.id)} style={{ alignItems: "flex-start", flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <b>{String(p.content)}</b>
+              {replaced.map((t, i) => <p key={i} className="muted small" style={{ margin: "4px 0 0" }}>Sostituirebbe: {t}</p>)}
+            </div>
+            <form action={decideProposalAction} style={{ display: "flex", gap: 6 }}>
+              <input type="hidden" name="id" value={String(p.id)} />
+              <button type="submit" name="accept" value="1">È vero, salva</button>
+              <button type="submit" name="accept" value="0">Scarta</button>
+            </form>
+          </div>
+        );
+      })}
     </div>
   );
 }

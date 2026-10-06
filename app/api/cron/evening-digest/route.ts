@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const digest = await buildEveningDigest();
-    await sendTelegramMessage(digest, { html: true });
+    await sendTelegramMessage(digest, { html: true, notice: { title: "🌆 Riepilogo della sera", url: "/?p=oggi", tag: "evening-digest" } });
     return NextResponse.json({ ok: true, digest });
   } catch (err) {
     console.error("[evening-digest] errore:", err);

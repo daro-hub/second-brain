@@ -27,7 +27,7 @@ export class Q {
     return this;
   }
   upsert(row: Row) {
-    const key = row.key !== undefined ? "key" : "id";
+    const key = row.key !== undefined ? "key" : row.endpoint !== undefined ? "endpoint" : "id";
     const i = db[this.table].findIndex((r) => r[key] === row[key]);
     if (i >= 0) db[this.table][i] = { ...db[this.table][i], ...row };
     else db[this.table].push(row);

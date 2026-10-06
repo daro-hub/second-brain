@@ -1845,3 +1845,12 @@ a.pass-text { color: var(--accent); text-decoration: none; }
 .pass-file:hover b { color: var(--accent); }
 .pass-meta { margin-top: 3px; font-family: var(--mono); font-size: 11px; color: var(--faint); }
 @media (max-width: 720px) { .pass-list li { grid-template-columns: 1fr; } }
+
+/* diario dell'umore (al posto dei bottoni su Telegram) */
+.mood-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--border-soft); }
+.mood-row:last-of-type { border-bottom: 0; }
+.mood-row .time { width: 130px; flex: 0 0 auto; }
+.mood-scale { display: flex; gap: 6px; }
+.mood-scale button { width: 40px; height: 36px; font: inherit; font-size: 14px; color: var(--text); background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.mood-scale button:hover { border-color: #b78cff; }
+.mood-scale button.on { background: rgba(183, 140, 255, 0.28); border-color: #b78cff; color: #fff; }

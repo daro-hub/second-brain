@@ -321,7 +321,7 @@ ${STYLE_GUIDE}${history.length ? `\n\nConversazione recente:\n${formatHistory(hi
 
 Vuoi che la sostituisca con:
 <b>${escapeHtml(note.slice(0, 400))}</b>`,
-      { html: true, markup: proposalKeyboard(outcome.proposalId) },
+      { html: true, markup: proposalKeyboard(outcome.proposalId), notice: { title: "🧠 Ho già una nota simile", body: "Vuoi che la sostituisca con quella nuova?", url: "/?p=aira", tag: `kb:${outcome.proposalId}` } },
     ).catch((err) => reportError("respond/proposal", err, { expected: true }));
     src(trace, "kb", "Nota simile già presente: chiesta conferma per sostituirla");
     return reply;

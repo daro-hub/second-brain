@@ -52,7 +52,7 @@ export const telegramDeps: UploadDeps = {
   },
   async notify(html) {
     const { sendTelegramMessage } = await import("./telegramSend");
-    await sendTelegramMessage(html, { html: true });
+    await sendTelegramMessage(html, { html: true, notice: { title: "📚 Appunti", url: "/?p=studio" } });
   },
 };
 

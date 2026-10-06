@@ -3,6 +3,7 @@ import { applyConfirmed } from "../../../../src/lib/kbProposals";
 import { runDueJobs } from "../../../../src/lib/dailyJobs";
 import { pruneHistory } from "../../../../src/lib/chatHistory";
 import { purgeExpired } from "../../../../src/lib/transfers";
+import { localHHMM } from "../../../../src/lib/time";
 import { collectReminders, markReminderSent } from "../../../../src/lib/reminders";
 import { sendTelegramMessage } from "../../../../src/lib/telegramSend";
 
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
     const reminders = await collectReminders(now);
     if (!dry) {
       for (const r of reminders) {
-        await sendTelegramMessage(r.text, { html: true });
+        await sendTelegramMessage(r.text, { html: true, notice: { title: `⏰ Tra ${r.minutesLeft} minuti`, body: `${localHHMM(r.startsAt)} · ${r.summary}`, url: "/?p=oggi", tag: `rem:${r.key}` } });
         // si segna solo dopo l'invio riuscito: se Telegram fallisce, al giro dopo si riprova
         await markReminderSent(r);
       }
