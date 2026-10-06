@@ -1,4 +1,4 @@
-import { query, type HookCallback } from "@anthropic-ai/claude-agent-sdk";
+import { query, type HookCallback, type Options } from "@anthropic-ai/claude-agent-sdk";
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -43,6 +43,41 @@ async function pullRepo(dir: string, jobId: string): Promise<void> {
 
 const truncate = (v: unknown, n = 200) => JSON.stringify(v ?? null).slice(0, n);
 
+/**
+ * Opzioni dell'Agent SDK per un job: stesse per il worker e per lo smoke test (scripts/agent-smoke.ts).
+ * Il hook PreToolUse vale in ogni permission mode: è lui l'applicazione reale della policy; canUseTool è la seconda rete.
+ */
+export function agentOptions(o: { cwd: string; roots: string[]; cfg: Pick<WorkerConfig, "model" | "maxTurns">; abort: AbortController; onDenied?: (tool: string, input: unknown, why: string) => void }): Options {
+  const policyCtx: PolicyContext = { roots: o.roots, cwd: o.cwd, realpath: (p) => fs.realpathSync(p) };
+  const guard: HookCallback = async (input) => {
+    if (input.hook_event_name !== "PreToolUse") return {};
+    const d = decideTool(input.tool_name, (input.tool_input ?? {}) as Record<string, unknown>, policyCtx);
+    if (d.behavior === "deny") o.onDenied?.(input.tool_name, input.tool_input, d.message);
+    return {
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: d.behavior === "allow" ? "allow" : "deny",
+        permissionDecisionReason: d.behavior === "deny" ? d.message : undefined,
+      },
+    };
+  };
+  return {
+    cwd: o.cwd,
+    model: o.cfg.model,
+    maxTurns: o.cfg.maxTurns,
+    abortController: o.abort,
+    tools: BUILTIN_TOOLS,
+    mcpServers: { linear: linearServer() },
+    strictMcpConfig: true,
+    settingSources: [],
+    systemPrompt: SYSTEM_PROMPT,
+    permissionMode: "default",
+    canUseTool: async (name, input) => decideTool(name, input, policyCtx),
+    hooks: { PreToolUse: [{ hooks: [guard] }] },
+    env: agentEnv(process.env),
+  };
+}
+
 export interface JobOutcome {
   status: "done" | "failed" | "cancelled";
   result?: string;
@@ -77,38 +112,15 @@ export async function runJob(job: AgentJob, cfg: WorkerConfig): Promise<void> {
 
     await notifyTelegram(`▶️ Job ${job.short_id} avviato su ${cfg.id}`).catch((e) => reportError("worker/notify", e, { expected: true }));
 
-    const policyCtx: PolicyContext = { roots, cwd, realpath: (p) => fs.realpathSync(p) };
-    // Il hook PreToolUse vale in ogni permission mode: è lui l'applicazione reale della policy. canUseTool è la seconda rete.
-    const guard: HookCallback = async (input) => {
-      if (input.hook_event_name !== "PreToolUse") return {};
-      const d = decideTool(input.tool_name, (input.tool_input ?? {}) as Record<string, unknown>, policyCtx);
-      if (d.behavior === "deny") await logEvent(job.id, "denied", { tool: input.tool_name, input: truncate(input.tool_input), why: d.message });
-      return {
-        hookSpecificOutput: {
-          hookEventName: "PreToolUse",
-          permissionDecision: d.behavior === "allow" ? "allow" : "deny",
-          permissionDecisionReason: d.behavior === "deny" ? d.message : undefined,
-        },
-      };
-    };
-
     const q = query({
       prompt: buildPrompt(job, roots),
-      options: {
+      options: agentOptions({
         cwd,
-        model: cfg.model,
-        maxTurns: cfg.maxTurns,
-        abortController: abort,
-        tools: BUILTIN_TOOLS,
-        mcpServers: { linear: linearServer() },
-        strictMcpConfig: true,
-        settingSources: [],
-        systemPrompt: SYSTEM_PROMPT,
-        permissionMode: "default",
-        canUseTool: async (name, input) => decideTool(name, input, policyCtx),
-        hooks: { PreToolUse: [{ hooks: [guard] }] },
-        env: agentEnv(process.env),
-      },
+        roots,
+        cfg,
+        abort,
+        onDenied: (tool, input, why) => void logEvent(job.id, "denied", { tool, input: truncate(input), why }),
+      }),
     });
 
     let final: JobOutcome | null = null;
