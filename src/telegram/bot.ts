@@ -23,6 +23,7 @@ import { registerPdf } from "../lib/uniUploadJob";
 import { searchSemantic } from "../lib/search";
 import { textToSpeech, transcribe } from "../lib/voice";
 import { describePhoto, MAX_PHOTO_BYTES, photoToMessage } from "../lib/vision";
+import { addFileFromBytes, addTextTransfer, downloadFile, listTransfers, MAX_TRANSFER_BYTES, parsePassaCaption } from "../lib/transfers";
 
 const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN!);
 const allowedUserId = Number(process.env.TELEGRAM_ALLOWED_USER_ID);
@@ -321,6 +322,60 @@ bot.on("callback_query:data", async (ctx) => {
   }
 });
 
+// ── Passaggi: /passa <testo> manda un testo in Passaggi; /passa come didascalia di una foto o di un file lo carica ──
+const PASSA_OK = "📨 Messo in Passaggi (scade tra 7 giorni): lo trovi sul sito e con /passaggi.";
+const TELEGRAM_DOWNLOAD_LIMIT = 20 * 1024 * 1024;
+
+async function storeTelegramFile(ctx: Context, fileId: string, name: string, mime: string, size: number): Promise<void> {
+  if (size > Math.min(TELEGRAM_DOWNLOAD_LIMIT, MAX_TRANSFER_BYTES)) {
+    await ctx.reply("Questo file supera i 20 MB, il limite di Telegram per i bot: caricalo dal sito (Passaggi).");
+    return;
+  }
+  try {
+    const file = await ctx.api.getFile(fileId);
+    const res = await fetch(`https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file.file_path}`);
+    if (!res.ok) throw new Error(`download ${res.status}`);
+    await addFileFromBytes(Buffer.from(await res.arrayBuffer()), name, mime, "telegram");
+    await ctx.reply(PASSA_OK);
+  } catch (err) {
+    reportError("telegram/passa-file", err);
+    await ctx.reply("Non sono riuscita a salvare il file in Passaggi. Riprova tra poco.");
+  }
+}
+
+bot.command("passa", async (ctx) => {
+  const text = ctx.match.trim();
+  if (!text) {
+    await ctx.reply("Scrivi «/passa» seguito dal testo o dal link da mandare agli altri dispositivi, oppure mandami una foto o un file con «/passa» come didascalia.");
+    return;
+  }
+  try {
+    await addTextTransfer(text, "telegram");
+    await ctx.reply(PASSA_OK);
+  } catch (err) {
+    reportError("telegram/passa", err);
+    await ctx.reply("Non sono riuscita a salvarlo in Passaggi. Riprova tra poco.");
+  }
+});
+
+bot.command("passaggi", async (ctx) => {
+  try {
+    const items = (await listTransfers()).slice(0, 5);
+    if (!items.length) {
+      await ctx.reply("Niente in Passaggi.");
+      return;
+    }
+    for (const t of items) {
+      if (t.kind === "text") await ctx.reply(escapeHtml(t.content ?? ""), { parse_mode: "HTML" });
+      else if (t.fileSize && t.fileSize <= TELEGRAM_DOWNLOAD_LIMIT) await ctx.replyWithDocument(new InputFile(await downloadFile(t), t.fileName ?? "file"));
+      else await ctx.reply(`📎 ${escapeHtml(t.fileName ?? "file")} è troppo grande per Telegram: scaricalo dal sito.`, { parse_mode: "HTML" });
+    }
+  } catch (err) {
+    reportError("telegram/passaggi", err);
+    await ctx.reply("Non riesco a leggere Passaggi in questo momento.");
+  }
+});
+
 bot.on("message:text", async (ctx) => {
   // risposta secca con le ore («3», «2,5h», «90 min») al riassunto di mezzanotte
   const hours = await tryApplyHoursReply(ctx.message.text).catch(() => null);
@@ -336,6 +391,10 @@ bot.on("message:text", async (ctx) => {
 // lezione 4» parte subito.
 bot.on("message:document", async (ctx) => {
   const doc = ctx.message.document;
+  if (parsePassaCaption(ctx.message.caption) !== null) {
+    await storeTelegramFile(ctx, doc.file_id, doc.file_name ?? "file", doc.mime_type ?? "application/octet-stream", doc.file_size ?? 0);
+    return;
+  }
   if (doc.mime_type?.startsWith("image/")) {
     await replyToPhoto(ctx, doc.file_id, doc.mime_type, doc.file_size ?? 0, ctx.message.caption);
     return;
@@ -369,6 +428,10 @@ bot.on("message:document", async (ctx) => {
 // Una foto: Aira la "guarda", la trasforma in testo (con la didascalia) e risponde come a un normale messaggio.
 bot.on("message:photo", async (ctx) => {
   const largest = ctx.message.photo.at(-1)!;
+  if (parsePassaCaption(ctx.message.caption) !== null) {
+    await storeTelegramFile(ctx, largest.file_id, `foto-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.jpg`, "image/jpeg", largest.file_size ?? 0);
+    return;
+  }
   await replyToPhoto(ctx, largest.file_id, "image/jpeg", largest.file_size ?? 0, ctx.message.caption);
 });
 

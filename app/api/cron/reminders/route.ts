@@ -1,6 +1,7 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { applyConfirmed } from "../../../../src/lib/kbProposals";
 import { runDueJobs } from "../../../../src/lib/dailyJobs";
+import { purgeExpired } from "../../../../src/lib/transfers";
 import { collectReminders, markReminderSent } from "../../../../src/lib/reminders";
 import { sendTelegramMessage } from "../../../../src/lib/telegramSend";
 
@@ -37,6 +38,7 @@ export async function GET(req: NextRequest) {
     else {
       after(() => runDueJobs(now).catch((err) => console.error("[daily-jobs] errore:", err)));
       after(() => applyConfirmed().catch((err) => console.error("[kb-proposals] errore:", err)));
+      after(() => purgeExpired().catch((err) => console.error("[passaggi] pulizia scaduti fallita:", err)));
     }
     return NextResponse.json({ ok: true, dry, jobs, sent: reminders.map((r) => ({ summary: r.summary, startsAt: r.startsAt, minutesLeft: r.minutesLeft })) });
   } catch (err) {

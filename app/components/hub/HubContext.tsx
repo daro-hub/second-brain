@@ -8,6 +8,7 @@ import { SaluteView } from "../../salute/SaluteView";
 import { SpesaView } from "../../spesa/SpesaView";
 import { UniView } from "../../uni/UniView";
 import { InsightsView } from "../../insights/InsightsView";
+import { PassaggiView } from "../../passaggi/PassaggiView";
 import { WidgetBoundary } from "./WidgetBoundary";
 import { AiraPanel, KnowledgePanel, ProfilePanel, MoodPanel, PillsPanel, Skeleton, SocialQuickLog, WorkTracker } from "./widgets";
 
@@ -32,6 +33,13 @@ export function HubContext({ context, params = {} }: { context: string | undefin
     return (
       <S label="Incroci">
         <InsightsView />
+      </S>
+    );
+  }
+  if (context === "passaggi") {
+    return (
+      <S label="Passaggi">
+        <PassaggiView />
       </S>
     );
   }

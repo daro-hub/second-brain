@@ -1765,3 +1765,31 @@ main > *:nth-child(n + 6) {
   .aira-root.embedded .aira-bar .btn-send .arrow { display: block; font-size: 20px; line-height: 1; }
   .aira-root.embedded .aira-bar .btn-send { background: linear-gradient(135deg, rgba(77, 225, 255, 0.45), rgba(183, 140, 255, 0.45)); }
 }
+
+/* ───────── passaggi ───────── */
+.passaggi { padding: 16px 18px; margin-bottom: 16px; }
+.passaggi[data-over="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(77, 225, 255, 0.12); }
+.passaggi .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.pass-form { display: grid; gap: 8px; margin: 12px 0; }
+.pass-form textarea { font: inherit; font-size: 14px; color: var(--text); background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; outline: none; resize: vertical; min-width: 0; }
+.pass-form textarea:focus { border-color: var(--accent); }
+.pass-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pass-row button, .pass-list .exam-actions button { font: inherit; font-size: 12px; color: var(--text); background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; padding: 7px 12px; cursor: pointer; }
+.pass-row button[type="submit"] { border-color: var(--accent); color: var(--accent); }
+.pass-row button:hover, .pass-list .exam-actions button:hover { border-color: var(--accent); }
+.pass-row button:disabled { opacity: 0.55; cursor: default; }
+.pass-status { font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
+.pass-status.err { color: var(--c-bad); }
+.pass-status.ok { color: var(--c-good); }
+.pass-empty { color: var(--faint); font-size: 13px; }
+.pass-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.pass-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border-soft); align-items: start; }
+.pass-list li:last-child { border-bottom: 0; }
+.pass-text { margin: 0; font: inherit; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); max-height: 220px; overflow: auto; }
+a.pass-text { color: var(--accent); text-decoration: none; }
+.pass-file { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; text-decoration: none; color: var(--text); font-size: 14px; }
+.pass-file b { overflow-wrap: anywhere; }
+.pass-file span { font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
+.pass-file:hover b { color: var(--accent); }
+.pass-meta { margin-top: 3px; font-family: var(--mono); font-size: 11px; color: var(--faint); }
+@media (max-width: 720px) { .pass-list li { grid-template-columns: 1fr; } }

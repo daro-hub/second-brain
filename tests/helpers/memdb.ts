@@ -40,6 +40,7 @@ export class Q {
   is(c: string, v: unknown) { this.filters.push((r) => (r[c] ?? null) === v); return this; }
   gte(c: string, v: string) { this.filters.push((r) => String(r[c]) >= v); return this; }
   lte(c: string, v: string) { this.filters.push((r) => String(r[c]) <= v); return this; }
+  gt(c: string, v: string) { this.filters.push((r) => String(r[c]) > v); return this; }
   lt(c: string, v: string) { this.filters.push((r) => String(r[c]) < v); return this; }
   ilike(c: string, v: string) { this.filters.push((r) => String(r[c]).toLowerCase() === v.toLowerCase()); return this; }
   order(col: string, o?: { ascending?: boolean }) { this.orderBy = { col, asc: o?.ascending !== false }; return this; }

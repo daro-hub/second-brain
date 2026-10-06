@@ -204,7 +204,7 @@ function Stage() {
 
   const pillars: HubPillar[] = data?.pillars ?? ["studio", "salute", "allenamento", "umore", "lavoro"].map((k) => ({ key: k, label: k[0].toUpperCase() + k.slice(1), color: "#5a6677", score: null, trend: null }));
   const current = pillars.find((x) => x.key === p);
-  const title = p === "aira" ? "Status di Aira" : p === "incroci" ? "Incroci" : current ? current.label : "Oggi";
+  const title = p === "aira" ? "Status di Aira" : p === "incroci" ? "Incroci" : p === "passaggi" ? "Passaggi" : current ? current.label : "Oggi";
   const hasStrip = p === "aira" || Boolean(current);
   const cards: Card[] | null =
     p === "aira"
@@ -262,6 +262,10 @@ function Stage() {
           <Link href="/?p=incroci" className={`hub-chip${p === "incroci" ? " on" : ""}`}>
             <i style={{ background: "#ff7ad9" }} />
             Incroci
+          </Link>
+          <Link href="/?p=passaggi" className={`hub-chip${p === "passaggi" ? " on" : ""}`}>
+            <i style={{ background: "#4de1ff" }} />
+            Passaggi
           </Link>
         </div>
       </div>
