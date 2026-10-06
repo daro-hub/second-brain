@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { dayRangeUtc } from "./time";
+import { dateKey, dayRangeUtc } from "./time";
 
 interface HealthAutoExportPoint {
   date: string; // "yyyy-MM-dd HH:mm:ss Z", es. "2026-10-04 14:30:00 -0700"
@@ -320,3 +320,37 @@ export async function getMetricSummary(metricName: string, startKey: string, end
   return base;
 }
 
+
+export interface SleepNight {
+  /** giorno del risveglio (ora italiana) */
+  day: string;
+  totalH: number;
+  deepH: number;
+  remH: number;
+  awakeH: number;
+  inBedH: number;
+}
+
+/** Notti di Apple Health (`sleep_analysis`, ore per fase nel payload): il record è a mezzanotte del giorno del risveglio. */
+export async function getSleepNights(startKey: string, endKey: string): Promise<SleepNight[]> {
+  const { from } = dayRangeUtc(startKey);
+  const { to } = dayRangeUtc(endKey);
+  const { data, error } = await supabase
+    .from("health_metrics")
+    .select("recorded_at, payload")
+    .eq("metric_name", "sleep_analysis")
+    .gte("recorded_at", from.toISOString())
+    .lt("recorded_at", to.toISOString())
+    .order("recorded_at", { ascending: true })
+    .limit(500);
+  if (error) throw error;
+  const byDay = new Map<string, SleepNight>();
+  for (const r of data ?? []) {
+    const p = (r.payload ?? {}) as Record<string, unknown>;
+    const n = (k: string) => (Number.isFinite(Number(p[k])) ? Number(p[k]) : 0);
+    const total = n("Total") || n("Asleep");
+    if (total <= 0) continue;
+    byDay.set(dateKey(String(r.recorded_at)), { day: dateKey(String(r.recorded_at)), totalH: total, deepH: n("Deep"), remH: n("REM"), awakeH: n("Awake"), inBedH: n("InBed") });
+  }
+  return [...byDay.values()];
+}

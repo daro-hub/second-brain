@@ -1,4 +1,4 @@
-import { getHealthDaily } from "./health";
+import { getHealthDaily, getSleepNights } from "./health";
 import { getMoodHistory, moodIndex, type MoodDay } from "./mood";
 import { MIN_N_FOR_CORRELATION, describeCorrelation, pearson, type Correlation } from "./stats";
 import { getAllActivities, type StravaActivityFull } from "./strava";
@@ -34,11 +34,12 @@ export const describeFactor = (f: MoodFactor): string =>
 export async function getMoodFactors(days = 90): Promise<{ hist: MoodDay[]; factors: MoodFactor[] }> {
   const today = todayKey();
   const from = addDays(today, -(days - 1));
-  const [hist, work, acts, steps] = await Promise.all([
+  const [hist, work, acts, steps, sleep] = await Promise.all([
     getMoodHistory(days),
     getWork(from, today).catch(() => []),
     getAllActivities().catch(() => [] as StravaActivityFull[]),
     getHealthDaily("step_count", from, today).catch(() => []),
+    getSleepNights(from, today).catch(() => []),
   ]);
   const workH: Record<string, number> = {};
   const perDay = minutesByDay(work);
@@ -48,6 +49,7 @@ export async function getMoodFactors(days = 90): Promise<{ hist: MoodDay[]; fact
     workH[d.day] = (perDay[d.day] ?? 0) / 60;
     trained[d.day] = acts.some((a) => a.dateKey === d.day && a.movingTimeMin > 0 && a.type !== "Walk" && a.type !== "Hike") ? 1 : 0;
   }
+  const sleepBy: Record<string, number> = Object.fromEntries(sleep.map((n) => [n.day, n.totalH]));
   for (const s of steps) if ((s.total ?? 0) > 0) stepsBy[s.day] = s.total as number;
   return {
     hist,
@@ -55,6 +57,7 @@ export async function getMoodFactors(days = 90): Promise<{ hist: MoodDay[]; fact
       factorCorrelation("lavoro", "Ore di lavoro", hist, workH),
       factorCorrelation("allenamento", "Allenamento (sì/no)", hist, trained),
       factorCorrelation("passi", "Passi", hist, stepsBy),
+      factorCorrelation("sonno", "Ore di sonno (notte prima)", hist, sleepBy),
     ],
   };
 }

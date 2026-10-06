@@ -1,5 +1,5 @@
 import { getEnergyOverview, PROFILE } from "./energy";
-import { getHealthDaily, getLatestWeightKg } from "./health";
+import { getHealthDaily, getLatestWeightKg, getSleepNights } from "./health";
 import { getStrengthLeaderboard, getWeekBudget } from "./insights";
 import { getReflection, getKnowledgeStats, getSocialCount, KNOWLEDGE_AREAS } from "./knowledge";
 import { getMyRecentActivity } from "./linear";
@@ -31,6 +31,7 @@ export const GOALS = {
   studyHoursPerWeek: 20,
   stepsPerDay: [8000, 14000] as const,
   proteinGPerKg: [1.6, 2.2] as const,
+  sleepHours: [7, 9] as const,
   kcalDiffBand: [-700, 100] as const, // assunte − fabbisogno
   sessionsPerWeek: [3, 6] as const,
   knowledgeMinutesPerWeek: 120,
@@ -127,12 +128,13 @@ async function studio(): Promise<{ p: Pillar; nextExam: HubData["nextExam"] }> {
 async function salute(): Promise<Pillar> {
   const today = todayKey();
   const from = addDays(today, -(GOALS.windowDays - 1));
-  const [steps, energy, protein, weight, social] = await Promise.all([
+  const [steps, energy, protein, weight, social, sleep] = await Promise.all([
     safe("steps", () => getHealthDaily("step_count", from, addDays(today, -1))),
     safe("energy", () => getEnergyOverview(GOALS.windowDays)),
     safe("protein", () => getHealthDaily("protein", from, addDays(today, -1))),
     safe("weight", getLatestWeightKg),
     getSocialCount(14),
+    safe("sleep", () => getSleepNights(from, today)),
   ]);
   const measures: Measure[] = [];
 
@@ -154,7 +156,18 @@ async function salute(): Promise<Pillar> {
     : null;
   measures.push({ key: "kcal", label: "Calorie", value: inBand === null ? "—" : `${fmt(inBand)}%`, detail: "giorni con bilancio nella fascia utile", score: inBand === null ? null : clamp(inBand), weight: 0.25 });
 
-  measures.push({ key: "sleep", label: "Sonno", value: "—", detail: "non ancora tracciato: serve la metrica di Apple Health", score: null, weight: 0 });
+  const nights = sleep ?? [];
+  const sleepAvg = nights.length ? (mean(nights.map((n) => n.totalH)) as number) : null;
+  const restorative = nights.length ? (mean(nights.map((n) => ((n.deepH + n.remH) / n.totalH) * 100)) as number) : null;
+  const lastNight = nights.at(-1);
+  measures.push({
+    key: "sleep",
+    label: "Sonno",
+    value: sleepAvg === null ? "—" : `${fmt(sleepAvg, 1)} h`,
+    detail: sleepAvg === null ? "nessuna notte registrata da Apple Health negli ultimi 28 giorni" : `media su ${nights.length} notti · fascia ${GOALS.sleepHours[0]}–${GOALS.sleepHours[1]} h · profondo+REM ${fmt(restorative ?? 0)}% · ultimo dato ${lastNight?.day}`,
+    score: scoreRange(sleepAvg, ...GOALS.sleepHours),
+    weight: 0.2,
+  });
   measures.push({ key: "weight", label: "Peso", value: weight ? `${fmt(weight.kg, 1)} kg` : "—", detail: "ultima misura", score: null, weight: 0 });
   measures.push({ key: "social", label: "Relazioni", value: social === null ? "—" : `${social}`, detail: social === null ? "registro non ancora attivo" : "contatti negli ultimi 14 giorni", score: social === null ? null : scoreTarget(social, GOALS.socialContactsPer14Days), weight: 0.15 });
   return pillar("salute", measures);

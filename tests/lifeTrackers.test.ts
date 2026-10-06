@@ -9,6 +9,7 @@ import { MOOD_ASPECTS, aspectScore, getMood, moodIndex, nextAspectIndex, parseMo
 import { factorCorrelation } from "../src/lib/moodInsights";
 import { parsePill, pillPrompt } from "../src/lib/pills";
 import { claimJob, jobsInWindow, releaseJob } from "../src/lib/scheduler";
+import { getSleepNights } from "../src/lib/health";
 import { crossWork, groupCommits, minutesByDay, outstanding, workStats, type WorkEntry } from "../src/lib/work";
 import { fallbackSummary, hoursKeyboard, parseHoursReply, parseSummary, parseWorkCallback, pickCalls, setPending, tryApplyHoursReply } from "../src/lib/workDigest";
 
@@ -180,6 +181,18 @@ describe("riassunto di mezzanotte", () => {
     expect(await tryApplyHoursReply("2,5")).toContain("2,5 h");
     expect(db.work_log[0].minutes).toBe(150);
     expect(await tryApplyHoursReply("3")).toBeNull();
+  });
+});
+
+describe("sonno", () => {
+  it("legge le notti di Apple Health col giorno del risveglio e salta quelle vuote", async () => {
+    db.health_metrics = [
+      { metric_name: "sleep_analysis", recorded_at: "2026-10-02T22:00:00.000Z", payload: { Total: 7.0, Deep: 0.6, REM: 1.4, Awake: 0.03, InBed: 7.15 } },
+      { metric_name: "sleep_analysis", recorded_at: "2026-10-01T22:00:00.000Z", payload: { Total: 0, Asleep: 0 } },
+      { metric_name: "step_count", recorded_at: "2026-10-02T22:00:00.000Z", payload: {} },
+    ];
+    const nights = await getSleepNights("2026-10-01", "2026-10-05");
+    expect(nights).toEqual([{ day: "2026-10-03", totalH: 7, deepH: 0.6, remH: 1.4, awakeH: 0.03, inBedH: 7.15 }]);
   });
 });
 
