@@ -5,6 +5,7 @@ import { getBrainSnapshot } from "../../../src/lib/brain";
 import { logKnowledgeAction, logSocialAction } from "../../actions/hub";
 import { BrainPanel } from "./BrainPanel";
 import { PushToggle } from "./PushToggle";
+import { MoodDiary, MoodNote } from "./MoodDiary";
 import { WidgetCard } from "./WidgetCard";
 import { AreaLine } from "../viz/charts";
 import { WorkHeatmap } from "../viz/WorkHeatmap";
@@ -15,7 +16,7 @@ import { getCultureScore } from "../../../src/lib/pills";
 import { supabase } from "../../../src/lib/supabase";
 import { addDays, formatDayShort } from "../../../src/lib/time";
 import { crossWork, fmtHours, commitsError, getHourlyRate, getOrgCommits, getPayments, getWork, minutesByDay, outstanding, workStats } from "../../../src/lib/work";
-import { addPaymentAction, addWorkAction, deletePaymentAction, deleteWorkAction, decideProposalAction, saveMoodNoteAction, saveMoodScoreAction, setProfileFactAction, setRateAction, setWorkHoursAction } from "../../actions/hub";
+import { addPaymentAction, addWorkAction, deletePaymentAction, deleteWorkAction, decideProposalAction, setProfileFactAction, setRateAction, setWorkHoursAction } from "../../actions/hub";
 
 export function Skeleton({ label }: { label: string }) {
   return (
@@ -192,20 +193,7 @@ export async function MoodPanel() {
     <>
       <div className="card">
         <div className="card-head"><h3>Diario di oggi</h3><span className="muted small">{todayRow?.completed ? "completo ✓" : "tocca un numero · 1 male, 5 benissimo"}</span></div>
-        {MOOD_ASPECTS.map((a) => {
-          const cur = todayRow?.scores[a.key];
-          return (
-            <form action={saveMoodScoreAction} className="mood-row" key={a.key}>
-              <input type="hidden" name="key" value={a.key} />
-              <span className="time" title={a.question}>{a.label}</span>
-              <span className="mood-scale">
-                {[1, 2, 3, 4, 5].map((v) => (
-                  <button key={v} type="submit" name="value" value={v} className={cur === v ? "on" : ""} aria-label={`${a.label} ${v}`}>{v}</button>
-                ))}
-              </span>
-            </form>
-          );
-        })}
+        <MoodDiary aspects={MOOD_ASPECTS.map((a) => ({ key: a.key, label: a.label, question: a.question }))} scores={todayRow?.scores ?? {}} />
         <p className="muted small" style={{ marginTop: 6 }}>Stress: 5 = tantissimo. Il promemoria arriva alle 22 come notifica (e su Telegram).</p>
       </div>
       <div className="card">
@@ -232,10 +220,7 @@ export async function MoodPanel() {
       </div>
       <div className="card">
         <div className="card-head"><h3>Nota di oggi</h3></div>
-        <form action={saveMoodNoteAction} className="hub-form col">
-          <textarea name="note" rows={3} maxLength={1000} defaultValue={todayRow?.note ?? ""} placeholder="Cosa ha pesato sull'umore oggi? (facoltativo)" />
-          <button type="submit">Salva</button>
-        </form>
+        <MoodNote initial={todayRow?.note ?? ""} />
       </div>
     </>
   );

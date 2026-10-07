@@ -72,15 +72,16 @@ export async function deleteWorkAction(fd: FormData): Promise<void> {
   revalidatePath("/");
 }
 
-export async function saveMoodNoteAction(fd: FormData): Promise<void> {
-  const note = text(fd, "note", 1000);
+/** Ritorna true se salvata: il pannello client mostra «Salvato» solo in quel caso. */
+export async function saveMoodNoteAction(note: string): Promise<boolean> {
   try {
-    await saveMoodNote(todayKey(), note);
+    await saveMoodNote(todayKey(), note.trim().slice(0, 1000));
   } catch (err) {
     reportError("actions/saveMoodNote", err);
-    return;
+    return false;
   }
   revalidatePath("/");
+  return true;
 }
 
 const isDay = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
@@ -150,17 +151,16 @@ export async function setProfileFactAction(fd: FormData): Promise<void> {
 }
 
 /** Una risposta del diario di oggi (1-5): sostituisce i bottoni del check-in su Telegram. */
-export async function saveMoodScoreAction(fd: FormData): Promise<void> {
-  const key = text(fd, "key", 30) as MoodKey;
-  const value = Number(text(fd, "value", 2));
-  if (!MOOD_ASPECTS.some((a) => a.key === key) || !Number.isInteger(value) || value < 1 || value > 5) return;
+export async function saveMoodScoreAction(key: MoodKey, value: number): Promise<boolean> {
+  if (!MOOD_ASPECTS.some((a) => a.key === key) || !Number.isInteger(value) || value < 1 || value > 5) return false;
   try {
     await saveMoodAnswer(todayKey(), key, value);
   } catch (err) {
     reportError("actions/saveMoodScore", err);
-    return;
+    return false;
   }
   revalidatePath("/");
+  return true;
 }
 
 /** Conferma o scarta una nota proposta da Aira (prima c'erano i bottoni su Telegram). */
