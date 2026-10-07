@@ -896,3 +896,16 @@
 .src-ico { color: var(--a-cyan); }
 .chip { color: var(--a-cyan); padding: 4px 7px; }
 .mic-tag { vertical-align: -1px; }
+
+/* skeleton della cronologia: si vede finché non si sa se ci sono messaggi passati */
+.bubble-skeletons { display: flex; flex-direction: column; gap: 10px; }
+.bubble-skeletons .sk {
+  display: block; height: 54px; width: 62%; border-radius: 14px;
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0.04) 30%, rgba(255, 255, 255, 0.11) 50%, rgba(255, 255, 255, 0.04) 70%) 0 0 / 220% 100%;
+  animation: sk-shimmer 1.4s ease-in-out infinite;
+}
+.bubble-skeletons .sk-aira { align-self: flex-start; border-bottom-left-radius: 4px; }
+.bubble-skeletons .sk-user { align-self: flex-end; width: 44%; height: 40px; border-bottom-right-radius: 4px; }
+.bubble-skeletons .sk-long { width: 78%; height: 84px; }
+@keyframes sk-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+@media (prefers-reduced-motion: reduce) { .bubble-skeletons .sk { animation: none; } }

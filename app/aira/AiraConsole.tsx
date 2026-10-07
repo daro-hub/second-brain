@@ -91,6 +91,8 @@ function safeHtml(html: string): string {
  */
 export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; active: boolean; onClose: () => void }) {
   const [messages, setMessages] = useState<Msg[]>([WELCOME]);
+  // finché non si sa se c'è una cronologia si mostra uno skeleton, non il saluto (comparirebbe un istante e poi sparirebbe)
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [input, setInput] = useState("");
 
@@ -154,7 +156,10 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
         });
         setMessages(past.length ? past : [WELCOME]);
       })
-      .catch(() => undefined); // senza cronologia si riparte dal saluto: non è un errore da mostrare
+      .catch(() => undefined) // senza cronologia si riparte dal saluto: non è un errore da mostrare
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -354,11 +359,20 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
   const lastAira = [...messages].reverse().find((m) => m.role === "aira" && (m.sources.length || m.pending || m.intent));
   const shown = messages.find((m) => m.id === selectedId) ?? lastAira;
   const shownSources = shown?.sources ?? [];
+  const showSkeleton = historyLoading && messages.length === 1 && messages[0].id === WELCOME.id;
+
   return (
     <div className={`aira-root embedded${active ? "" : " off"}`} aria-hidden={!active}>
       <section className="aira-log" ref={logRef} aria-live="polite">
         <div className="hud-label">CONVERSAZIONE</div>
-        {messages.map((m) => (
+        {showSkeleton && (
+          <div className="bubble-skeletons" role="status" aria-label="Carico la conversazione">
+            <span className="sk sk-aira" />
+            <span className="sk sk-user" />
+            <span className="sk sk-aira sk-long" />
+          </div>
+        )}
+        {(showSkeleton ? [] : messages).map((m) => (
           <div
             key={m.id}
             className={`bubble ${m.role}${m.error ? " error" : ""}${shown?.id === m.id ? " selected" : ""}`}
@@ -413,7 +427,7 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
           </div>
         ))}
         <RestTimer show={Boolean(lastAira?.intent && GYM_INTENTS.has(lastAira.intent))} />
-        {messages.length === 1 && (
+        {!showSkeleton && messages.length === 1 && (
           <div className="suggestions">
             {SUGGESTIONS.map((s) => (
               <button
