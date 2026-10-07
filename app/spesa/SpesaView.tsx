@@ -10,9 +10,12 @@ export async function SpesaView() {
       <h2><Icon name="cart" size={24} /> Lista della spesa</h2>
 
       <div className="card">
-        <form action={addItemAction} style={{ display: "flex", gap: 8, marginBottom: items.length ? 16 : 0 }}>
+        <form action={addItemAction} className="spesa-add" style={{ display: "flex", gap: 8, marginBottom: items.length ? 16 : 0 }}>
           <input type="text" name="item" placeholder="Aggiungi un articolo…" autoComplete="off" />
-          <button type="submit">Aggiungi</button>
+          <button type="submit" aria-label="Aggiungi">
+            <span className="add-lbl">Aggiungi</span>
+            <Icon name="plus" size={20} className="add-ico" />
+          </button>
         </form>
 
         {items.length === 0 ? (
