@@ -1936,3 +1936,9 @@ a.pass-text { color: var(--accent); text-decoration: none; }
   .aira-head { display: block; pointer-events: auto; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
   .aira-dock > .aira-state { display: none; }
 }
+
+/* scelta della modalità live (pagina di stato di Aira) */
+.live-mode .seg { display: flex; gap: 4px; padding: 3px; margin: 10px 0 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
+.live-mode .seg button { flex: 1 1 0; padding: 9px 10px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; }
+.live-mode .seg button:hover { background: rgba(122, 162, 255, 0.1); }
+.live-mode .seg button.on { background: rgba(77, 225, 255, 0.16); color: var(--accent); box-shadow: inset 0 0 0 1px rgba(77, 225, 255, 0.35); }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ASK_TOOL_NAME, MAX_SESSION_MS } from "../../src/lib/realtimeSession";
+import { END_GAP_MS, joinParts, PHRASE_GAP_MS, readLiveMode, splitSentences, type LiveMode } from "../../src/lib/liveTurns";
 import type { Phase } from "./Orb";
 
 /** Cosa fa la console quando la sessione live produce testo o chiede dati: la voce resta qui, la chat resta lì. */
@@ -50,6 +51,12 @@ export function useAiraVoice() {
   const levelRef = useRef(0);
   const recRef = useRef<{ rec: MediaRecorder; chunks: Blob[]; startedAt: number; send: boolean } | null>(null);
   const vadRef = useRef({ floor: 0.01, speaking: false, speechStart: 0, lastVoice: 0 });
+  // modalità a frasi: trascrizioni delle frasi del turno in corso, nell'ordine in cui sono state dette (null = in corso)
+  const partsRef = useRef<{ text: string | null }[]>([]);
+  const liveModeRef = useRef<LiveMode>("realtime");
+  // lettura a pezzi: il "gettone" cambia a ogni risposta/interruzione e ferma il ciclo di riproduzione precedente
+  const speakTokenRef = useRef(0);
+  const playCancelRef = useRef<(() => void) | null>(null);
 
   // sessione live realtime (WebRTC verso OpenAI)
   const rtRef = useRef(false);
@@ -101,6 +108,9 @@ export function useAiraVoice() {
   }, []);
 
   const stopSpeaking = useCallback(() => {
+    speakTokenRef.current++;
+    playCancelRef.current?.();
+    playCancelRef.current = null;
     if (rtRef.current) {
       // interruzione a tocco: ferma la risposta in corso e svuota l'audio già in coda
       if (phaseRef.current === "speaking" || phaseRef.current === "thinking") {
@@ -127,6 +137,7 @@ export function useAiraVoice() {
     }
   }, [endSegment, setPhaseBoth]);
 
+  /** Legge la risposta a pezzi (una frase o due alla volta): la sintesi del primo parte subito, mentre quella dei successivi si prepara. */
   const speak = useCallback(
     async (text: string) => {
       if (!text) {
@@ -134,32 +145,49 @@ export function useAiraVoice() {
         return;
       }
       ensureAudio();
+      const token = ++speakTokenRef.current;
       setPhaseBoth("speaking");
-      try {
-        const res = await fetch("/api/aira/speak", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        });
-        if (!res.ok) throw new Error(String(res.status));
-        const url = URL.createObjectURL(await res.blob());
-        const el = outElRef.current!;
-        // se nel frattempo l'utente ha interrotto, non si parte
-        if (phaseRef.current !== "speaking") {
-          URL.revokeObjectURL(url);
-          return;
+      const chunks = splitSentences(text);
+      const fetched: Promise<Blob>[] = [];
+      // al massimo due sintesi in preparazione contemporaneamente (i servizi di voce limitano le richieste parallele)
+      const prepare = (i: number) => {
+        if (i < chunks.length && !fetched[i]) {
+          const p = fetch("/api/aira/speak", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: chunks[i] }),
+          }).then((res) => {
+            if (!res.ok) throw new Error(String(res.status));
+            return res.blob();
+          });
+          p.catch(() => undefined); // l'errore lo gestisce il ciclo di riproduzione, qui niente "unhandled rejection"
+          fetched[i] = p;
         }
-        el.src = url;
-        el.onended = () => {
+      };
+      prepare(0);
+      prepare(1);
+      try {
+        for (let i = 0; i < chunks.length; i++) {
+          const blob = await fetched[i];
+          // se nel frattempo l'utente ha interrotto, non si parte
+          if (speakTokenRef.current !== token) return;
+          prepare(i + 2);
+          const url = URL.createObjectURL(blob);
+          const el = outElRef.current!;
+          await new Promise<void>((resolve, reject) => {
+            playCancelRef.current = resolve;
+            el.src = url;
+            el.onended = () => resolve();
+            el.onerror = () => reject(new Error("playback"));
+            el.play().catch(reject);
+          });
+          playCancelRef.current = null;
           URL.revokeObjectURL(url);
-          if (phaseRef.current === "speaking") beginListeningIfLive();
-        };
-        el.onerror = () => {
-          URL.revokeObjectURL(url);
-          if (phaseRef.current === "speaking") beginListeningIfLive();
-        };
-        await el.play();
+          if (speakTokenRef.current !== token) return;
+        }
+        if (phaseRef.current === "speaking") beginListeningIfLive();
       } catch {
+        if (speakTokenRef.current !== token) return;
         setNotice("Non riesco a usare la voce in questo momento: ti rispondo solo per iscritto.");
         if (phaseRef.current === "speaking") beginListeningIfLive();
       }
@@ -188,6 +216,32 @@ export function useAiraVoice() {
     [beginListeningIfLive, setPhaseBoth],
   );
 
+  /** Trascrive una frase del turno mentre si continua ad ascoltare: il testo si accoda in `partsRef` nell'ordine giusto. */
+  const transcribePart = useCallback(async (blob: Blob) => {
+    const part: { text: string | null } = { text: null };
+    partsRef.current.push(part);
+    try {
+      const res = await fetch("/api/aira/transcribe", { method: "POST", headers: { "Content-Type": blob.type || "audio/webm" }, body: blob });
+      if (!res.ok) throw new Error(String(res.status));
+      part.text = ((await res.json()) as { text: string }).text ?? "";
+    } catch {
+      part.text = ""; // una frase persa non blocca il turno: si manda quello che si è capito
+    }
+  }, []);
+
+  /** Fine turno: il testo di tutte le frasi va ad Aira. */
+  const flushParts = useCallback(() => {
+    const text = joinParts(partsRef.current.map((p) => p.text));
+    partsRef.current = [];
+    if (!text) {
+      beginListeningIfLive();
+      return;
+    }
+    setPhaseBoth("thinking");
+    setHeard(text);
+    void onHeardRef.current?.(text);
+  }, [beginListeningIfLive, setPhaseBoth]);
+
   const startSegment = useCallback(() => {
     const stream = micStreamRef.current;
     if (!stream || recRef.current) return;
@@ -197,11 +251,15 @@ export function useAiraVoice() {
     rec.ondataavailable = (e) => e.data.size && seg.chunks.push(e.data);
     rec.onstop = () => {
       if (recRef.current === seg) recRef.current = null;
-      if (seg.send && seg.chunks.length) void transcribeAndSend(new Blob(seg.chunks, { type: rec.mimeType || mime || "audio/webm" }));
+      if (seg.send && seg.chunks.length) {
+        const blob = new Blob(seg.chunks, { type: rec.mimeType || mime || "audio/webm" });
+        if (liveModeRef.current === "turns") void transcribePart(blob);
+        else void transcribeAndSend(blob);
+      }
     };
     rec.start(250);
     recRef.current = seg;
-  }, [transcribeAndSend]);
+  }, [transcribeAndSend, transcribePart]);
 
   // un solo loop per frame: livello per l'orb + rilevamento del parlato
   useEffect(() => {
@@ -257,7 +315,11 @@ export function useAiraVoice() {
           vad.speechStart = now;
         }
       }
-      if (vad.speaking && now - vad.lastVoice > 1100) {
+      const turns = liveModeRef.current === "turns";
+      if (turns && !vad.speaking && partsRef.current.length && now - vad.lastVoice > END_GAP_MS && partsRef.current.every((p) => p.text !== null)) {
+        flushParts(); // silenzio abbastanza lungo e tutte le frasi già trascritte: il turno è finito
+      }
+      if (vad.speaking && now - vad.lastVoice > (turns ? PHRASE_GAP_MS : 1100)) {
         const spoke = vad.lastVoice - vad.speechStart;
         vad.speaking = false;
         if (spoke > 350) endSegment(true);
@@ -272,7 +334,7 @@ export function useAiraVoice() {
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [endSegment, startSegment]);
+  }, [endSegment, flushParts, startSegment]);
 
   const closeRealtime = useCallback(() => {
     if (rtTimerRef.current) clearTimeout(rtTimerRef.current);
@@ -306,6 +368,7 @@ export function useAiraVoice() {
     setLive(false);
     closeRealtime();
     endSegment(false);
+    partsRef.current = [];
     vadRef.current.speaking = false;
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
@@ -474,6 +537,13 @@ export function useAiraVoice() {
     setPhaseBoth("thinking"); // connessione in corso
     liveRef.current = true;
     setLive(true);
+    liveModeRef.current = readLiveMode();
+    partsRef.current = [];
+    if (liveModeRef.current === "turns") {
+      // modalità a frasi (economica): niente sessione realtime, si ascolta e si trascrive frase per frase
+      setPhaseBoth("listening");
+      return;
+    }
     try {
       await startRealtime(stream, ctx);
       setPhaseBoth("listening");
@@ -481,7 +551,8 @@ export function useAiraVoice() {
       // ripiego: la modalità a turni (registra, trascrive, risponde, legge) funziona anche senza realtime
       console.warn("[aira] voce realtime non disponibile, uso la modalità a turni:", err);
       closeRealtime();
-      setNotice("Voce live non disponibile ora: uso la modalità a turni.");
+      liveModeRef.current = "turns";
+      setNotice("Voce live non disponibile ora: uso la modalità a frasi.");
       setPhaseBoth("listening");
     }
   }, [closeRealtime, ensureAudio, setNotice, setPhaseBoth, startRealtime]);

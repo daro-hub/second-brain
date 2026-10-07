@@ -4,6 +4,7 @@ import { todayKey } from "../../../src/lib/time";
 import { getBrainSnapshot } from "../../../src/lib/brain";
 import { logKnowledgeAction, logSocialAction } from "../../actions/hub";
 import { BrainPanel } from "./BrainPanel";
+import { LiveModeCard } from "./LiveModeCard";
 import { PushToggle } from "./PushToggle";
 import { MoodDiary, MoodNote } from "./MoodDiary";
 import { WidgetCard } from "./WidgetCard";
@@ -274,6 +275,7 @@ export async function AiraPanel() {
   const brain = await getBrainSnapshot();
   return (
     <>
+      <LiveModeCard />
       <PushToggle />
       <WidgetCard />
       <ProposalsPanel />
