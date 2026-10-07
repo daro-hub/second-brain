@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { CloseIcon, MicIcon, SendIcon, SourceIcon, StopIcon, TrashIcon, VolumeIcon, WaveIcon } from "./icons";
+import { CloseIcon, MicIcon, PulseIcon, SendIcon, SourceIcon, StopIcon, TrashIcon, VolumeIcon, WaveIcon } from "./icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Source, SourceId } from "../../src/lib/trace";
 import type { Phase } from "./Orb";
 import type { AiraVoice } from "./useAiraVoice";
 import { RestTimer } from "./RestTimer";
 import "./aira.css";
+import { Icon } from "../components/Icon";
 
 interface Msg {
   id: number;
@@ -302,7 +303,7 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
             className={`bubble ${m.role}${m.error ? " error" : ""}${shown?.id === m.id ? " selected" : ""}`}
             onClick={() => m.role === "aira" && setSelectedId(m.id)}
           >
-            {m.via === "telegram" && <span className="via-tag">📨 Telegram</span>}
+            {m.via === "telegram" && <span className="via-tag"><Icon name="telegram" size={12} /> Telegram</span>}
             {m.role === "user" ? (
               <>
                 {m.viaVoice && <span className="mic-tag"><MicIcon size={12} /></span>}
@@ -369,14 +370,20 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
       </section>
 
       <section className="aira-core">
-        <Link href="/?p=aira" className="aira-state" aria-label="Stato di Aira">
-          <span className="dot" aria-hidden />
-          Stato
-        </Link>
-        <button type="button" className="aira-clear" onClick={() => void clearChat()} aria-label="Svuota chat" title="Svuota chat">
-          <span aria-hidden className="ico"><TrashIcon size={16} /></span>
-          <span className="lbl"> Svuota chat</span>
-        </button>
+        <div className="aira-dock" role="toolbar" aria-label="Azioni della chat">
+          <Link href="/?p=aira" className="aira-state" aria-label="Stato di Aira" title="Stato di Aira">
+            <span className="ico" aria-hidden><PulseIcon size={16} /></span>
+            <span className="lbl">Stato</span>
+          </Link>
+          <button type="button" className="aira-clear" onClick={() => void clearChat()} aria-label="Svuota chat" title="Svuota chat">
+            <span className="ico" aria-hidden><TrashIcon size={16} /></span>
+            <span className="lbl">Svuota</span>
+          </button>
+          <button type="button" className="aira-close" onClick={onClose} aria-label="Chiudi" title="Chiudi">
+            <span className="ico" aria-hidden><CloseIcon size={16} /></span>
+            <span className="lbl">Chiudi</span>
+          </button>
+        </div>
         <div className="orb-wrap" aria-hidden />
         <div className="aira-name">Aira</div>
         <div className={`status status-${phase}`}>
@@ -385,10 +392,6 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
         </div>
         <div className="heard">{phase === "listening" ? "Parla pure, ti ascolto…" : heard ? `“${heard}”` : " "}</div>
         {notice && <div className="notice">{notice}</div>}
-        <button type="button" className="aira-close" onClick={onClose} aria-label="Chiudi">
-          <span className="arrow ico" aria-hidden><CloseIcon size={16} /></span>
-          <span className="lbl"> Chiudi</span>
-        </button>
       </section>
 
       <aside className="aira-sources">
