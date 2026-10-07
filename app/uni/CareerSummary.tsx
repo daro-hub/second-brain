@@ -1,12 +1,8 @@
-import { summarize, type Course } from "../../src/lib/uniExams";
+import { courseMeta, summarize, type Course } from "../../src/lib/uniExams";
 import { CourseStatus } from "./CourseStatus";
 
 const fmtDate = (k: string | null) => (k ? `${k.slice(8)}/${k.slice(5, 7)}/${k.slice(0, 4)}` : "");
 const avg = (n: number | null) => (n === null ? "—" : n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-
-/** "6 CFU · 1 sem. · 48 h" (semestri e ore solo se noti). */
-const courseMeta = (c: Course) =>
-  [c.cfu ? `${c.cfu} CFU` : "idoneità", c.semesters ? `${c.semesters} sem.` : "", c.hours ? `${c.hours} h` : ""].filter(Boolean).join(" · ");
 
 /** Resoconto del piano di studi: esami passati e mancanti, CFU e medie. */
 export function CareerSummary({ courses, today }: { courses: Course[]; today: string }) {

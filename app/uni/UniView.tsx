@@ -39,7 +39,7 @@ async function UniDashboard() {
     return (
       <>
         <WeekAgenda />
-        <ExamPlanner courses={courses.map(({ code, name, year, status }) => ({ code, name, year, status }))} exams={exams} today={today} />
+        <ExamPlanner courses={courses.map(({ code, name, year, status, cfu, semesters, hours }) => ({ code, name, year, status, cfu, semesters, hours }))} exams={exams} today={today} />
         <CareerSummary courses={courses} today={today} />
       </>
     );

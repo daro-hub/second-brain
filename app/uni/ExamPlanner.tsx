@@ -2,12 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { courseMeta } from "../../src/lib/uniExams";
 
 export interface CourseOpt {
   code: string;
   name: string;
   year: number;
   status: "passed" | "attending" | "todo";
+  cfu: number;
+  semesters?: number | null;
+  hours?: number | null;
 }
 export interface ExamRow {
   id: number;
@@ -124,7 +128,7 @@ export function ExamPlanner({ courses, exams, today }: { courses: CourseOpt[]; e
                 <optgroup key={y} label={`${y}° anno`}>
                   {list.map((c) => (
                     <option key={c.code} value={c.code}>
-                      {c.name}
+                      {c.name} · {courseMeta(c)}
                       {c.status === "attending" ? " · frequentato" : ""}
                     </option>
                   ))}
