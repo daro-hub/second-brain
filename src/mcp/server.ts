@@ -13,6 +13,7 @@ import { searchIssues } from "../lib/linear";
 import { searchByFilter, searchSemantic } from "../lib/search";
 import { getRecentActivities } from "../lib/strava";
 import { getExerciseHistory, getLastSession, getPR, getRoutinePreview, logWorkout } from "../lib/workouts";
+import { callHealthTool, healthToolDefs } from "./healthTools";
 
 const server = new Server(
   { name: "second-brain", version: "0.1.0" },
@@ -177,6 +178,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["exercise"],
       },
     },
+    ...healthToolDefs,
   ],
 }));
 
@@ -265,6 +267,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (name === "get_pr") {
     const pr = await getPR(String(args?.exercise).toLowerCase().trim());
     return { content: [{ type: "text", text: JSON.stringify(pr, null, 2) }] };
+  }
+
+  const health = await callHealthTool(name, args);
+  if (health !== undefined) {
+    return { content: [{ type: "text", text: JSON.stringify(health, null, 2) }] };
   }
 
   throw new Error(`Unknown tool: ${name}`);
