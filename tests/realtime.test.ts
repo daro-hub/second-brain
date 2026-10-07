@@ -9,7 +9,10 @@ const OFFER = "v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\ns=-\r\n";
 const post = (body: string, headers: Record<string, string> = {}) => POST(new Request("http://x/api/aira/realtime", { method: "POST", body, headers: { "Content-Type": "application/sdp", ...headers } }));
 
 describe("configurazione della sessione live", () => {
-  afterEach(() => delete process.env.REALTIME_MODEL);
+  afterEach(() => {
+    delete process.env.REALTIME_MODEL;
+    delete process.env.REALTIME_VOICE;
+  });
 
   it("voce italiana, trascrizione, interruzione a voce e un solo tool verso la pipeline di Aira", () => {
     const c = buildSessionConfig();
@@ -21,6 +24,19 @@ describe("configurazione della sessione live", () => {
     expect(c.tools[0].parameters.required).toEqual(["request"]);
     expect(c.instructions).toContain(ASK_TOOL_NAME);
     expect(MAX_SESSION_MS).toBe(10 * 60_000);
+  });
+
+  it("stile: italiano, accento da madrelingua, risposte brevissime", () => {
+    const i = buildSessionConfig().instructions;
+    expect(i).toMatch(/madrelingua italiana/);
+    expect(i).toMatch(/UNA frase/);
+    expect(i).toMatch(/Non nominare mai «tool»/);
+  });
+
+  it("la voce si cambia da REALTIME_VOICE (default marin)", () => {
+    expect(buildSessionConfig().audio.output.voice).toBe("marin");
+    process.env.REALTIME_VOICE = "cedar";
+    expect(buildSessionConfig().audio.output.voice).toBe("cedar");
   });
 
   it("il modello si cambia da REALTIME_MODEL senza toccare il codice", () => {
