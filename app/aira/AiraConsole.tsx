@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CloseIcon, MicIcon, SendIcon, SourceIcon, StopIcon, TrashIcon, VolumeIcon, WaveIcon } from "./icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Source, SourceId } from "../../src/lib/trace";
 import type { Phase } from "./Orb";
@@ -23,20 +24,6 @@ interface Msg {
   via?: string;
 }
 
-const ICONS: Record<SourceId, string> = {
-  kb: "🧠",
-  calendar: "📅",
-  study: "📚",
-  gym: "🏋️",
-  strava: "🏃",
-  health: "❤️",
-  energy: "🔥",
-  shopping: "🛒",
-  github: "🐙",
-  linear: "📐",
-  gmail: "✉️",
-  bitwarden: "🔐",
-};
 
 const INTENT_LABELS: Record<string, string> = {
   workout: "Registro allenamento",
@@ -279,7 +266,7 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
             {m.via === "telegram" && <span className="via-tag">📨 Telegram</span>}
             {m.role === "user" ? (
               <>
-                {m.viaVoice && <span className="mic-tag">🎙</span>}
+                {m.viaVoice && <span className="mic-tag"><MicIcon size={12} /></span>}
                 {m.text}
               </>
             ) : m.pending ? (
@@ -317,7 +304,7 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
               <div className="chips">
                 {Array.from(new Set(m.sources.map((s) => s.id))).map((id) => (
                   <span key={id} className="chip">
-                    {ICONS[id]}
+                    <SourceIcon id={id} size={14} />
                   </span>
                 ))}
               </div>
@@ -348,7 +335,7 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
           Stato
         </Link>
         <button type="button" className="aira-clear" onClick={() => void clearChat()} aria-label="Svuota chat" title="Svuota chat">
-          <span aria-hidden>🗑</span>
+          <span aria-hidden className="ico"><TrashIcon size={16} /></span>
           <span className="lbl"> Svuota chat</span>
         </button>
         <div className="orb-wrap" aria-hidden />
@@ -360,7 +347,7 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
         <div className="heard">{phase === "listening" ? "Parla pure, ti ascolto…" : heard ? `“${heard}”` : " "}</div>
         {notice && <div className="notice">{notice}</div>}
         <button type="button" className="aira-close" onClick={onClose} aria-label="Chiudi">
-          <span className="arrow" aria-hidden>✕</span>
+          <span className="arrow ico" aria-hidden><CloseIcon size={16} /></span>
           <span className="lbl"> Chiudi</span>
         </button>
       </section>
@@ -378,7 +365,7 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
         {shownSources.map((s, i) => (
           <article key={`${shown?.id}-${i}`} className="src-card" style={{ animationDelay: `${i * 80}ms` }}>
             <div className="src-head">
-              <span className="src-ico">{ICONS[s.id]}</span>
+              <span className="src-ico"><SourceIcon id={s.id} size={22} /></span>
               <div>
                 <div className="src-label">{s.label}</div>
                 <div className="src-sum">{s.summary}</div>
@@ -423,7 +410,7 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
           title={live ? "Termina la modalità live" : "Parla con Aira in diretta"}
           aria-label={live ? "Termina la modalità live" : "Parla con Aira in diretta"}
         >
-          <span aria-hidden>{live ? "■" : "🎙"}</span>
+          <span aria-hidden className="ico">{live ? <StopIcon size={16} /> : <WaveIcon size={18} />}</span>
           <span className="lbl"> LIVE</span>
         </button>
         <input
@@ -446,12 +433,14 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
           className={`btn-vol${voiceReplies ? " on" : ""}`}
           onClick={() => setVoiceReplies((v) => !v)}
           title="Risposte vocali anche per i messaggi scritti"
+          aria-label="Risposte vocali"
+          aria-pressed={voiceReplies}
         >
-          {voiceReplies ? "🔊" : "🔈"}
+          <VolumeIcon on={voiceReplies} size={18} />
         </button>
         <button type="submit" className="btn-send" aria-label="Invia" disabled={!input.trim() || phase === "thinking"}>
           <span className="lbl">Invia</span>
-          <span className="arrow" aria-hidden>↑</span>
+          <span className="arrow" aria-hidden><SendIcon size={18} /></span>
         </button>
       </form>
     </div>

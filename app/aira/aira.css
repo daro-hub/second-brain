@@ -885,3 +885,11 @@
 .rest-timer .rt-left b { font-size: 22px; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
 .rest-timer.done { border-color: rgba(255, 190, 90, 0.7); animation: rtpulse 0.9s ease-in-out infinite alternate; }
 @keyframes rtpulse { from { background: rgba(255, 190, 90, 0.08); } to { background: rgba(255, 190, 90, 0.28); } }
+
+/* icone SVG a linea al posto delle emoji */
+.aira-bar button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.aira-bar .btn-vol { padding: 9px 11px; }
+.ico, .mic-tag, .src-ico, .chip { display: inline-flex; align-items: center; }
+.src-ico { color: var(--a-cyan); }
+.chip { color: var(--a-cyan); padding: 4px 7px; }
+.mic-tag { vertical-align: -1px; }
