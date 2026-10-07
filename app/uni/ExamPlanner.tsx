@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { courseMeta } from "../../src/lib/uniExams";
+import { courseMeta } from "../../src/lib/courseMeta";
 
 export interface CourseOpt {
   code: string;

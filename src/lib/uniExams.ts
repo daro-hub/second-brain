@@ -14,9 +14,7 @@ export interface Course {
   hours?: number | null;
 }
 
-/** "6 CFU · 1 sem. · 48 h" (semestri e ore solo se noti). */
-export const courseMeta = (c: Pick<Course, "cfu" | "semesters" | "hours">) =>
-  [c.cfu ? `${c.cfu} CFU` : "idoneità", c.semesters ? `${c.semesters} sem.` : "", c.hours ? `${c.hours} h` : ""].filter(Boolean).join(" · ");
+export { courseMeta } from "./courseMeta";
 
 export interface PlannedExam {
   id: number;
