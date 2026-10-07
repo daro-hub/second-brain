@@ -121,7 +121,7 @@ export async function getEnergyBalance(daysArg?: unknown) {
   const o = await getEnergyOverview(clampDays(daysArg, 30, 90));
   const r = (n: number | null) => (n === null ? null : round(n));
   return {
-    maintenanceKcal: o.maintenance,
+    restingKcal: o.restingKcal,
     reliability: o.reliability,
     currentKg: round(o.currentKg, 1),
     today: {
@@ -137,7 +137,7 @@ export async function getEnergyBalance(daysArg?: unknown) {
       ? { lossKg: round(o.projection.lossKg, 1), endKg: round(o.projection.endKg, 1), rangeKg: [round(o.projection.weeks[3].low, 1), round(o.projection.weeks[3].high, 1)] }
       : null,
     insights: o.insights.map((i) => i.text),
-    note: "Deficit positivo = hai mangiato meno del fabbisogno stimato. Il fabbisogno è una stima (mantenimento dichiarato 1900 kcal corretto per passi e allenamenti).",
+    note: "Deficit positivo = hai mangiato meno del fabbisogno stimato. Il fabbisogno è una stima (1750 kcal a zero attività, più le kcal dei passi oltre i 1000 di base e dell'allenamento reale).",
   };
 }
 

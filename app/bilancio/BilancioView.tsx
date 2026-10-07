@@ -153,7 +153,7 @@ export async function BilancioView() {
       <div className="eyebrow">Bilancio energetico</div>
       <h2>Deficit, fabbisogno e proiezione</h2>
       <p className="page-sub">
-        Fabbisogno = il tuo mantenimento dichiarato ({it(PROFILE.maintenanceKcal)} kcal, 4 allenamenti a settimana, vita sedentaria) corretto ogni giorno per i passi e
+        Fabbisogno = quanto consumi a zero attività ({it(PROFILE.restingKcal)} kcal, giornata in casa a lavorare e studiare) più, ogni giorno, i passi e
         l&apos;allenamento reali. Confrontato con le calorie registrate da Yazio. È una stima, non una misura.
       </p>
 
@@ -198,9 +198,9 @@ export async function BilancioView() {
           <div className="card-head"><h3>Come ho calcolato oggi</h3></div>
           <table>
             <tbody>
-              <tr><td>Mantenimento dichiarato</td><td style={{ textAlign: "right" }}><b>{it(PROFILE.maintenanceKcal)}</b></td></tr>
-              <tr><td>Passi ({it(t.steps)} vs {it(PROFILE.baselineSteps)} di base)</td><td style={{ textAlign: "right" }}><b>{sgn(t.stepsAdj)}</b></td></tr>
-              <tr><td>Allenamento ({t.trainingMin} min) vs media</td><td style={{ textAlign: "right" }}><b>{sgn(t.trainingAdj)}</b></td></tr>
+              <tr><td>A zero attività</td><td style={{ textAlign: "right" }}><b>{it(PROFILE.restingKcal)}</b></td></tr>
+              <tr><td>Passi ({it(t.steps)}, oltre {it(PROFILE.baselineSteps)} di base)</td><td style={{ textAlign: "right" }}><b>{sgn(t.stepsAdj)}</b></td></tr>
+              <tr><td>Allenamento ({t.trainingMin} min)</td><td style={{ textAlign: "right" }}><b>{sgn(t.trainingAdj)}</b></td></tr>
               <tr><td><b>Fabbisogno stimato</b></td><td style={{ textAlign: "right" }}><b className="hud-num">{it(t.expenditure)}</b></td></tr>
               <tr><td>Calorie mangiate (Yazio)</td><td style={{ textAlign: "right" }}><b>{t.intake ? it(t.intake) : "—"}</b></td></tr>
               <tr><td><b>{t.deficit !== null && t.deficit < 0 ? "Surplus" : "Deficit"} se la giornata finisse ora</b></td><td style={{ textAlign: "right" }}><b className="hud-num" style={{ color: (t.deficit ?? 0) >= 0 ? "var(--c-good)" : "var(--c-warn)" }}>{t.deficit === null ? "—" : sgn(Math.abs(t.deficit))}</b></td></tr>

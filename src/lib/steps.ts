@@ -1,3 +1,4 @@
+import { getHealthDaily } from "./health";
 import { supabase } from "./supabase";
 
 export async function upsertDailySteps(date: string, steps: number, source = "apple_health"): Promise<void> {
@@ -10,15 +11,13 @@ export interface DailySteps {
   steps: number;
 }
 
+/** Passi giornalieri letti da Apple Health (`health_metrics`, metrica step_count): è l'unica fonte, `daily_steps` è dismessa. */
 export async function getStepsForRange(startDate: string, endDate: string): Promise<DailySteps[]> {
-  const { data, error } = await supabase
-    .from("daily_steps")
-    .select("date, steps")
-    .gte("date", startDate)
-    .lte("date", endDate)
-    .order("date", { ascending: true });
-  if (error) throw error;
-  return data ?? [];
+  const rows = await getHealthDaily("step_count", startDate, endDate);
+  return rows
+    .filter((r) => (r.total ?? 0) > 0)
+    .map((r) => ({ date: r.day, steps: Math.round(r.total as number) }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export interface StepsStats {

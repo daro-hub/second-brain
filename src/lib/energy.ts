@@ -5,23 +5,22 @@ import { supabase } from "./supabase";
 import { addDays, todayKey } from "./time";
 
 /**
- * Modello del fabbisogno di Daro. Il punto di partenza è dichiarato da lui (KB, 04/10/2026):
- * ~1900 kcal/giorno di mantenimento con 4 allenamenti a settimana e vita sedentaria (pochi passi).
- * Da lì, ogni giorno si corregge il fabbisogno per quanto passi e allenamento reali si
- * discostano da quella giornata "tipo". È una STIMA: i coefficienti sono costanti note e
- * modificabili qui sotto, non misure.
+ * Modello del fabbisogno di Daro. Il punto di partenza è il fabbisogno a ZERO attività
+ * (giornata in casa a lavorare e studiare, senza allenarsi): 1750 kcal, deciso il 07/10/2026
+ * (formula Mifflin 1610 di metabolismo basale + digestione, controllata sui dati Apple Health).
+ * Su quel pavimento si SOMMANO ogni giorno i passi oltre la soglia minima di casa e
+ * l'allenamento reale. È una STIMA: i coefficienti sono costanti note e modificabili qui
+ * sotto, non misure.
  */
 export const PROFILE = {
-  maintenanceKcal: 1900,
+  /** fabbisogno a zero attività: metabolismo basale + digestione + movimento minimo in casa */
+  restingKcal: 1750,
   weightKg: 65,
   heightCm: 170,
-  trainingsPerWeek: 4,
-  /** passi della giornata "tipo" inclusa nel mantenimento (stile di vita sedentario) */
-  baselineSteps: 4000,
+  /** passi già compresi nel fabbisogno a zero attività (muoversi per casa); solo quelli oltre contano */
+  baselineSteps: 1000,
   /** kcal nette per passo (≈ 0,5 kcal/kg/km con passo di ~0,7 m) */
   kcalPerStep: 0.035,
-  /** durata media di una sessione di pesi inclusa nel mantenimento */
-  baselineSessionMin: 60,
   /** kcal per kg di grasso corporeo */
   kcalPerKgFat: 7700,
   /** sotto questa soglia un giorno senza pasti registrati non conta: sarebbe un falso deficit */
@@ -31,8 +30,6 @@ export const PROFILE = {
 /** kcal nette al minuto = (MET − 1) × kg / 60 */
 const netPerMin = (met: number) => ((met - 1) * PROFILE.weightKg) / 60;
 const MET = { weights: 3.5, run: 9.8, other: 5 };
-const BASELINE_TRAINING_KCAL_PER_DAY =
-  (PROFILE.trainingsPerWeek * PROFILE.baselineSessionMin * netPerMin(MET.weights)) / 7;
 
 export interface EnergyDay {
   dayKey: string;
@@ -86,7 +83,8 @@ export interface EnergyOverview {
   today: EnergyDay;
   week: { deficit: number; days: number; avgDeficit: number | null };
   month: { deficit: number; days: number; avgDeficit: number | null };
-  maintenance: number;
+  /** fabbisogno a zero attività, il pavimento su cui si sommano passi e allenamento */
+  restingKcal: number;
   weights: WeightPoint[];
   currentKg: number;
   projection: Projection | null;
@@ -126,9 +124,10 @@ export async function getEnergyOverview(windowDays = 30): Promise<EnergyOverview
     const stepsUsed = stepsKnown ? stepRow : PROFILE.baselineSteps;
     const train = trainingKcalFor(activities.filter((a) => a.dateKey === key));
 
-    const stepsAdj = (stepsUsed - PROFILE.baselineSteps) * PROFILE.kcalPerStep;
-    const trainingAdj = train.kcal - BASELINE_TRAINING_KCAL_PER_DAY;
-    const expenditure = PROFILE.maintenanceKcal + stepsAdj + trainingAdj;
+    // sul pavimento "zero attività" si somma solo ciò che c'è in più: mai sotto lo zero
+    const stepsAdj = Math.max(0, stepsUsed - PROFILE.baselineSteps) * PROFILE.kcalPerStep;
+    const trainingAdj = train.kcal;
+    const expenditure = PROFILE.restingKcal + stepsAdj + trainingAdj;
     const logged = intake !== null && (isToday || intake >= PROFILE.minLoggedKcal);
     days.push({
       dayKey: key,
@@ -208,5 +207,5 @@ export async function getEnergyOverview(windowDays = 30): Promise<EnergyOverview
   }
 
   void mean;
-  return { days, today: todayRow, week, month, maintenance: PROFILE.maintenanceKcal, weights, currentKg, projection, reliability, insights };
+  return { days, today: todayRow, week, month, restingKcal: PROFILE.restingKcal, weights, currentKg, projection, reliability, insights };
 }

@@ -107,7 +107,7 @@ describe("get_nutrition", () => {
 describe("get_energy_balance", () => {
   it("riduce l'overview a numeri arrotondati e gestisce proiezione assente", async () => {
     vi.mocked(getEnergyOverview).mockResolvedValue({
-      maintenance: 1900,
+      restingKcal: 1750,
       reliability: "media",
       currentKg: 64.84,
       today: { intake: 800.4, expenditure: 1950.6, steps: 3000, trainingMin: 0, deficit: 1150.2 },

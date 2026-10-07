@@ -892,7 +892,7 @@ Per chiuderli: /promemoria.` : formatOpenReminders(items);
       const ov = await getEnergyOverview(30);
       const t = ov.today;
       const lines = [
-        `Fabbisogno stimato oggi: ${Math.round(t.expenditure)} kcal (mantenimento dichiarato ${PROFILE.maintenanceKcal}, passi ${Math.round(t.stepsAdj)}, allenamento ${Math.round(t.trainingAdj)}).`,
+        `Fabbisogno stimato oggi: ${Math.round(t.expenditure)} kcal (a zero attività ${PROFILE.restingKcal}, passi +${Math.round(t.stepsAdj)}, allenamento +${Math.round(t.trainingAdj)}).`,
         t.intake ? `Calorie mangiate oggi finora: ${Math.round(t.intake)} -> margine ${Math.round(t.expenditure - t.intake)} kcal (positivo = deficit se la giornata finisse ora).` : "Oggi non risultano pasti registrati.",
         ov.week.days ? `Ultimi ${ov.week.days} giorni registrati: deficit totale ${Math.round(ov.week.deficit)} kcal (media ${Math.round(ov.week.avgDeficit as number)}/giorno). Positivo = deficit, negativo = surplus.` : "Nessun giorno completo registrato negli ultimi 7 giorni.",
         ov.month.days ? `Media su ${ov.month.days} giorni: ${Math.round(ov.month.avgDeficit as number)} kcal/giorno di deficit.` : "",
