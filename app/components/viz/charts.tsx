@@ -314,9 +314,7 @@ export function AreaLine({
           <g key={`m${i}`}>
             <title>{m.label}</title>
             <circle cx={sx(m.x)} cy={sy(m.y)} r={7} fill="none" stroke="#f5c542" strokeWidth={2} />
-            <text x={sx(m.x)} y={sy(m.y) - 12} textAnchor="middle" fontSize={11}>
-              🏆
-            </text>
+            <path transform={`translate(${sx(m.x) - 7} ${sy(m.y) - 28}) scale(0.58)`} d="M8 4h8v5a4 4 0 0 1-8 0V4ZM8 6H4v1.500A3 3 0 0 0 7.500 11M16 6h4v1.500A3 3 0 0 1 16.500 11M12 13v4M8.500 20h7M10 17h4" fill="none" stroke="#f5c542" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
           </g>
         ))}
       </svg>

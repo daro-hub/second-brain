@@ -1,12 +1,13 @@
 import { getActiveShoppingList } from "../../src/lib/shoppingList";
 import { addItemAction, checkOffAction } from "./actions";
+import { Icon } from "../components/Icon";
 
 export async function SpesaView() {
   const items = await getActiveShoppingList();
 
   return (
     <>
-      <h2>🛒 Lista della spesa</h2>
+      <h2><Icon name="cart" size={24} /> Lista della spesa</h2>
 
       <div className="card">
         <form action={addItemAction} style={{ display: "flex", gap: 8, marginBottom: items.length ? 16 : 0 }}>

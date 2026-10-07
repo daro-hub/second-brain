@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Icon } from "../components/Icon";
 
 const PRESETS = [
   { seconds: 120, label: "2 min" },
@@ -109,7 +110,7 @@ export function RestTimer({ show }: { show: boolean }) {
       {running && timer ? (
         <>
           <span className="rt-left" aria-live="off">
-            ⏱ <b>{fmt(timer.endsAt - now)}</b>
+            <Icon name="timer" size={14} /> <b>{fmt(timer.endsAt - now)}</b>
           </span>
           <button type="button" onClick={() => void stop()}>
             Stop
@@ -117,7 +118,7 @@ export function RestTimer({ show }: { show: boolean }) {
         </>
       ) : expired ? (
         <>
-          <span className="rt-left">⏰ Recupero finito!</span>
+          <span className="rt-left"><Icon name="bell" size={14} /> Recupero finito!</span>
           <button type="button" onClick={() => setExpired(false)}>
             Ok
           </button>
@@ -125,7 +126,7 @@ export function RestTimer({ show }: { show: boolean }) {
       ) : (
         PRESETS.map((p) => (
           <button key={p.seconds} type="button" onClick={() => void start(p.seconds)}>
-            ⏱ {p.label}
+            <Icon name="timer" size={14} /> {p.label}
           </button>
         ))
       )}

@@ -46,7 +46,7 @@ export function MoodDiary({ aspects, scores }: { aspects: Aspect[]; scores: Part
         </div>
       ))}
       <p className="muted small" role="status" aria-live="polite" style={{ margin: "6px 0 0", minHeight: 18 }}>
-        {status === "saving" ? "Salvo…" : status === "saved" ? "Salvato ✓" : status === "error" ? "Non salvato: riprova." : ""}
+        {status === "saving" ? "Salvo…" : status === "saved" ? "Salvato" : status === "error" ? "Non salvato: riprova." : ""}
       </p>
     </>
   );
@@ -85,7 +85,7 @@ export function MoodNote({ initial }: { initial: string }) {
       />
       <div className="pass-row">
         {dirty && <button type="button" onClick={() => void save()} disabled={status === "saving"}>{status === "saving" ? "Salvo…" : "Salva"}</button>}
-        <span className="pass-status" role="status" aria-live="polite">{status === "saved" && !dirty ? "Salvato ✓" : status === "error" ? "Non salvato: riprova." : ""}</span>
+        <span className="pass-status" role="status" aria-live="polite">{status === "saved" && !dirty ? "Salvato" : status === "error" ? "Non salvato: riprova." : ""}</span>
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import { getDayBundle } from "../../src/lib/overview";
 import { addDays, formatDayLong, localHourDecimal, todayKey, weekdayShort } from "../../src/lib/time";
 import { AreaLine, GroupedBars } from "../components/viz/charts";
 import { CollectProgress, MacroBar, Ring } from "../components/viz/small";
+import { Icon } from "../components/Icon";
 
 const PROTEIN_LOW = 1.6;
 const PROTEIN_HIGH = 2.2;
@@ -44,22 +45,22 @@ export async function SaluteView({ date }: { date?: string }) {
 
       <div className="grid grid-kpi">
         <div className="card kpi" style={{ ["--kpi" as string]: "var(--c-nutrition)" }}>
-          <div className="kpi-top"><span>🍽 Assunte</span></div>
+          <div className="kpi-top"><span><Icon name="meal" /> Assunte</span></div>
           <div className="kpi-value">{int(nutrition.kcalIn)}<small>kcal</small></div>
           <div className="kpi-sub">{nutrition.meals.length} {nutrition.meals.length === 1 ? "pasto" : "pasti"} registrati</div>
         </div>
         <div className="card kpi" style={{ ["--kpi" as string]: "#ff8a5c" }}>
-          <div className="kpi-top"><span>🔥 Bruciate</span></div>
+          <div className="kpi-top"><span><Icon name="flame" /> Bruciate</span></div>
           <div className="kpi-value">{int(energy.burnedKcal)}<small>kcal</small></div>
           <div className="kpi-sub">basale {int(energy.basalKcal)} + attività {int(energy.activeKcal)}{bundle.isToday ? " · giornata in corso" : ""}</div>
         </div>
         <div className="card kpi" style={{ ["--kpi" as string]: energy.balanceKcal > 0 ? "var(--c-warn)" : "var(--c-good)" }}>
-          <div className="kpi-top"><span>⚖️ Bilancio</span></div>
+          <div className="kpi-top"><span><Icon name="scale" /> Bilancio</span></div>
           <div className="kpi-value">{signed(energy.balanceKcal)}<small>kcal</small></div>
           <div className="kpi-sub">{bundle.isToday ? "Provvisorio: il dispendio cresce fino a sera." : energy.balanceKcal > 0 ? "Surplus calorico" : "Deficit calorico"}</div>
         </div>
         <div className="card kpi" style={{ ["--kpi" as string]: "var(--c-steps)" }}>
-          <div className="kpi-top"><span>👟 Passi</span></div>
+          <div className="kpi-top"><span><Icon name="steps" /> Passi</span></div>
           <div className="kpi-value">{int(steps.total)}</div>
           <div className="kpi-sub">{hr.avg ? `FC media ${int(hr.avg)} bpm (min ${int(hr.min ?? 0)}, max ${int(hr.max ?? 0)})` : "Nessun dato di battito"}</div>
         </div>
@@ -118,7 +119,7 @@ export async function SaluteView({ date }: { date?: string }) {
 
       <div className="grid grid-2" style={{ marginBottom: 18 }}>
         <div className="card">
-          <div className="card-head"><h3>🌙 Notte</h3><span className="muted small">23:00 → 07:00</span></div>
+          <div className="card-head"><h3><Icon name="moon" size={17} /> Notte</h3><span className="muted small">23:00 → 07:00</span></div>
           {night.points.length > 1 ? (
             <>
               <AreaLine

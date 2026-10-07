@@ -1,13 +1,11 @@
 import Link from "next/link";
 import { getLatestWeightKg } from "../../src/lib/health";
-import { getStrengthLeaderboard, getNightsCount, getTrainingHours } from "../../src/lib/insights";
 import { clock, dec, int, signed } from "../../src/lib/numfmt";
 import { getDayBundle, getWeekStrip } from "../../src/lib/overview";
-import { formatDayLong, localHourDecimal, todayKey, weekdayShort } from "../../src/lib/time";
+import { formatDayLong, localHourDecimal, todayKey } from "../../src/lib/time";
 import { getNextRoutineToTrain } from "../../src/lib/workouts";
+import { Icon } from "../components/Icon";
 import { DayTimeline } from "../components/viz/DayTimeline";
-import { getLifeBalance } from "../../src/lib/balance";
-import { RadarChart } from "../components/viz/RadarChart";
 import { Ring, Sparkline } from "../components/viz/small";
 
 const PROTEIN_G_PER_KG_TARGET = 1.6; // soglia inferiore dell'intervallo 1,6–2,2 g/kg per chi si allena con i pesi
@@ -21,15 +19,11 @@ const swatch = { studio: "var(--c-study)", lezione: "var(--c-lesson)" } as const
 
 export async function OggiView() {
   const today = todayKey();
-  const [balance, bundle, week, weight, routine, strength, hours, nights] = await Promise.all([
-    getLifeBalance().catch(() => null),
+  const [bundle, week, weight, routine] = await Promise.all([
     getDayBundle(today),
     getWeekStrip(today, 7),
     getLatestWeightKg().catch(() => null),
     getNextRoutineToTrain().catch(() => null),
-    getStrengthLeaderboard().catch(() => []),
-    getTrainingHours().catch(() => null),
-    getNightsCount().catch(() => 0),
   ]);
 
   const { nutrition, energy, steps, night, hr } = bundle;
@@ -51,7 +45,7 @@ export async function OggiView() {
       <div className="grid grid-kpi">
         <div className="card kpi" style={{ ["--kpi" as string]: "var(--c-nutrition)" }}>
           <div className="kpi-top">
-            <span>🍽 Energia</span>
+            <span><Icon name="meal" /> Energia</span>
             <span className="pill warn">{bundle.isToday ? "finora" : "giorno"}</span>
           </div>
           <div className="kpi-value">
@@ -72,7 +66,7 @@ export async function OggiView() {
 
         <div className="card kpi" style={{ ["--kpi" as string]: "#ff8a5c" }}>
           <div className="kpi-top">
-            <span>🥩 Proteine</span>
+            <span><Icon name="protein" /> Proteine</span>
             {weight && <span className="pill">{dec(nutrition.proteinG / weight.kg, 2)} g/kg</span>}
           </div>
           <div className="kpi-ring" style={{ marginTop: 8 }}>
@@ -93,7 +87,7 @@ export async function OggiView() {
 
         <div className="card kpi" style={{ ["--kpi" as string]: "var(--c-steps)" }}>
           <div className="kpi-top">
-            <span>👟 Passi</span>
+            <span><Icon name="steps" /> Passi</span>
           </div>
           <div className="kpi-ring" style={{ marginTop: 8 }}>
             <Ring value={steps.total} max={10000} color="var(--c-steps)" label={int(steps.total)} sub="/ 10.000" />
@@ -107,7 +101,7 @@ export async function OggiView() {
 
         <div className="card kpi" style={{ ["--kpi" as string]: "var(--c-heart)" }}>
           <div className="kpi-top">
-            <span>❤️ FC a riposo (notte)</span>
+            <span><Icon name="heart" /> FC a riposo (notte)</span>
           </div>
           <div className="kpi-value">
             {night.resting ? int(night.resting) : "—"}
@@ -126,7 +120,7 @@ export async function OggiView() {
 
         <div className="card kpi" style={{ ["--kpi" as string]: "var(--c-weights)" }}>
           <div className="kpi-top">
-            <span>🏋️ Allenamento</span>
+            <span><Icon name="dumbbell" /> Allenamento</span>
             {bundle.gymLogs.length > 0 || todaySessions.length > 0 ? (
               <span className="pill good">fatto</span>
             ) : routine === "riposo" ? (
@@ -160,32 +154,10 @@ export async function OggiView() {
         <DayTimeline bundle={bundle} />
       </div>
 
-      {balance && (
-        <div className="card">
-          <div className="card-head">
-            <h3>⚖ Equilibrio della settimana</h3>
-            <Link href="/?p=salute" className="muted small">
-              {balance.index !== null ? `indice ${balance.index}/100 · ` : ""}dettagli →
-            </Link>
-          </div>
-          <div className="grid grid-2" style={{ alignItems: "center" }}>
-            <RadarChart axes={balance.axes.map((a) => ({ label: a.label, value: a.score }))} />
-            <div>
-              <ul className="insight-list">
-                {balance.insights.map((i, k) => (
-                  <li key={k} className={i.tone}><span className="ic">{i.icon}</span><span>{i.text}</span></li>
-                ))}
-              </ul>
-              <p className="muted small" style={{ marginBottom: 0 }}>Cinque assi su una scala 0-100 (tratteggio = 70): se uno si stacca dagli altri, stai spingendo troppo su una cosa.</p>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="grid grid-2" style={{ marginBottom: 18 }}>
         <div className="card">
           <div className="card-head">
-            <h3>📅 Agenda di oggi</h3>
+            <h3><Icon name="calendar" /> Agenda di oggi</h3>
           </div>
           {bundle.schedule.length === 0 && bundle.events.length === 0 && (
             <p className="muted small">Nessuna lezione, studio o evento in calendario per oggi.</p>
@@ -212,7 +184,7 @@ export async function OggiView() {
 
         <div className="card">
           <div className="card-head">
-            <h3>🍽 Pasti di oggi</h3>
+            <h3><Icon name="meal" /> Pasti di oggi</h3>
             <Link href="/?p=salute" className="muted small">
               dettaglio →
             </Link>
@@ -233,93 +205,6 @@ export async function OggiView() {
               </div>
             ))
           )}
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card-head">
-          <h3>Ultimi 7 giorni</h3>
-          <Link href="/?p=incroci" className="muted small">
-            tutti gli incroci →
-          </Link>
-        </div>
-        <div className="week-strip">
-          {week.map((d) => (
-            <div key={d.dayKey} className={`week-day${d.dayKey === today ? " today" : ""}`}>
-              <div className="d" style={{ textTransform: "capitalize" }}>
-                {weekdayShort(d.dayKey)} {Number(d.dayKey.slice(8))}
-              </div>
-              <div className="v">{d.steps > 0 ? `${int(d.steps)} passi` : "—"}</div>
-              <div className="v" style={{ color: "var(--muted)" }}>
-                {d.kcalIn > 0 ? `${int(d.kcalIn)} kcal` : "—"}
-              </div>
-              <div className="dots">
-                {d.trainingTypes.map((t) => (
-                  <i
-                    key={t}
-                    title={`${t} · ${d.trainingMin} min`}
-                    style={{ background: t === "WeightTraining" ? "var(--c-weights)" : t === "Run" ? "var(--c-run)" : "var(--c-walk)" }}
-                  />
-                ))}
-                {d.gymLogged > 0 && !d.trainingTypes.includes("WeightTraining") && <i title="serie registrate" style={{ background: "var(--c-weights)" }} />}
-              </div>
-              {d.trainingMin > 0 && <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>{d.trainingMin} min</div>}
-            </div>
-          ))}
-        </div>
-        <p className="muted small" style={{ marginTop: 12 }}>
-          Passi e calorie hanno storico solo da quando la sincronizzazione Apple Health è attiva; gli allenamenti vengono da
-          Strava (orari reali).
-        </p>
-      </div>
-
-      <div className="card">
-        <div className="card-head">
-          <h3>🔗 Incroci in evidenza</h3>
-          <Link href="/?p=incroci" className="muted small">
-            apri →
-          </Link>
-        </div>
-        <div className="grid grid-3">
-          <div className="card" style={{ background: "var(--panel-2)", margin: 0 }}>
-            <div className="eyebrow">Quando ti alleni</div>
-            <p style={{ margin: "8px 0 0", lineHeight: 1.5 }}>
-              {hours && hours.peakHour !== null ? (
-                <>
-                  Di solito inizi attorno alle <b>{clock(hours.peakHour)}</b>.{" "}
-                  {hours.clash > 0 ? (
-                    <>
-                      <b>{hours.clash}</b> sessioni su {hours.total} sono iniziate in orario di studio/lezioni.
-                    </>
-                  ) : (
-                    "Nessun conflitto con lo studio."
-                  )}
-                </>
-              ) : (
-                "Servono più sessioni su Strava."
-              )}
-            </p>
-          </div>
-          <div className="card" style={{ background: "var(--panel-2)", margin: 0 }}>
-            <div className="eyebrow">Forza</div>
-            <p style={{ margin: "8px 0 0", lineHeight: 1.5 }}>
-              {strength[0] ? (
-                <>
-                  Miglior progresso: <b style={{ textTransform: "capitalize" }}>{strength[0].exercise}</b>,{" "}
-                  <b>+{int(strength[0].deltaPct)}%</b> di massimale stimato in {strength[0].logs} sessioni.
-                </>
-              ) : (
-                "Servono almeno 3 sessioni per esercizio."
-              )}
-            </p>
-          </div>
-          <div className="card" style={{ background: "var(--panel-2)", margin: 0 }}>
-            <div className="eyebrow">In raccolta</div>
-            <p style={{ margin: "8px 0 0", lineHeight: 1.5 }}>
-              Recupero notturno × allenamento: <b>{nights}/8</b> notti. Si sblocca da solo man mano che l&apos;automazione
-              sincronizza.
-            </p>
-          </div>
         </div>
       </div>
     </>

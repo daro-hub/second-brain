@@ -17,6 +17,7 @@ import { supabase } from "../../../src/lib/supabase";
 import { addDays, formatDayShort } from "../../../src/lib/time";
 import { crossWork, fmtHours, commitsError, getHourlyRate, getOrgCommits, getPayments, getWork, minutesByDay, outstanding, workStats } from "../../../src/lib/work";
 import { addPaymentAction, addExtraAction, addWorkAction, deletePaymentAction, deleteWorkAction, decideProposalAction, setProfileFactAction, setRateAction, setWorkHoursAction } from "../../actions/hub";
+import { Icon } from "../Icon";
 
 export function Skeleton({ label }: { label: string }) {
   return (
@@ -117,7 +118,7 @@ export async function WorkTracker() {
           <div className="agenda-row" key={p.id}>
             <span className="time">{formatDayShort(p.paidOn)}</span>
             <span style={{ flex: 1 }}>{p.amountEur === null ? "importo n/d" : `${p.amountEur.toLocaleString("it-IT")} €`}<span className="muted small"> · coperto fino al {formatDayShort(p.coversUntil)}{p.note ? ` · ${p.note}` : ""}</span></span>
-            <form action={deletePaymentAction}><input type="hidden" name="id" value={p.id} /><button type="submit" className="muted small" aria-label="Elimina">✕</button></form>
+            <form action={deletePaymentAction}><input type="hidden" name="id" value={p.id} /><button type="submit" className="muted small" aria-label="Elimina"><Icon name="close" size={14} /></button></form>
           </div>
         ))}
         <form action={setRateAction} className="hub-form" style={{ marginTop: 8 }}>
@@ -181,7 +182,7 @@ export async function WorkTracker() {
             ) : (
               <span className="muted small">{e.minutes ? fmtHours(e.minutes) : e.extraEur !== null ? `${e.extraEur > 0 ? "+" : "−"}${Math.abs(e.extraEur).toLocaleString("it-IT")} €` : "—"}</span>
             )}
-            <form action={deleteWorkAction}><input type="hidden" name="id" value={e.id} /><button type="submit" className="muted small" aria-label="Elimina" title="Elimina">✕</button></form>
+            <form action={deleteWorkAction}><input type="hidden" name="id" value={e.id} /><button type="submit" className="muted small" aria-label="Elimina" title="Elimina"><Icon name="close" size={14} /></button></form>
           </div>
         ))}
       </div>
@@ -203,7 +204,7 @@ export async function MoodPanel() {
   return (
     <>
       <div className="card">
-        <div className="card-head"><h3>Diario di oggi</h3><span className="muted small">{todayRow?.completed ? "completo ✓" : "tocca un numero · 1 male, 5 benissimo"}</span></div>
+        <div className="card-head"><h3>Diario di oggi</h3><span className="muted small">{todayRow?.completed ? "completo" : "tocca un numero · 1 male, 5 benissimo"}</span></div>
         <MoodDiary aspects={MOOD_ASPECTS.map((a) => ({ key: a.key, label: a.label, question: a.question }))} scores={todayRow?.scores ?? {}} />
         <p className="muted small" style={{ marginTop: 6 }}>Stress: 5 = tantissimo. Il promemoria arriva alle 22 come notifica (e su Telegram).</p>
       </div>
@@ -247,7 +248,7 @@ export async function PillsPanel() {
         <div className="agenda-row" key={String(p.id)}>
           <span className="time" style={{ textTransform: "capitalize" }}>{String(p.area)}</span>
           <span style={{ flex: 1 }}>{String(p.title)}<span className="muted small"> · {String(p.key_fact)}</span></span>
-          <span className="muted small">{p.status === "known" ? "✓" : p.status === "review" ? "↻" : "·"}</span>
+          <span className="muted small">{p.status === "known" ? <Icon name="check" size={14} /> : p.status === "review" ? <Icon name="rotate" size={14} /> : "·"}</span>
         </div>
       ))}
     </div>

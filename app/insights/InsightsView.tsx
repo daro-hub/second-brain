@@ -18,6 +18,7 @@ import { describeCorrelation } from "../../src/lib/stats";
 import { todayKey, weekdayShort } from "../../src/lib/time";
 import { ActivityHeatmap, GroupedBars, HourHistogram, XYScatter } from "../components/viz/charts";
 import { CollectProgress, Sparkline } from "../components/viz/small";
+import { Icon, type IconName } from "../components/Icon";
 
 function Insight({
   icon,
@@ -28,7 +29,7 @@ function Insight({
   teaser,
   wide,
 }: {
-  icon: string;
+  icon: IconName;
   title: string;
   status: "ready" | "collecting";
   gate?: Gate;
@@ -40,7 +41,7 @@ function Insight({
     <div className="card insight" style={wide ? { gridColumn: "1 / -1" } : undefined}>
       <div className="insight-head">
         <h3>
-          {icon} {title}
+          <Icon name={icon} size={17} /> {title}
         </h3>
         <span className={`pill ${status === "ready" ? "good" : "info"}`}>{status === "ready" ? "pronto" : "in raccolta"}</span>
       </div>
@@ -97,7 +98,7 @@ export async function InsightsView() {
 
       <div className="card insight">
         <div className="insight-head">
-          <h3>🗓 Costanza — ultime 20 settimane</h3>
+          <h3><Icon name="calendar" size={17} /> Costanza — ultime 20 settimane</h3>
           <span className="pill good">pronto</span>
         </div>
         <p className="headline">
@@ -107,7 +108,7 @@ export async function InsightsView() {
       </div>
 
       <div className="grid grid-2" style={{ marginBottom: 18 }}>
-        <Insight icon="⏰" title="Quando ti alleni vs quando sei occupato" status="ready">
+        <Insight icon="timer" title="Quando ti alleni vs quando sei occupato" status="ready">
           <p className="headline">
             {hours.peakHour !== null ? (
               <>
@@ -121,7 +122,7 @@ export async function InsightsView() {
           <HourHistogram counts={hours.counts} busy={hours.busy} />
         </Insight>
 
-        <Insight icon="📚" title="Budget della settimana" status="ready">
+        <Insight icon="book" title="Budget della settimana" status="ready">
           <p className="headline">
             Questa settimana: <b>{dec(budget.totals.study)} h</b> di studio, <b>{dec(budget.totals.lesson)} h</b> di lezione e{" "}
             <b>{dec(budget.totals.training)} h</b> di allenamento finora.
@@ -140,7 +141,7 @@ export async function InsightsView() {
         </Insight>
 
         <Insight
-          icon="🔥"
+          icon="flame"
           title="Bilancio energetico"
           status={energy.gate.ready ? "ready" : "collecting"}
           gate={energy.gate}
@@ -164,7 +165,7 @@ export async function InsightsView() {
         </Insight>
 
         <Insight
-          icon="👟"
+          icon="steps"
           title="Passi: giorni di allenamento vs riposo"
           status={steps.gate.ready ? "ready" : "collecting"}
           gate={steps.gate}
@@ -185,7 +186,7 @@ export async function InsightsView() {
         </Insight>
 
         <Insight
-          icon="🌙"
+          icon="moon"
           title="Recupero notturno × allenamento del giorno prima"
           status={nightTrain.gate.ready ? "ready" : "collecting"}
           gate={nightTrain.gate}
@@ -204,7 +205,7 @@ export async function InsightsView() {
         </Insight>
 
         <Insight
-          icon="🍽"
+          icon="meal"
           title="Cena tardi → battito notturno"
           status={nightMeal.gate.ready ? "ready" : "collecting"}
           gate={nightMeal.gate}
@@ -223,7 +224,7 @@ export async function InsightsView() {
         </Insight>
 
         <Insight
-          icon="🏃"
+          icon="run"
           title="Corsa: passo × giorni dall'ultimo allenamento coi pesi"
           status={runs.gate.ready ? "ready" : "collecting"}
           gate={runs.gate}
@@ -245,7 +246,7 @@ export async function InsightsView() {
 
       <div className="card insight">
         <div className="insight-head">
-          <h3>💪 Progressione della forza</h3>
+          <h3><Icon name="dumbbell" size={17} /> Progressione della forza</h3>
           <span className="pill good">pronto</span>
         </div>
         <p className="headline">

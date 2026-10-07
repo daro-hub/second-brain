@@ -1608,6 +1608,15 @@ main > *:nth-child(n + 6) {
 .topnav::-webkit-scrollbar { display: none; }
 /* strumenti: sulla stessa riga dell'indirizzo, fra indirizzo e orologio */
 .topbar-row .topnav { flex: 1; height: 100%; justify-content: center; }
+/* desktop: indirizzo | strumenti | orologio su tre colonne, con le due laterali di pari larghezza: gli strumenti restano al centro esatto dello schermo */
+@media (min-width: 900px) {
+  .topbar-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+  .topbar-row .topnav { flex: none; }
+  .topbar .readouts { justify-self: end; }
+}
+.ico { display: inline-block; vertical-align: -3px; flex: none; }
+.kpi .kpi-top > span:first-child { display: inline-flex; align-items: center; gap: 7px; }
+.card-head h3 { display: flex; align-items: center; gap: 8px; }
 /* pilastri: sotto l'header, centrati (se non ci stanno, scorrono) */
 .topnav.pillars { justify-content: safe center; height: 40px; padding: 0 28px; border-top: 1px solid var(--border-soft); background: rgba(8, 11, 16, 0.5); }
 @media (max-width: 1280px) {

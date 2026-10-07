@@ -2,13 +2,22 @@ import type { DayBundle } from "../../../src/lib/overview";
 import { localHourDecimal } from "../../../src/lib/time";
 
 const W = 960;
-const H = 392;
-const L = 54;
+const L = 78;
 const R = 16;
 const PLOT_W = W - L - R;
-const PLOT_TOP = 124;
-const PLOT_BOTTOM = 318;
-const PLOT_H = PLOT_BOTTOM - PLOT_TOP;
+
+// corsie dall'alto in basso: ogni cosa ha la sua fascia, niente sovrapposizioni
+const AGENDA_Y = 14; // due righe: studio/lezioni, calendario
+const SPORT_Y = 92;
+const MEALS_Y = 140;
+const HR_TOP = 196;
+const HR_BOTTOM = 316;
+const HR_H = HR_BOTTOM - HR_TOP;
+const STEPS_TOP = 346;
+const STEPS_BOTTOM = 406;
+const STEPS_H = STEPS_BOTTOM - STEPS_TOP;
+const AXIS_Y = 424;
+const H = 446;
 
 const x = (hour: number) => L + (Math.min(Math.max(hour, 0), 24) / 24) * PLOT_W;
 
@@ -37,7 +46,7 @@ const typeColor = (t: string) =>
 const typeLabel = (t: string) =>
   t === "WeightTraining" ? "Pesi" : t === "Run" ? "Corsa" : t === "Walk" ? "Camminata" : t;
 
-function clip(text: string, widthPx: number, charPx = 6.1): string {
+function clip(text: string, widthPx: number, charPx = 6.6): string {
   const max = Math.floor(widthPx / charPx);
   if (max < 3) return "";
   return text.length <= max ? text : `${text.slice(0, Math.max(1, max - 1))}…`;
@@ -66,7 +75,7 @@ export function DayTimeline({ bundle }: { bundle: DayBundle }) {
 
   const hrMax = Math.max(120, Math.ceil(((hr.max ?? 100) + 5) / 20) * 20);
   const hrMin = 40;
-  const yHr = (v: number) => PLOT_BOTTOM - ((v - hrMin) / (hrMax - hrMin)) * PLOT_H;
+  const yHr = (v: number) => HR_BOTTOM - ((v - hrMin) / (hrMax - hrMin)) * HR_H;
 
   const maxSteps = Math.max(...steps.hourly, 1);
   const hrTicks: number[] = [];
@@ -83,43 +92,34 @@ export function DayTimeline({ bundle }: { bundle: DayBundle }) {
   const meals = groupMeals(nutrition.meals);
   const hasHr = hr.points.length > 0;
   const hasSteps = steps.total > 0;
+  const timed = events.filter((e) => !e.allDay);
+  const sessions = activities.filter((a) => a.movingTimeMin > 0);
+
+  const laneLabel = (y: number, text: string, color = "#8b94a9") => (
+    <text x={L - 12} y={y} textAnchor="end" fontSize={12} fontWeight={700} fill={color}>
+      {text}
+    </text>
+  );
+  const band = (y: number, h: number) => <rect x={L} y={y} width={PLOT_W} height={h} rx={8} fill="rgba(255,255,255,0.025)" />;
 
   return (
     <div className="viz-scroll" style={{ overflowX: "auto" }}>
-      <svg className="viz" viewBox={`0 0 ${W} ${H}`} role="img" style={{ minWidth: 760 }}>
-        {/* fasce notte */}
-        <rect x={x(0)} y={PLOT_TOP} width={x(6) - x(0)} height={PLOT_H} fill="rgba(255,255,255,0.025)" />
-        <rect x={x(22)} y={PLOT_TOP} width={x(24) - x(22)} height={PLOT_H} fill="rgba(255,255,255,0.025)" />
-
-        {/* griglia orizzontale + asse battito */}
-        {hrTicks.map((v) => (
-          <g key={v}>
-            <line x1={L} x2={W - R} y1={yHr(v)} y2={yHr(v)} stroke="#1f2536" strokeWidth={1} />
-            <text x={L - 8} y={yHr(v) + 3.5} textAnchor="end" fontSize={10} fill="#5b6478">
-              {v}
-            </text>
-          </g>
-        ))}
-        <text x={L - 8} y={PLOT_TOP - 8} textAnchor="end" fontSize={9.5} fill="#ff8da0">
-          bpm
-        </text>
-
-        {/* asse orario */}
+      <svg className="viz" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Cronologia della giornata" style={{ minWidth: 760 }}>
+        {/* griglia verticale oraria, tre ore per volta, attraversa tutte le corsie */}
         {Array.from({ length: 9 }, (_, i) => i * 3).map((h) => (
           <g key={h}>
-            <line x1={x(h)} x2={x(h)} y1={PLOT_TOP} y2={PLOT_BOTTOM} stroke="#181d2b" strokeWidth={1} />
-            <text x={x(h)} y={PLOT_BOTTOM + 17} textAnchor="middle" fontSize={10.5} fill="#7a8398">
+            <line x1={x(h)} x2={x(h)} y1={AGENDA_Y} y2={AXIS_Y - 14} stroke="#1a2030" strokeWidth={1} />
+            <text x={x(h)} y={AXIS_Y + 4} textAnchor="middle" fontSize={12} fill="#8b94a9">
               {String(h).padStart(2, "0")}:00
             </text>
           </g>
         ))}
 
-        {/* corsia agenda: studio/lezioni (riga alta) + eventi calendario (riga bassa) */}
-        <text x={4} y={30} fontSize={9.5} fill="#5b6478" fontWeight={700}>
-          AGENDA
-        </text>
-        {schedule.length === 0 && events.filter((e) => !e.allDay).length === 0 && (
-          <text x={x(0) + 8} y={42} fontSize={11} fill="#4a5266">
+        {/* agenda: riga alta studio/lezioni, riga bassa calendario */}
+        {band(AGENDA_Y, 68)}
+        {laneLabel(AGENDA_Y + 28, "Agenda")}
+        {schedule.length === 0 && timed.length === 0 && (
+          <text x={L + 12} y={AGENDA_Y + 38} fontSize={12.5} fill="#6b7489">
             Nessuna lezione o evento
           </text>
         )}
@@ -129,78 +129,91 @@ export function DayTimeline({ bundle }: { bundle: DayBundle }) {
           return (
             <g key={`s${i}`}>
               <title>{`${s.type === "studio" ? "Studio" : "Lezione"} · ${s.subject} (${fmt(s.startH)}–${fmt(s.endH)})`}</title>
-              <rect x={x(s.startH)} y={16} width={w} height={20} rx={6} fill={color} fillOpacity={0.22} stroke={color} strokeOpacity={0.7} />
-              <text x={x(s.startH) + 7} y={30} fontSize={10.5} fill={color} fontWeight={600}>
-                {clip(s.subject, w - 12)}
+              <rect x={x(s.startH)} y={AGENDA_Y + 6} width={w} height={26} rx={7} fill={color} fillOpacity={0.22} stroke={color} strokeOpacity={0.7} />
+              <text x={x(s.startH) + 8} y={AGENDA_Y + 23} fontSize={12} fill={color} fontWeight={600}>
+                {clip(s.subject, w - 14)}
               </text>
             </g>
           );
         })}
-        {events
-          .filter((e) => !e.allDay)
-          .map((e, i) => {
-            const w = Math.max(x(e.endH) - x(e.startH), 26);
-            return (
-              <g key={`e${i}`}>
-                <title>{`${e.summary} (${fmt(e.startH)}–${fmt(e.endH)})${e.location ? ` · ${e.location}` : ""}`}</title>
-                <rect x={x(e.startH)} y={40} width={w} height={20} rx={6} fill={COLORS.event} fillOpacity={0.2} stroke={COLORS.event} strokeOpacity={0.7} />
-                <text x={x(e.startH) + 7} y={54} fontSize={10.5} fill="#cdd3e4" fontWeight={600}>
-                  {clip(e.summary, w - 12)}
-                </text>
-              </g>
-            );
-          })}
+        {timed.map((e, i) => {
+          const w = Math.max(x(e.endH) - x(e.startH), 28);
+          return (
+            <g key={`e${i}`}>
+              <title>{`${e.summary} (${fmt(e.startH)}–${fmt(e.endH)})${e.location ? ` · ${e.location}` : ""}`}</title>
+              <rect x={x(e.startH)} y={AGENDA_Y + 36} width={w} height={26} rx={7} fill={COLORS.event} fillOpacity={0.2} stroke={COLORS.event} strokeOpacity={0.7} />
+              <text x={x(e.startH) + 8} y={AGENDA_Y + 53} fontSize={12} fill="#cdd3e4" fontWeight={600}>
+                {clip(e.summary, w - 14)}
+              </text>
+            </g>
+          );
+        })}
 
-        {/* corsia sport: attività Strava (orari reali) + serie registrate */}
-        <text x={4} y={96} fontSize={9.5} fill="#5b6478" fontWeight={700}>
-          SPORT
-        </text>
-        {activities.filter((a) => a.movingTimeMin > 0).length === 0 && gymLogs.length === 0 && (
-          <text x={x(0) + 8} y={96} fontSize={11} fill="#4a5266">
+        {/* allenamento: attività Strava (orari reali) + serie registrate */}
+        {band(SPORT_Y, 36)}
+        {laneLabel(SPORT_Y + 23, "Sport")}
+        {sessions.length === 0 && gymLogs.length === 0 && (
+          <text x={L + 12} y={SPORT_Y + 23} fontSize={12.5} fill="#6b7489">
             Nessun allenamento registrato
           </text>
         )}
-        {activities
-          .filter((a) => a.movingTimeMin > 0)
-          .map((a) => {
-            const start = a.startHour;
-            const end = Math.min(24, start + a.movingTimeMin / 60);
-            const w = Math.max(x(end) - x(start), 22);
-            const c = typeColor(a.type);
-            return (
-              <g key={a.id}>
-                <title>{`${typeLabel(a.type)} · ${a.name} — ${a.movingTimeMin} min${a.distanceKm ? ` · ${a.distanceKm} km` : ""}`}</title>
-                <rect x={x(start)} y={80} width={w} height={24} rx={7} fill={c} fillOpacity={0.28} stroke={c} />
-                <text x={x(start) + 7} y={96} fontSize={10.5} fill={c} fontWeight={700}>
-                  {clip(`${typeLabel(a.type)} ${a.movingTimeMin}′`, w - 12)}
-                </text>
-              </g>
-            );
-          })}
+        {sessions.map((a) => {
+          const start = a.startHour;
+          const end = Math.min(24, start + a.movingTimeMin / 60);
+          const w = Math.max(x(end) - x(start), 24);
+          const c = typeColor(a.type);
+          return (
+            <g key={a.id}>
+              <title>{`${typeLabel(a.type)} · ${a.name} — ${a.movingTimeMin} min${a.distanceKm ? ` · ${a.distanceKm} km` : ""}`}</title>
+              <rect x={x(start)} y={SPORT_Y + 5} width={w} height={26} rx={8} fill={c} fillOpacity={0.28} stroke={c} />
+              <text x={x(start) + 8} y={SPORT_Y + 22} fontSize={12} fill={c} fontWeight={700}>
+                {clip(`${typeLabel(a.type)} ${a.movingTimeMin}′`, w - 14)}
+              </text>
+            </g>
+          );
+        })}
         {gymLogs.map((g, i) => {
           const h = localHourDecimal(g.performedAt);
           return (
             <g key={`g${i}`}>
               <title>{`${g.exercise} — ${g.weightKg} kg × ${g.reps} (${fmt(h)})`}</title>
-              <path d={`M ${x(h)} 82 l 7 11 l -7 11 l -7 -11 z`} fill={COLORS.weights} stroke="#0a0c11" strokeWidth={1.5} />
+              <path d={`M ${x(h)} ${SPORT_Y + 6} l 8 12 l -8 12 l -8 -12 z`} fill={COLORS.weights} stroke="#0a0c11" strokeWidth={1.5} />
             </g>
           );
         })}
 
-        {/* passi per ora (barre) */}
-        {hasSteps &&
-          steps.hourly.map((v, h) => {
-            if (v <= 0) return null;
-            const bh = (v / maxSteps) * PLOT_H * 0.4;
-            return (
-              <g key={`st${h}`}>
-                <title>{`${String(h).padStart(2, "0")}:00 · ${Math.round(v)} passi`}</title>
-                <rect x={x(h) + 2} y={PLOT_BOTTOM - bh} width={PLOT_W / 24 - 4} height={bh} rx={3} fill={COLORS.steps} fillOpacity={0.5} />
-              </g>
-            );
-          })}
+        {/* pasti: una corsia sola per loro, con le kcal accanto a ogni segnaposto */}
+        {band(MEALS_Y, 40)}
+        {laneLabel(MEALS_Y + 25, "Pasti", COLORS.meal)}
+        {meals.length === 0 && (
+          <text x={L + 12} y={MEALS_Y + 25} fontSize={12.5} fill="#6b7489">
+            Nessun pasto registrato
+          </text>
+        )}
+        {meals.map((m, i) => (
+          <g key={`m${i}`}>
+            <title>{`${fmt(m.hour)} · ${Math.round(m.kcal)} kcal, ${Math.round(m.protein)} g proteine\n${m.parts.join("\n")}`}</title>
+            <circle cx={x(m.hour)} cy={MEALS_Y + 20} r={6} fill={COLORS.meal} />
+            <text x={x(m.hour) + 12} y={MEALS_Y + 25} fontSize={12} fill={COLORS.meal} fontWeight={700}>
+              {Math.round(m.kcal)} kcal
+            </text>
+          </g>
+        ))}
 
-        {/* battito: fascia min–max + linea della media */}
+        {/* battito: pannello con asse in bpm */}
+        {band(HR_TOP - 12, HR_H + 24)}
+        {laneLabel(HR_TOP + 6, "Battito", COLORS.heart)}
+        <text x={L - 12} y={HR_TOP + 22} textAnchor="end" fontSize={11} fill="#6b7489">
+          bpm
+        </text>
+        {hrTicks.map((v) => (
+          <g key={v}>
+            <line x1={L + 4} x2={W - R - 4} y1={yHr(v)} y2={yHr(v)} stroke="#1f2536" strokeWidth={1} />
+            <text x={L + 8} y={yHr(v) - 4} fontSize={11} fill="#6b7489">
+              {v}
+            </text>
+          </g>
+        ))}
         {segments.map((seg, i) => {
           if (seg.length < 2) {
             const p = seg[0];
@@ -217,42 +230,53 @@ export function DayTimeline({ bundle }: { bundle: DayBundle }) {
           );
         })}
         {!hasHr && (
-          <text x={x(12)} y={(PLOT_TOP + PLOT_BOTTOM) / 2} textAnchor="middle" fontSize={12} fill="#5b6478">
+          <text x={x(12)} y={(HR_TOP + HR_BOTTOM) / 2} textAnchor="middle" fontSize={13} fill="#6b7489">
             Nessun dato di battito per questo giorno
           </text>
         )}
 
-        {/* pasti */}
-        {meals.map((m, i) => (
-          <g key={`m${i}`}>
-            <title>{`🍽 ${fmt(m.hour)} · ${Math.round(m.kcal)} kcal, ${Math.round(m.protein)} g proteine\n${m.parts.join("\n")}`}</title>
-            <line x1={x(m.hour)} x2={x(m.hour)} y1={PLOT_TOP + 8} y2={PLOT_BOTTOM} stroke={COLORS.meal} strokeOpacity={0.55} strokeDasharray="3 4" />
-            <circle cx={x(m.hour)} cy={PLOT_TOP + 8} r={5} fill={COLORS.meal} />
-            <text x={x(m.hour)} y={PLOT_TOP - 2} textAnchor="middle" fontSize={10.5} fill={COLORS.meal} fontWeight={700}>
-              {Math.round(m.kcal)} kcal
-            </text>
-          </g>
-        ))}
+        {/* passi per ora: pannello a parte, sotto il battito */}
+        {band(STEPS_TOP - 8, STEPS_H + 16)}
+        {laneLabel(STEPS_TOP + 12, "Passi", COLORS.steps)}
+        <text x={L - 12} y={STEPS_TOP + 28} textAnchor="end" fontSize={11} fill="#6b7489">
+          per ora
+        </text>
+        {hasSteps ? (
+          steps.hourly.map((v, h) => {
+            if (v <= 0) return null;
+            const bh = Math.max((v / maxSteps) * STEPS_H, 2);
+            return (
+              <g key={`st${h}`}>
+                <title>{`${String(h).padStart(2, "0")}:00 · ${Math.round(v)} passi`}</title>
+                <rect x={x(h) + 2} y={STEPS_BOTTOM - bh} width={PLOT_W / 24 - 4} height={bh} rx={3} fill={COLORS.steps} fillOpacity={0.6} />
+              </g>
+            );
+          })
+        ) : (
+          <text x={x(12)} y={(STEPS_TOP + STEPS_BOTTOM) / 2 + 4} textAnchor="middle" fontSize={13} fill="#6b7489">
+            Nessun passo registrato
+          </text>
+        )}
 
-        {/* adesso */}
+        {/* adesso: attraversa tutte le corsie */}
         {nowHour !== null && (
           <g>
-            <line x1={x(nowHour)} x2={x(nowHour)} y1={14} y2={PLOT_BOTTOM} stroke="#7aa2ff" strokeWidth={1.4} strokeDasharray="4 4" />
-            <rect x={x(nowHour) - 17} y={PLOT_BOTTOM + 24} width={34} height={17} rx={8} fill="#7aa2ff" />
-            <text x={x(nowHour)} y={PLOT_BOTTOM + 36} textAnchor="middle" fontSize={10.5} fill="#0a0c11" fontWeight={800}>
+            <line x1={x(nowHour)} x2={x(nowHour)} y1={AGENDA_Y} y2={AXIS_Y - 14} stroke="#7aa2ff" strokeWidth={1.4} strokeDasharray="4 4" />
+            <rect x={x(nowHour) - 18} y={AXIS_Y - 11} width={36} height={19} rx={9} fill="#7aa2ff" />
+            <text x={x(nowHour)} y={AXIS_Y + 3} textAnchor="middle" fontSize={11.5} fill="#0a0c11" fontWeight={800}>
               ora
             </text>
           </g>
         )}
       </svg>
       <div className="legend">
-        <span><i style={{ background: COLORS.heart }} />Battito (fascia min–max)</span>
-        <span><i style={{ background: COLORS.steps }} />Passi per ora</span>
-        <span><i style={{ background: COLORS.meal }} />Pasti</span>
         <span><i style={{ background: COLORS.study }} />Studio</span>
         <span><i style={{ background: COLORS.lesson }} />Lezioni</span>
         <span><i style={{ background: COLORS.event }} />Calendario</span>
         <span><i style={{ background: COLORS.weights }} />Allenamento</span>
+        <span><i style={{ background: COLORS.meal }} />Pasti</span>
+        <span><i style={{ background: COLORS.heart }} />Battito (fascia min–max)</span>
+        <span><i style={{ background: COLORS.steps }} />Passi</span>
       </div>
     </div>
   );

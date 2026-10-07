@@ -2,6 +2,7 @@ import { getLifeBalance } from "../../src/lib/balance";
 import { getEnergyOverview, PROFILE, type EnergyDay, type EnergyOverview } from "../../src/lib/energy";
 import { addDays, formatDayShort, todayKey, weekdayShort } from "../../src/lib/time";
 import { RadarChart } from "../components/viz/RadarChart";
+import { InsightGlyph } from "../components/Icon";
 
 const it = (n: number, d = 0) => n.toLocaleString("it-IT", { maximumFractionDigits: d, minimumFractionDigits: d });
 const sgn = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${it(Math.abs(n))}`;
@@ -221,7 +222,7 @@ export async function BilancioView() {
           <div className="card-head"><h3>Insight</h3></div>
           <ul className="insight-list">
             {ov.insights.map((i, k) => (
-              <li key={k} className={i.tone}><span className="ic">{i.icon}</span><span>{i.text}</span></li>
+              <li key={k} className={i.tone}><span className="ic"><InsightGlyph glyph={i.icon} /></span><span>{i.text}</span></li>
             ))}
           </ul>
         </div>
@@ -236,7 +237,7 @@ export async function BilancioView() {
           <RadarChart axes={balance.axes.map((a) => ({ label: a.label, value: a.score }))} />
           <ul className="insight-list" style={{ marginTop: 12 }}>
             {balance.insights.map((i, k) => (
-              <li key={k} className={i.tone}><span className="ic">{i.icon}</span><span>{i.text}</span></li>
+              <li key={k} className={i.tone}><span className="ic"><InsightGlyph glyph={i.icon} /></span><span>{i.text}</span></li>
             ))}
           </ul>
         </div>

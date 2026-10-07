@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { HeartInsight, MuscleGroup, MuscleStat } from "../../src/lib/training";
 import "./palestra.css";
+import { Icon } from "../components/Icon";
 
 type View = "front" | "back";
 type NodeId = MuscleGroup | "cuore";
@@ -376,7 +377,7 @@ export function BodyStage({ muscles, heart }: { muscles: MuscleStat[]; heart: He
         <div className="n-sub">
           {m.bestExercise ? `${m.bestExercise} · ` : ""}
           {fmt(m.sets)} serie · {fmt(m.share * 100)}% volume
-          {!visibleHere && <b className="n-flip"> ↺ {ANCHORS[id].front ? "fronte" : "retro"}</b>}
+          {!visibleHere && <b className="n-flip"> <Icon name="rotate" size={12} /> {ANCHORS[id].front ? "fronte" : "retro"}</b>}
         </div>
       </div>
     );

@@ -12,6 +12,7 @@ import { ExamPlanner } from "./ExamPlanner";
 import { CareerSummary } from "./CareerSummary";
 import { getCourses, getPlannedExams } from "../../src/lib/uniExams";
 import { todayKey } from "../../src/lib/time";
+import { Icon } from "../components/Icon";
 
 const fmtSize = (n: number) => (n > 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
@@ -71,7 +72,7 @@ export async function UniView({ path: rawPath }: { path?: string }) {
       const ext = path.split(".").pop()!.toLowerCase();
       return (
         <>
-          <h2>🎓 Università</h2>
+          <h2><Icon name="graduation" size={24} /> Università</h2>
           <Breadcrumbs path={path} />
           <div className="card">
             {ext === "pdf" ? (
@@ -95,7 +96,7 @@ export async function UniView({ path: rawPath }: { path?: string }) {
     const pdfs = entries.filter((e) => e.type === "file" && /\.pdf$/i.test(e.name));
     return (
       <>
-        <h2>🎓 Università</h2>
+        <h2><Icon name="graduation" size={24} /> Università</h2>
         <Breadcrumbs path={path} />
         {path === "" && <UniDashboard />}
         <div className="card">
@@ -106,7 +107,7 @@ export async function UniView({ path: rawPath }: { path?: string }) {
               {entries.map((e) => (
                 <li key={e.path}>
                   <Link href={`/?p=studio&detail=1&path=${encodeURIComponent(e.path)}`}>
-                    {e.type === "dir" ? "📁" : e.name.endsWith(".md") ? "📝" : "📄"} {e.name}
+                    <Icon name={e.type === "dir" ? "folder" : e.name.endsWith(".md") ? "note" : "file"} size={15} /> {e.name}
                   </Link>
                   {e.type === "file" && <span className="uni-size">{fmtSize(e.size)}</span>}
                 </li>
@@ -123,7 +124,7 @@ export async function UniView({ path: rawPath }: { path?: string }) {
     const notFound = err instanceof Error && err.message === "not_found";
     return (
       <>
-        <h2>🎓 Università</h2>
+        <h2><Icon name="graduation" size={24} /> Università</h2>
         <Breadcrumbs path={path} />
         <div className="card">
           <p>{notFound ? "Percorso non trovato." : "Impossibile leggere il repo (controlla GITHUB_TOKEN: deve poter leggere daro-hub/university)."}</p>

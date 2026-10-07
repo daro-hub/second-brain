@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
+import { Icon } from "../components/Icon";
 
 export interface BoardItem {
   id: string;
@@ -143,11 +144,11 @@ export function PassaggiBoard({ items, failed }: { items: BoardItem[]; failed: b
                 </a>
               )}
               <div className="pass-meta">
-                {it.source === "telegram" ? "📨 Telegram" : "web"} · {ago(it.createdAt)} · {expiresIn(it.expiresAt)}
+                {it.source === "telegram" ? <><Icon name="telegram" size={13} /> Telegram</> : "web"} · {ago(it.createdAt)} · {expiresIn(it.expiresAt)}
               </div>
             </div>
             <div className="exam-actions">
-              {it.kind === "text" && <button type="button" onClick={() => void copy(it)}>{copied === it.id ? "Copiato ✓" : "Copia"}</button>}
+              {it.kind === "text" && <button type="button" onClick={() => void copy(it)}>{copied === it.id ? "Copiato" : "Copia"}</button>}
               <button type="button" onClick={() => void remove(it.id)}>Elimina</button>
             </div>
           </li>

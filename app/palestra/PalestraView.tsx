@@ -10,6 +10,7 @@ import { getTrainingOverview } from "../../src/lib/training";
 import { ActivityHeatmap, AreaLine } from "../components/viz/charts";
 import { BodyStage } from "./BodyStage";
 import { Radar } from "./Radar";
+import { Icon, InsightGlyph } from "../components/Icon";
 
 const TYPE_LABEL: Record<string, string> = { WeightTraining: "Pesi", Run: "Corsa", Walk: "Camminata" };
 const TYPE_COLOR: Record<string, string> = { WeightTraining: "var(--c-weights)", Run: "var(--c-run)", Walk: "var(--c-walk)" };
@@ -108,7 +109,7 @@ export async function PalestraView({ exercise: selected }: { exercise?: string }
           <div className="card-head"><h3>Insight</h3><span className="muted small">calcolati sui tuoi dati</span></div>
           <ul className="insight-list">
             {overview.insights.map((i, k) => (
-              <li key={k} className={i.tone}><span className="ic">{i.icon}</span><span>{i.text}</span></li>
+              <li key={k} className={i.tone}><span className="ic"><InsightGlyph glyph={i.icon} /></span><span>{i.text}</span></li>
             ))}
           </ul>
         </div>
@@ -141,7 +142,7 @@ export async function PalestraView({ exercise: selected }: { exercise?: string }
             <>
               {rated.map((m) => (
                 <div key={m.group} className={`power-row${m.group === weakest ? " weak" : ""}`}>
-                  <b>{m.label}{m.rank === 1 ? " ★" : ""}{m.group === weakest ? " ⚠" : ""}</b>
+                  <b>{m.label}{m.rank === 1 && <> <Icon name="star" size={13} /></>}{m.group === weakest && <> <Icon name="alert" size={13} /></>}</b>
                   <div className="bar"><i style={{ width: `${m.rating}%` }} /></div>
                   <span className="val"><b>{m.rating}</b> · {m.level}<br />{m.ratingExercise} · {dec(m.ratio ?? 0, 2)}× peso{/machine|macchina|pulley|cable|cavi|pushdown|extension|fly|pec deck|leg press|lat /i.test(m.ratingExercise ?? "") ? " (macchina ×0,6)" : ""}</span>
                 </div>
@@ -167,7 +168,7 @@ export async function PalestraView({ exercise: selected }: { exercise?: string }
       <div className="card">
         <div className="card-head">
           <h3>Progressione — massimale stimato (Epley)</h3>
-          <span className="muted small">per sessione · 🏆 = nuovo massimale</span>
+          <span className="muted small">per sessione · <Icon name="trophy" size={13} /> = nuovo massimale</span>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
           {strength.map((s) => (
@@ -196,7 +197,7 @@ export async function PalestraView({ exercise: selected }: { exercise?: string }
 
       <div className="grid grid-2" style={{ marginBottom: 18 }}>
         <div className="card">
-          <div className="card-head"><h3>🏃 Corse (Strava)</h3></div>
+          <div className="card-head"><h3><Icon name="run" size={17} /> Corse (Strava)</h3></div>
           {runs.length > 1 && (
             <AreaLine
               color="#b78cff"
