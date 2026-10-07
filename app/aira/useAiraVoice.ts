@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ASK_TOOL_NAME, MAX_SESSION_MS } from "../../src/lib/realtimeSession";
+import { ASK_TOOL_NAME, IDLE_TIMEOUT_MS, MAX_SESSION_MS, summarizeSession, type SessionStats } from "../../src/lib/realtimeSession";
 import { END_GAP_MS, joinParts, PHRASE_GAP_MS, readLiveMode, splitSentences, type LiveMode } from "../../src/lib/liveTurns";
 import type { Phase } from "./Orb";
 
@@ -16,7 +16,7 @@ interface RtEvent {
   type: string;
   transcript?: string;
   error?: { message?: string; code?: string };
-  response?: { status?: string; output?: { type: string; name?: string; call_id?: string; arguments?: string; content?: { transcript?: string }[] }[] };
+  response?: { usage?: { output_token_details?: { audio_tokens?: number } }; status?: string; output?: { type: string; name?: string; call_id?: string; arguments?: string; content?: { transcript?: string }[] }[] };
 }
 
 function pickMime(): string | undefined {
@@ -65,6 +65,9 @@ export function useAiraVoice() {
   const rtAudioRef = useRef<HTMLAudioElement | null>(null);
   const rtOutAnalyserRef = useRef<AnalyserNode | null>(null);
   const rtTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rtIdleRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const rtStatsRef = useRef<SessionStats | null>(null);
+  const rtLastUserRef = useRef(0);
   const afterToolRef = useRef(false);
   const rtHandlersRef = useRef<RealtimeHandlers | null>(null);
 
@@ -339,6 +342,8 @@ export function useAiraVoice() {
   const closeRealtime = useCallback(() => {
     if (rtTimerRef.current) clearTimeout(rtTimerRef.current);
     rtTimerRef.current = null;
+    if (rtIdleRef.current) clearInterval(rtIdleRef.current);
+    rtIdleRef.current = null;
     rtRef.current = false;
     afterToolRef.current = false;
     const dc = dcRef.current;
@@ -366,6 +371,9 @@ export function useAiraVoice() {
   const stopLive = useCallback(() => {
     liveRef.current = false;
     setLive(false);
+    const stats = rtStatsRef.current;
+    rtStatsRef.current = null;
+    if (stats && stats.responses > 0) setNotice(summarizeSession(stats, Date.now()));
     closeRealtime();
     endSegment(false);
     partsRef.current = [];
@@ -374,7 +382,7 @@ export function useAiraVoice() {
     micStreamRef.current = null;
     micAnalyserRef.current = null;
     if (phaseRef.current !== "idle") setPhaseBoth("idle");
-  }, [closeRealtime, endSegment, setPhaseBoth]);
+  }, [closeRealtime, endSegment, setNotice, setPhaseBoth]);
   const stopLiveRef = useRef(stopLive);
   stopLiveRef.current = stopLive;
 
@@ -414,6 +422,7 @@ export function useAiraVoice() {
       const h = rtHandlersRef.current;
       switch (ev.type) {
         case "input_audio_buffer.speech_started":
+          rtLastUserRef.current = Date.now();
           setPhaseBoth("listening"); // anche durante la voce di Aira: il server interrompe da solo la risposta
           break;
         case "input_audio_buffer.speech_stopped":
@@ -435,6 +444,10 @@ export function useAiraVoice() {
           if (phaseRef.current === "speaking") setPhaseBoth("listening");
           break;
         case "response.done": {
+          if (rtStatsRef.current) {
+            rtStatsRef.current.responses += 1;
+            rtStatsRef.current.outputAudioTokens += ev.response?.usage?.output_token_details?.audio_tokens ?? 0;
+          }
           const out = ev.response?.output ?? [];
           const calls = out.filter((o) => o.type === "function_call" && o.name === ASK_TOOL_NAME);
           if (ev.response?.status === "failed") setNotice("La risposta vocale non è riuscita: riprova.");
@@ -506,8 +519,16 @@ export function useAiraVoice() {
         }
       };
       rtRef.current = true;
+      rtStatsRef.current = { responses: 0, outputAudioTokens: 0, startedAt: Date.now() };
+      rtLastUserRef.current = Date.now();
+      // se Francesco non parla per un po (chat dimenticata aperta, o Aira che risponde a se stessa) si chiude da sola
+      rtIdleRef.current = setInterval(() => {
+        if (Date.now() - rtLastUserRef.current < IDLE_TIMEOUT_MS) return;
+        setNotice("Sessione live chiusa: nessuno parlava da un minuto.");
+        stopLiveRef.current();
+      }, 5_000);
       rtTimerRef.current = setTimeout(() => {
-        setNotice("Sessione live terminata dopo 10 minuti: riavviala quando vuoi.");
+        setNotice("Sessione live terminata dopo 5 minuti: riavviala quando vuoi.");
         stopLiveRef.current();
       }, MAX_SESSION_MS);
     },

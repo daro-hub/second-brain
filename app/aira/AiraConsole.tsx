@@ -119,6 +119,10 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
     startLive,
     stopLive,
   } = voice;
+  // uscendo dalla chat (X, altra schermata) la sessione live si chiude: il microfono aperto e l'audio si pagano finché dura
+  useEffect(() => {
+    if (!active && voice.liveRef.current) stopLive();
+  }, [active, stopLive, voice.liveRef]);
   const [revealed, setRevealed] = useState<Set<number>>(new Set());
 
   // refs "vivi" letti dai loop audio (evitano closure stantie)

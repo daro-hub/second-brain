@@ -6,7 +6,24 @@
 
 export const ASK_TOOL_NAME = "ask_aira";
 /** Tetto di una sessione: l'audio realtime costa, una sessione dimenticata aperta non deve correre all'infinito. */
-export const MAX_SESSION_MS = 10 * 60_000;
+export const MAX_SESSION_MS = 5 * 60_000;
+/** Senza che Francesco parli per così tanto la sessione si chiude da sola: il microfono aperto e le risposte a vuoto si pagano. */
+export const IDLE_TIMEOUT_MS = 60_000;
+
+export interface SessionStats {
+  /** risposte generate dal modello (ogni risposta è audio in uscita, la voce più cara) */
+  responses: number;
+  /** token audio in uscita sommati (circa 20 al secondo di voce) */
+  outputAudioTokens: number;
+  startedAt: number;
+}
+
+/** Riga di riepilogo mostrata alla chiusura: serve a vedere subito se una sessione ha parlato più del dovuto. */
+export function summarizeSession(s: SessionStats, now: number): string {
+  const minutes = Math.max(0.1, (now - s.startedAt) / 60_000);
+  const voiceSec = Math.round(s.outputAudioTokens / 20);
+  return `Sessione live chiusa: ${minutes.toFixed(1).replace(".", ",")} min, ${s.responses} ${s.responses === 1 ? "risposta" : "risposte"}, ${voiceSec} s di voce di Aira.`;
+}
 
 /** Voce: `marin` è il default consigliato da OpenAI; cambiabile da REALTIME_VOICE per sceglierne una con un accento migliore. */
 export const realtimeVoice = (): string => process.env.REALTIME_VOICE || "marin";

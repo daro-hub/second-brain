@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../src/lib/airaAuth", () => ({ airaGate: (req: Request) => (req.headers.get("x-deny") ? new Response("no", { status: 401 }) : null) }));
 
 import { POST } from "../app/api/aira/realtime/route";
-import { ASK_TOOL_NAME, MAX_SESSION_MS, buildSessionConfig, realtimeModel } from "../src/lib/realtimeSession";
+import { ASK_TOOL_NAME, MAX_SESSION_MS, buildSessionConfig, realtimeModel, summarizeSession } from "../src/lib/realtimeSession";
 
 const OFFER = "v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\ns=-\r\n";
 const post = (body: string, headers: Record<string, string> = {}) => POST(new Request("http://x/api/aira/realtime", { method: "POST", body, headers: { "Content-Type": "application/sdp", ...headers } }));
@@ -23,7 +23,7 @@ describe("configurazione della sessione live", () => {
     expect(c.tools.map((t) => t.name)).toEqual([ASK_TOOL_NAME]);
     expect(c.tools[0].parameters.required).toEqual(["request"]);
     expect(c.instructions).toContain(ASK_TOOL_NAME);
-    expect(MAX_SESSION_MS).toBe(10 * 60_000);
+    expect(MAX_SESSION_MS).toBe(5 * 60_000);
   });
 
   it("stile: italiano, accento da madrelingua, risposte brevissime", () => {
@@ -90,5 +90,14 @@ describe("POST /api/aira/realtime", () => {
     const res = await post(OFFER);
     expect(res.status).toBe(502);
     expect(await res.text()).not.toContain("sk-secret");
+  });
+});
+
+describe("riepilogo di sessione live", () => {
+  it("riporta durata, risposte e secondi di voce di Aira", () => {
+    expect(summarizeSession({ responses: 3, outputAudioTokens: 600, startedAt: 0 }, 90_000)).toBe("Sessione live chiusa: 1,5 min, 3 risposte, 30 s di voce di Aira.");
+  });
+  it("usa il singolare per una sola risposta", () => {
+    expect(summarizeSession({ responses: 1, outputAudioTokens: 40, startedAt: 0 }, 6_000)).toContain("1 risposta,");
   });
 });
