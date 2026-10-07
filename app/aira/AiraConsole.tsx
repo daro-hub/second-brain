@@ -278,6 +278,67 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
     };
   }, [rtHandlersRef, runChat]);
 
+  // Messaggio vocale (mobile): un tocco registra, il secondo trascrive e invia come se avessi parlato; Aira risponde a voce.
+  const [recording, setRecording] = useState(false);
+  const noteRef = useRef<{ rec: MediaRecorder; stream: MediaStream } | null>(null);
+  const toggleVoiceNote = useCallback(async () => {
+    if (noteRef.current) {
+      noteRef.current.rec.stop();
+      return;
+    }
+    if (liveRef.current || sendingRef.current) return;
+    ensureAudio();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"].find((m) => MediaRecorder.isTypeSupported(m));
+      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      const chunks: Blob[] = [];
+      rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      rec.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        noteRef.current = null;
+        setRecording(false);
+        if (!chunks.length) return;
+        setPhaseBoth("thinking");
+        try {
+          const blob = new Blob(chunks, { type: rec.mimeType || mime || "audio/webm" });
+          const res = await fetch("/api/aira/transcribe", { method: "POST", headers: { "Content-Type": blob.type }, body: blob });
+          if (!res.ok) throw new Error(String(res.status));
+          const { text } = (await res.json()) as { text: string };
+          if (!text) {
+            setNotice("Non ho sentito niente: riprova.");
+            setPhaseBoth("idle");
+            return;
+          }
+          setHeard(text);
+          await send(text, true);
+        } catch {
+          setNotice("Non sono riuscita a trascrivere il vocale.");
+          setPhaseBoth("idle");
+        }
+      };
+      rec.start();
+      noteRef.current = { rec, stream };
+      setRecording(true);
+      setNotice(null);
+    } catch {
+      setNotice("Non riesco ad accedere al microfono: controlla i permessi del browser.");
+    }
+  }, [ensureAudio, liveRef, send, setHeard, setNotice, setPhaseBoth]);
+
+  // chiudendo la chat con una registrazione aperta, il microfono si rilascia
+  useEffect(
+    () => () => {
+      const n = noteRef.current;
+      if (n) {
+        n.rec.onstop = null;
+        n.stream.getTracks().forEach((t) => t.stop());
+        noteRef.current = null;
+      }
+    },
+    [],
+  );
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const v = input;
@@ -470,6 +531,17 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
           data-form-type="other"
           aria-label="Messaggio per Aira"
         />
+        <button
+          type="button"
+          className={`btn-rec${recording ? " on" : ""}`}
+          onClick={() => void toggleVoiceNote()}
+          disabled={live}
+          title={recording ? "Ferma e invia il vocale" : "Registra un vocale"}
+          aria-label={recording ? "Ferma e invia il vocale" : "Registra un vocale"}
+          aria-pressed={recording}
+        >
+          {recording ? <StopIcon size={16} /> : <MicIcon size={18} />}
+        </button>
         <button
           type="button"
           className={`btn-vol${voiceReplies ? " on" : ""}`}
