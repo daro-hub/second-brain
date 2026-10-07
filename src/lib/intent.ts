@@ -33,6 +33,7 @@ export type MessageIntent =
   | { type: "password_request"; itemName: string }
   | { type: "github_query"; repoName: string }
   | { type: "linear_query"; term: string }
+  | { type: "slack_query"; term: string }
   | { type: "calendar_query"; startDate: string | null; endDate: string | null }
   | {
       type: "calendar_add";
@@ -169,6 +170,9 @@ Categorie:
   }
   if (parsed.intent === "linear_query" && parsed.term) {
     return { type: "linear_query", term: String(parsed.term).trim() };
+  }
+  if (parsed.intent === "slack_query" && parsed.term) {
+    return { type: "slack_query", term: String(parsed.term).trim() };
   }
   if (parsed.intent === "calendar_query") {
     const ok = (v: unknown) => typeof v === "string" && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(v);

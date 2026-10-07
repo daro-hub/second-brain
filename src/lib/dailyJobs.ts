@@ -6,6 +6,7 @@ import { reportError } from "./report";
 import { claimJob, jobsInWindow, releaseJob, type JobName } from "./scheduler";
 import { sendTelegramMessage } from "./telegramSend";
 import { addDays, dateKey } from "./time";
+import { refreshTomorrowBrief } from "./tomorrow";
 import { createDigestEntry, digestMessage, hoursKeyboard, setPending } from "./workDigest";
 
 /** Invia il check-in serale: riparte dal primo aspetto senza risposta (se ne ha già dati alcuni, non ricomincia da capo). */
@@ -46,6 +47,11 @@ export async function sendWorkSummary(day: string): Promise<boolean> {
   return true;
 }
 
+/** Prepara il brief di domani (Linear + Slack + calendario) per la scheda Lavoro. Non manda messaggi. */
+export async function prepareWorkTomorrow(today: string): Promise<boolean> {
+  return refreshTomorrowBrief(addDays(today, 1));
+}
+
 export interface JobResult {
   job: JobName;
   status: "sent" | "skipped" | "failed" | "due";
@@ -66,7 +72,9 @@ export async function runDueJobs(now: Date, dry = false): Promise<JobResult[]> {
           ? await sendWorkSummary(addDays(dateKey(now), -1))
           : job === "evening_digest"
             ? await sendEveningDigest()
-            : await sendDailyPill();
+            : job === "work_tomorrow"
+              ? await prepareWorkTomorrow(dateKey(now))
+              : await sendDailyPill();
       if (!sent) await releaseJob(job, now).catch(() => undefined);
       out.push({ job, status: sent ? "sent" : "skipped" });
     } catch (err) {

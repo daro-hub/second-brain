@@ -7,7 +7,8 @@ import { addPayment, addWork, deletePayment, deleteWork, setHourlyRate, setWorkM
 import { setProfileFact } from "../../src/lib/profile";
 import { MOOD_ASPECTS, saveMoodAnswer, saveMoodNote, type MoodKey } from "../../src/lib/mood";
 import { decideProposal } from "../../src/lib/kbProposals";
-import { todayKey } from "../../src/lib/time";
+import { addDays, todayKey } from "../../src/lib/time";
+import { refreshTomorrowBrief } from "../../src/lib/tomorrow";
 
 const text = (fd: FormData, k: string, max: number) => String(fd.get(k) ?? "").trim().slice(0, max);
 
@@ -187,6 +188,17 @@ export async function decideProposalAction(fd: FormData): Promise<void> {
     await decideProposal(id, fd.get("accept") === "1");
   } catch (err) {
     reportError("actions/decideProposal", err);
+    return;
+  }
+  revalidatePath("/");
+}
+
+/** Rigenera a mano il brief «cosa fare domani» (di sera lo fa da solo il job `work_tomorrow`). */
+export async function refreshTomorrowAction(): Promise<void> {
+  try {
+    await refreshTomorrowBrief(addDays(todayKey(), 1));
+  } catch (err) {
+    reportError("actions/refreshTomorrow", err);
     return;
   }
   revalidatePath("/");

@@ -17,7 +17,8 @@ import { getCultureScore } from "../../../src/lib/pills";
 import { supabase } from "../../../src/lib/supabase";
 import { addDays, formatDayShort } from "../../../src/lib/time";
 import { crossWork, fmtHours, commitsError, getHourlyRate, getOrgCommits, getPayments, getWork, minutesByDay, outstanding, workStats } from "../../../src/lib/work";
-import { addPaymentAction, addExtraAction, addWorkAction, deletePaymentAction, deleteWorkAction, decideProposalAction, setProfileFactAction, setRateAction, setWorkHoursAction } from "../../actions/hub";
+import { refreshTomorrowAction, addPaymentAction, addExtraAction, addWorkAction, deletePaymentAction, deleteWorkAction, decideProposalAction, setProfileFactAction, setRateAction, setWorkHoursAction } from "../../actions/hub";
+import { getTomorrowBrief } from "../../../src/lib/tomorrow";
 import { Icon } from "../Icon";
 
 export function Skeleton({ label }: { label: string }) {
@@ -90,6 +91,41 @@ export async function KnowledgePanel() {
   );
 }
 
+async function TomorrowCard({ today }: { today: string }) {
+  const brief = await getTomorrowBrief().catch(() => null);
+  // il brief vale finché il suo giorno non è passato: la sera è «domani», la mattina dopo è «oggi»
+  const fresh = brief && brief.forDay >= today ? brief : null;
+  const label = fresh ? (fresh.forDay === today ? "Da fare oggi" : "Da fare domani") : "Da fare domani";
+  const missing = fresh ? (["linear", "slack", "calendar"] as const).filter((k) => !fresh.sources[k]) : [];
+  return (
+    <div className="card">
+      <div className="card-head">
+        <h3>{label}</h3>
+        <form action={refreshTomorrowAction}><button type="submit" className="muted small">{fresh ? `aggiornato ${new Date(fresh.at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" })} · rigenera` : "genera ora"}</button></form>
+      </div>
+      {!fresh ? (
+        <p className="muted small">Il brief si prepara da solo la sera (Linear, Slack e calendario). Tocca «genera ora» per averlo subito.</p>
+      ) : fresh.items.length === 0 ? (
+        <p className="muted small">Niente di urgente nelle fonti collegate.</p>
+      ) : (
+        <ol style={{ margin: 0, paddingLeft: 20 }}>
+          {fresh.items.map((i, n) => (
+            <li key={n} style={{ marginBottom: 6 }}>
+              {i.url ? <a href={i.url} target="_blank" rel="noopener noreferrer">{i.action}</a> : i.action}
+              {i.minutes ? <span className="muted small"> · {i.minutes >= 60 ? fmtHours(i.minutes) : `${i.minutes} min`}</span> : null}
+              <span className="muted small" style={{ display: "block" }}>{i.source === "slack" ? "Slack" : i.source === "calendar" ? "Calendario" : "Linear"}{i.why ? ` · ${i.why}` : ""}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+      {fresh && fresh.other.length > 0 && (
+        <details><summary className="muted small">Altro ({fresh.other.length})</summary>{fresh.other.map((o, n) => <p key={n} className="muted small" style={{ margin: "2px 0" }}>{o}</p>)}</details>
+      )}
+      {missing.length > 0 && <p className="muted small">Incompleto: {missing.map((k) => (k === "linear" ? "Linear" : k === "slack" ? "Slack" : "Calendario")).join(", ")} non {missing.length > 1 ? "hanno risposto" : "ha risposto"}.</p>}
+    </div>
+  );
+}
+
 export async function WorkTracker() {
   const today = todayKey();
   const from = addDays(today, -(26 * 7));
@@ -103,6 +139,7 @@ export async function WorkTracker() {
   const due = outstanding(await getWork("2000-01-01", today).catch(() => entries), payments, rate);
   return (
     <>
+      <TomorrowCard today={today} />
       <div className="card">
         <div className="card-head"><h3>Da incassare</h3><span className="muted small">{due.paidUntil ? `pagato fino al ${formatDayShort(due.paidUntil)}` : "nessun pagamento registrato"}</span></div>
         <div className="kpi-value" style={{ fontSize: 26 }}>{due.dueEur === null ? fmtHours(due.minutes) : `≈ ${due.dueEur.toLocaleString("it-IT")} €`}</div>

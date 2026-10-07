@@ -120,3 +120,57 @@ export async function getIssueDetail(identifier: string): Promise<LinearIssueDet
     comments: n.comments.nodes.map((c) => ({ author: c.user?.name ?? null, body: c.body, createdAt: c.createdAt })),
   };
 }
+
+export interface MyOpenIssue extends LinearIssue {
+  /** 0 = nessuna, 1 = urgente, 2 = alta, 3 = media, 4 = bassa (convenzione Linear) */
+  priority: number;
+  dueDate: string | null;
+  cycle: string | null;
+  updatedAt: string;
+}
+
+/** Issue assegnate a me non ancora chiuse (né completate né annullate). Sola lettura. */
+export async function getMyOpenIssues(limit = 50): Promise<MyOpenIssue[]> {
+  const data = await query<{
+    viewer: {
+      assignedIssues: {
+        nodes: Array<{
+          identifier: string;
+          title: string;
+          url: string;
+          priority: number;
+          dueDate: string | null;
+          updatedAt: string;
+          state: { name: string };
+          assignee: { name: string } | null;
+          cycle: { name: string | null; number: number } | null;
+        }>;
+      };
+    };
+  }>(
+    `query($first: Int!) {
+      viewer {
+        assignedIssues(first: $first, filter: { state: { type: { nin: ["completed", "canceled"] } } }) {
+          nodes {
+            identifier title url priority dueDate updatedAt
+            state { name }
+            assignee { name }
+            cycle { name number }
+          }
+        }
+      }
+    }`,
+    { first: limit },
+  );
+  return data.viewer.assignedIssues.nodes.map((n) => ({
+    identifier: n.identifier,
+    title: n.title,
+    url: n.url,
+    state: n.state.name,
+    assignee: n.assignee?.name ?? null,
+    priority: n.priority,
+    dueDate: n.dueDate,
+    cycle: n.cycle ? (n.cycle.name ?? `Ciclo ${n.cycle.number}`) : null,
+    updatedAt: n.updatedAt,
+  }));
+}

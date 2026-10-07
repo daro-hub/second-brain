@@ -14,6 +14,7 @@ export type SourceId =
   | "shopping"
   | "github"
   | "linear"
+  | "slack"
   | "gmail"
   | "bitwarden";
 
@@ -51,6 +52,7 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   shopping: "Lista della spesa",
   github: "GitHub",
   linear: "Linear",
+  slack: "Slack",
   gmail: "Gmail",
   bitwarden: "Bitwarden",
 };

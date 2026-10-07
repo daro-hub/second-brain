@@ -91,6 +91,8 @@ export const ROUTER_CASES: RouterCase[] = [
   { id: "servizi-password", text: "password di Supabase", expect: { type: "password_request" } },
   { id: "servizi-email", text: "cerca nelle mie email il link che mi ha mandato Martina", expect: { type: "email_query" } },
   { id: "servizi-linear", text: "a che punto è l'issue sull'audio?", expect: { type: "linear_query" } },
+  { id: "servizi-slack-detto", text: "cosa ha scritto Marco sul prezzo dei musei?", expect: { type: "slack_query" } },
+  { id: "servizi-slack-topic", text: "su cosa eravamo rimasti con Sofia per l'audio?", expect: { type: "slack_query" } },
   { id: "servizi-corse", text: "come stanno andando le mie corse?", expect: { type: "strava_query" } },
 
   // ── conversazione, memoria, cose che il bot non può fare ──

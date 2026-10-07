@@ -8,6 +8,8 @@ export const JOBS = [
   { name: "mood_checkin", fromHour: 22, toHour: 24 },
   // ultimo della serata: buonanotte con il programma di domani (era un cron Vercel alle 19 UTC = 21:00, orario e affidabilità non garantiti)
   { name: "evening_digest", fromHour: 22, toHour: 24 },
+  // brief «cosa fare domani» (Linear + Slack + calendario) per la scheda Lavoro: nessun messaggio, aggiorna solo l'archivio
+  { name: "work_tomorrow", fromHour: 20, toHour: 24 },
 ] as const;
 export type JobName = (typeof JOBS)[number]["name"];
 
