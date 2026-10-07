@@ -12,6 +12,7 @@ import { sendMoodCheckin } from "../lib/dailyJobs";
 import { clearPending, parseWorkCallback, tryApplyHoursReply } from "../lib/workDigest";
 import { fmtHours, setWorkMinutes } from "../lib/work";
 import { todayKey } from "../lib/time";
+import { completeReminder, formatDue, formatOpenReminders, listKeyboard, listOpenReminders, parseReminderCallback, snoozeReminder } from "../lib/todoReminders";
 import { isDuplicateUpdate } from "../lib/dedup";
 import { bold, BULLET, escapeHtml, stripForSpeech } from "../lib/format";
 import { getExerciseHistory, getPR } from "../lib/workouts";
@@ -244,6 +245,38 @@ bot.callbackQuery(/^wk:/, async (ctx) => {
   } catch (err) {
     reportError("telegram/work-hours", err);
     await ctx.answerCallbackQuery({ text: "Errore, riprova" }).catch(() => undefined);
+  }
+});
+
+// Promemoria "ricordami di...": Fatto / +1h / Domani sotto l'avviso, e /promemoria per la lista dei promemoria aperti
+bot.callbackQuery(/^rm:/, async (ctx) => {
+  const cb = parseReminderCallback(ctx.callbackQuery.data);
+  if (!cb) {
+    await ctx.answerCallbackQuery();
+    return;
+  }
+  try {
+    if (cb.action === "done") {
+      const ok = await completeReminder(cb.id);
+      await ctx.answerCallbackQuery({ text: ok ? "Fatto ✅" : "Già chiuso" });
+    } else {
+      const to = await snoozeReminder(cb.id, cb.action);
+      await ctx.answerCallbackQuery({ text: to ? `Te lo ripropongo ${formatDue(to)}` : "Già chiuso" });
+    }
+    await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => undefined);
+  } catch (err) {
+    reportError("telegram/reminder", err);
+    await ctx.answerCallbackQuery({ text: "Errore, riprova" }).catch(() => undefined);
+  }
+});
+
+bot.command("promemoria", async (ctx) => {
+  try {
+    const items = await listOpenReminders();
+    await ctx.reply(formatOpenReminders(items), { parse_mode: "HTML", ...(items.length ? { reply_markup: listKeyboard(items) } : {}) });
+  } catch (err) {
+    reportError("telegram/promemoria", err);
+    await ctx.reply("Non riesco a leggere i promemoria in questo momento.");
   }
 });
 

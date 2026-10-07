@@ -27,6 +27,7 @@ import { searchSemantic } from "./search";
 import { addDays, dateKey, dayRangeUtc, formatDayLong, localHHMM, perceivedTodayKey, todayKey, weekdayOf } from "./time";
 import { SOURCE_LABELS, type Source, type SourceId, type Trace } from "./trace";
 import { getRunningStats } from "./dashboard";
+import { addTodoReminder, createReminderEvent, formatDue, formatOpenReminders, listOpenReminders, resolveDue } from "./todoReminders";
 import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList, getKnownShoppingItems } from "./shoppingList";
 import { getEnergyOverview, PROFILE } from "./energy";
 import { getMetricSummary, type MetricSummary } from "./health";
@@ -731,6 +732,48 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
       return await answerFromData(text, `Orario di studio per ${dateLabel}:\n${scheduleText}`);
     } catch {
       return "Errore nel recupero dell'orario di studio.";
+    }
+  }
+
+  if (intent.type === "reminder_add") {
+    try {
+      const now = new Date();
+      const { dueAt, past } = resolveDue({ date: intent.date, time: intent.time, inMinutes: intent.inMinutes }, now);
+      let calendarOk = false;
+      let calendarFailed = false;
+      if (dueAt && intent.calendar) {
+        try {
+          await createReminderEvent(intent.text, dueAt);
+          calendarOk = true;
+        } catch (err) {
+          calendarFailed = true;
+          reportError("respond/reminder_calendar", err);
+        }
+      }
+      const saved = await addTodoReminder(intent.text, dueAt, calendarOk);
+      src(trace, "calendar", `Promemoria: ${saved.text}`, { href: "/?p=oggi", items: [{ text: saved.text, meta: dueAt ? formatDue(dueAt, now) : "aperto" }] });
+      const what = escapeHtml(saved.text);
+      if (dueAt) {
+        return `⏰ Ok, ti ricordo «${what}» ${formatDue(dueAt, now)}.${calendarOk ? "\n📅 Messo anche in calendario." : ""}${calendarFailed ? "\n⚠️ In calendario non sono riuscito a metterlo, ma il promemoria c'è." : ""}`;
+      }
+      return `📝 Segnato tra i promemoria aperti: «${what}».${past ? "\nQuell'orario era già passato, quindi non ho una scadenza." : ""}
+Te lo ripropongo nel riepilogo della sera; /promemoria per vederli o chiuderli.`;
+    } catch (err) {
+      reportError("respond/reminder_add", err);
+      return "Errore nel salvare il promemoria.";
+    }
+  }
+
+  if (intent.type === "reminder_query") {
+    try {
+      const items = await listOpenReminders();
+      src(trace, "calendar", `${items.length} promemoria aperti`, { href: "/?p=oggi", items: items.map((r) => ({ text: r.text, meta: r.due_at ? formatDue(r.due_at) : undefined })) });
+      return items.length ? `${formatOpenReminders(items)}
+
+Per chiuderli: /promemoria.` : formatOpenReminders(items);
+    } catch (err) {
+      reportError("respond/reminder_query", err);
+      return "Errore nel leggere i promemoria.";
     }
   }
 

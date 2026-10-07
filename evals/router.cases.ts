@@ -56,6 +56,14 @@ export const ROUTER_CASES: RouterCase[] = [
   { id: "spesa-cosa-comprare", text: "cosa devo comprare?", expect: { type: "shopping_query" } },
   { id: "spesa-preso", text: "ho preso il latte", expect: { type: "shopping_done" } },
 
+  // ── promemoria ──
+  { id: "rem-aperto", text: "Ricordami di comprare il regalo per Nicole", expect: { type: "reminder_add", date: null, time: null, inMinutes: null } },
+  { id: "rem-relativo", text: "Tra due ore ricordami di uscire il cane", expect: { type: "reminder_add", inMinutes: 120 } },
+  { id: "rem-orario", text: "Ricordami di chiamare il dentista domani mattina", expect: { type: "reminder_add" } },
+  { id: "rem-calendario", text: "Ricordami venerdì alle 10 di mandare la mail a Marco e mettilo in calendario", expect: { type: "reminder_add", calendar: true } },
+  { id: "rem-lista", text: "Che promemoria ho?", expect: { type: "reminder_query" } },
+  { id: "rem-non-spesa", text: "manca il detersivo", expect: { type: "shopping_add" } },
+
   // ── costi, progetti ──
   { id: "costi-crediti", text: "Quanti crediti ho consumato?", expect: { type: "usage_query" } },
   { id: "costi-seguito", text: "Per il mio second brain", history: [{ role: "user", content: "Quanti crediti ho consumato?" }, { role: "assistant", content: "💡 Non trovo il dato: di quale servizio intendi i crediti, per esempio Vercel o OpenAI?" }], expect: { type: "usage_query" } },

@@ -1,6 +1,7 @@
 import { getEventsInRange, isStudySyncEvent } from "./calendar";
 import { bold, BULLET, escapeHtml } from "./format";
 import { addDays, dayRangeUtc, formatDayLong, localHHMM, startOfDayUtc, todayKey, weekdayOf } from "./time";
+import { formatReminderLine, listOpenReminders } from "./todoReminders";
 import { getNextRoutineToTrain, getScheduleForDay, markRestDay } from "./workouts";
 
 export async function buildEveningDigest(): Promise<string> {
@@ -38,6 +39,10 @@ export async function buildEveningDigest(): Promise<string> {
     trainingText = bold(escapeHtml(nextRoutine));
   }
 
+  // promemoria "ricordami di..." ancora aperti: se non ce ne sono, la sezione non compare
+  const open = await listOpenReminders().catch(() => []);
+  const remindersText = open.length ? `\n\n📝 ${bold("Promemoria aperti")}\n${open.map((r) => formatReminderLine(r)).join("\n")}` : "";
+
   return `🌙 ${bold(`Programma di domani (${formatDayLong(tomorrowKey)})`)}
 
 📚 ${bold("Studio")}
@@ -46,5 +51,5 @@ ${scheduleText}
 📅 ${bold("Impegni")}
 ${eventsText}
 
-🏋️ Allenamento: ${trainingText}`;
+🏋️ Allenamento: ${trainingText}${remindersText}`;
 }

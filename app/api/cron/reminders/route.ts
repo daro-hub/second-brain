@@ -5,6 +5,8 @@ import { pruneHistory } from "../../../../src/lib/chatHistory";
 import { purgeExpired } from "../../../../src/lib/transfers";
 import { localHHMM } from "../../../../src/lib/time";
 import { collectReminders, markReminderSent } from "../../../../src/lib/reminders";
+import { collectDueReminders, dueMessage, markReminderNotified, reminderKeyboard } from "../../../../src/lib/todoReminders";
+import { reportError } from "../../../../src/lib/report";
 import { sendTelegramMessage } from "../../../../src/lib/telegramSend";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +35,20 @@ export async function GET(req: NextRequest) {
         await markReminderSent(r);
       }
     }
+    // promemoria "ricordami di...": una volta sola alla scadenza, con i bottoni Fatto / +1h / Domani
+    // (un errore qui non deve fermare gli avvisi degli eventi né i job giornalieri)
+    let todos: Awaited<ReturnType<typeof collectDueReminders>> = [];
+    try {
+      todos = await collectDueReminders(now);
+      if (!dry) {
+        for (const t of todos) {
+          await sendTelegramMessage(dueMessage(t), { html: true, markup: reminderKeyboard(t.id), notice: { title: "⏰ Promemoria", body: t.text, url: "/?p=oggi", tag: `todo:${t.id}` } });
+          await markReminderNotified(t.id);
+        }
+      }
+    } catch (err) {
+      reportError("cron/todo-reminders", err);
+    }
     // check-in dell'umore alle 22 e pillola del giorno: stesso cron ogni 5 minuti (Vercel Hobby non ha altri slot)
     // la pillola chiede un giro al modello (lento) e pg_net non aspetta oltre pochi secondi: in coda, dopo la risposta
     let jobs: Awaited<ReturnType<typeof runDueJobs>> = [];
@@ -43,7 +59,7 @@ export async function GET(req: NextRequest) {
       after(() => pruneHistory().catch((err) => console.error("[chat-history] pulizia fallita:", err)));
       after(() => purgeExpired().catch((err) => console.error("[passaggi] pulizia scaduti fallita:", err)));
     }
-    return NextResponse.json({ ok: true, dry, jobs, sent: reminders.map((r) => ({ summary: r.summary, startsAt: r.startsAt, minutesLeft: r.minutesLeft })) });
+    return NextResponse.json({ ok: true, dry, jobs, sent: reminders.map((r) => ({ summary: r.summary, startsAt: r.startsAt, minutesLeft: r.minutesLeft })), todos: todos.map((t) => ({ text: t.text, dueAt: t.due_at })) });
   } catch (err) {
     console.error("[reminders] errore:", err);
     return NextResponse.json({ error: "reminders_failed" }, { status: 500 });
