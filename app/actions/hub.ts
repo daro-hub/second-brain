@@ -60,6 +60,22 @@ export async function addWorkAction(fd: FormData): Promise<void> {
   revalidatePath("/");
 }
 
+/** Voce a importo senza ore: trasferta (+, forfait al giorno), extra (+) o detrazione (−, es. telefono aziendale). */
+export async function addExtraAction(fd: FormData): Promise<void> {
+  const kind = text(fd, "kind", 20);
+  const amount = Number(String(fd.get("amount") ?? "").replace(",", "."));
+  const day = text(fd, "day", 10);
+  if (!["Trasferta", "Extra", "Detrazione"].includes(kind) || !Number.isFinite(amount) || amount <= 0 || amount > 100_000 || !/^\d{4}-\d{2}-\d{2}$/.test(day) || day > todayKey()) return;
+  const note = text(fd, "note", 200);
+  try {
+    await addWork({ day, minutes: 0, task: note ? `${kind}: ${note}` : kind, taskType: kind, extraEur: kind === "Detrazione" ? -amount : amount });
+  } catch (err) {
+    reportError("actions/addExtra", err);
+    return;
+  }
+  revalidatePath("/");
+}
+
 export async function deleteWorkAction(fd: FormData): Promise<void> {
   const id = text(fd, "id", 60);
   if (!id) return;

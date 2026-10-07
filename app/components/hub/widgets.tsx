@@ -16,7 +16,7 @@ import { getCultureScore } from "../../../src/lib/pills";
 import { supabase } from "../../../src/lib/supabase";
 import { addDays, formatDayShort } from "../../../src/lib/time";
 import { crossWork, fmtHours, commitsError, getHourlyRate, getOrgCommits, getPayments, getWork, minutesByDay, outstanding, workStats } from "../../../src/lib/work";
-import { addPaymentAction, addWorkAction, deletePaymentAction, deleteWorkAction, decideProposalAction, setProfileFactAction, setRateAction, setWorkHoursAction } from "../../actions/hub";
+import { addPaymentAction, addExtraAction, addWorkAction, deletePaymentAction, deleteWorkAction, decideProposalAction, setProfileFactAction, setRateAction, setWorkHoursAction } from "../../actions/hub";
 
 export function Skeleton({ label }: { label: string }) {
   return (
@@ -104,7 +104,7 @@ export async function WorkTracker() {
       <div className="card">
         <div className="card-head"><h3>Da incassare</h3><span className="muted small">{due.paidUntil ? `pagato fino al ${formatDayShort(due.paidUntil)}` : "nessun pagamento registrato"}</span></div>
         <div className="kpi-value" style={{ fontSize: 26 }}>{due.dueEur === null ? fmtHours(due.minutes) : `≈ ${due.dueEur.toLocaleString("it-IT")} €`}</div>
-        <p className="muted small">{fmtHours(due.minutes)} in {due.days} giorni dopo l&apos;ultimo pagamento{due.extraEur ? `, extra ${due.extraEur} €` : ""}{rate ? ` · tariffa ${rate} €/h` : " · imposta la tariffa per vedere gli euro"}{due.received ? ` · incassato finora (registrato): ${due.received.toLocaleString("it-IT")} €` : ""}</p>
+        <p className="muted small">{fmtHours(due.minutes)} in {due.days} giorni dopo l&apos;ultimo pagamento{due.extraEur ? `, trasferte/extra ${due.extraEur > 0 ? "+" : "−"}${Math.abs(due.extraEur).toLocaleString("it-IT")} €` : ""}{rate ? ` · tariffa ${rate} €/h` : " · imposta la tariffa per vedere gli euro"}{due.received ? ` · incassato finora (registrato): ${due.received.toLocaleString("it-IT")} €` : ""}</p>
         <form action={addPaymentAction} className="hub-form">
           <input name="paidOn" type="date" defaultValue={today} max={today} required style={{ width: 150 }} title="Data in cui è arrivato il pagamento" />
           <input name="amount" type="number" step="0.01" placeholder="quota €" style={{ width: 100 }} />
@@ -132,7 +132,7 @@ export async function WorkTracker() {
             <div key={label as string} className="card kpi" style={{ ["--kpi" as string]: "#f5a524" }}>
               <div className="kpi-top"><span>{label as string}</span></div>
               <div className="kpi-value" style={{ fontSize: 22 }}>{fmtHours(x.totalMinutes)}</div>
-              <div className="kpi-sub">{x.daysWorked} giorni lavorati{x.avgMinutesPerWorkedDay ? ` · ${fmtHours(x.avgMinutesPerWorkedDay)} al giorno` : ""}{rate ? ` · ≈ ${Math.round((x.totalMinutes / 60) * rate).toLocaleString("it-IT")} €` : ""}</div>
+              <div className="kpi-sub">{x.daysWorked} giorni lavorati{x.avgMinutesPerWorkedDay ? ` · ${fmtHours(x.avgMinutesPerWorkedDay)} al giorno` : ""}{rate ? ` · ≈ ${Math.round((x.totalMinutes / 60) * rate + x.extraEur).toLocaleString("it-IT")} €` : ""}</div>
             </div>
           );
         })}
@@ -146,6 +146,17 @@ export async function WorkTracker() {
           <select name="type" defaultValue=""><option value="">tipo…</option><option>Feature request</option><option>Bug</option><option>Polish</option><option>Call</option><option>Assistenza</option></select>
           <button type="submit">Aggiungi</button>
         </form>
+      </div>
+      <div className="card">
+        <div className="card-head"><h3>Trasferte e detrazioni</h3><span className="muted small">importi senza ore: entrano nel «Da incassare»</span></div>
+        <form action={addExtraAction} className="hub-form">
+          <input name="day" type="date" defaultValue={today} max={today} required style={{ width: 150 }} />
+          <select name="kind" defaultValue="Trasferta"><option>Trasferta</option><option>Detrazione</option><option>Extra</option></select>
+          <input name="amount" type="number" step="0.01" min="0.01" defaultValue={50} required style={{ width: 100 }} title="Importo in € (sempre positivo: la detrazione viene sottratta da sola)" />
+          <input name="note" placeholder="nota (es. telefono aziendale)" maxLength={150} style={{ flex: 1, minWidth: 160 }} />
+          <button type="submit">Aggiungi</button>
+        </form>
+        <p className="muted small">Trasferta: 50 € al giorno (modificabile). Detrazione: importo da togliere, es. 600 € per il telefono.</p>
       </div>
       <div className="card">
         <div className="card-head"><h3>Giorni lavorati</h3><span className="muted small">ultime 26 settimane</span></div>
@@ -168,7 +179,7 @@ export async function WorkTracker() {
             {e.minutes === 0 && e.extraEur === null ? (
               <form action={setWorkHoursAction} className="hub-form"><input type="hidden" name="id" value={e.id} /><input name="hours" type="number" step="0.25" min="0" max="24" placeholder="ore?" style={{ width: 70 }} /><button type="submit">OK</button></form>
             ) : (
-              <span className="muted small">{e.minutes ? fmtHours(e.minutes) : e.extraEur !== null ? `${e.extraEur} €` : "—"}</span>
+              <span className="muted small">{e.minutes ? fmtHours(e.minutes) : e.extraEur !== null ? `${e.extraEur > 0 ? "+" : "−"}${Math.abs(e.extraEur).toLocaleString("it-IT")} €` : "—"}</span>
             )}
             <form action={deleteWorkAction}><input type="hidden" name="id" value={e.id} /><button type="submit" className="muted small" aria-label="Elimina" title="Elimina">✕</button></form>
           </div>

@@ -139,6 +139,10 @@ describe("pagamenti", () => {
     const o = outstanding([e("2026-05-09", 600), e("2026-05-10", 120), e("2026-05-11", 60, 10)], [{ id: "1", paidOn: "2026-05-12", amountEur: 500, coversUntil: "2026-05-09", note: "" }], 15);
     expect(o).toMatchObject({ paidUntil: "2026-05-09", minutes: 180, days: 2, dueEur: 55, received: 500 });
   });
+  it("trasferte (+) e detrazioni (−) senza ore spostano l'importo ma non i giorni lavorati", () => {
+    const o = outstanding([e("2026-05-10", 120), e("2026-05-11", 0, 50), e("2026-05-12", 0, -600)], [], 20);
+    expect(o).toMatchObject({ minutes: 120, days: 1, extraEur: -550, dueEur: -510 });
+  });
   it("senza tariffa niente euro, senza pagamenti conta tutto", () => {
     const o = outstanding([e("2026-05-09", 60)], [], null);
     expect(o).toMatchObject({ paidUntil: null, minutes: 60, dueEur: null });
