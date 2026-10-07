@@ -1,17 +1,11 @@
 import { getHealthDaily } from "./health";
-import { supabase } from "./supabase";
-
-export async function upsertDailySteps(date: string, steps: number, source = "apple_health"): Promise<void> {
-  const { error } = await supabase.from("daily_steps").upsert({ date, steps, source, updated_at: new Date().toISOString() });
-  if (error) throw error;
-}
 
 export interface DailySteps {
   date: string;
   steps: number;
 }
 
-/** Passi giornalieri letti da Apple Health (`health_metrics`, metrica step_count): è l'unica fonte, `daily_steps` è dismessa. */
+/** Passi giornalieri letti da Apple Health (`health_metrics`, metrica step_count): è l'unica fonte (la tabella `daily_steps` è stata rimossa il 07/10/2026). */
 export async function getStepsForRange(startDate: string, endDate: string): Promise<DailySteps[]> {
   const rows = await getHealthDaily("step_count", startDate, endDate);
   return rows
