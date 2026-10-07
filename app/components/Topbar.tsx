@@ -14,12 +14,6 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M3.5 10h17M8 3v4M16 3v4" />
     </>
   ),
-  aira: (
-    <>
-      <circle cx="12" cy="12" r="8" />
-      <circle cx="12" cy="12" r="3" />
-    </>
-  ),
   incroci: <path d="M5 20V11M12 20V4M19 20v-6" />,
   spesa: (
     <>
@@ -29,13 +23,27 @@ const ICONS: Record<string, React.ReactNode> = {
     </>
   ),
   passaggi: <path d="M4 8h14m-4-4 4 4-4 4M20 16H6m4 4-4-4 4-4" />,
+  studio: <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5v-13ZM20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5v-13Z" />,
+  salute: <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" />,
+  allenamento: <path d="M3 10v4M6 8v8M18 8v8M21 10v4M6 12h12" />,
+  umore: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M8.5 14a4 4 0 0 0 7 0M9 9.5v.01M15 9.5v.01" />
+    </>
+  ),
+  lavoro: (
+    <>
+      <rect x="3.5" y="7.5" width="17" height="12" rx="2" />
+      <path d="M9 7.5V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v1.5M3.5 13h17" />
+    </>
+  ),
 };
 
 
-/** In alto, sempre: gli strumenti (la panoramica si raggiunge toccando l'orb). */
+/** In alto, sempre: gli strumenti (la panoramica si raggiunge toccando l'orb; lo stato di Aira dalla chat con Aira). */
 const TOOLS: NavItem[] = [
   { key: "oggi", label: "Oggi", color: "#8b98a8" },
-  { key: "aira", label: "Aira", color: "#3ecf8e" },
   { key: "incroci", label: "Statistiche", color: "#ff7ad9" },
   { key: "spesa", label: "Spesa", color: "#f2a07b" },
   { key: "passaggi", label: "Trasferisci", color: "#4de1ff" },

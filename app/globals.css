@@ -1654,34 +1654,38 @@ main > *:nth-child(n + 6) {
 .aira-root.embedded .aira-core .status { position: absolute; top: calc(50% + var(--co) / 2 + 10px); left: 0; right: 0; text-align: center; }
 .aira-root.embedded .aira-core .heard { position: absolute; top: calc(50% + var(--co) / 2 + 34px); left: 0; right: 0; text-align: center; }
 .aira-root.embedded .aira-core .notice { position: absolute; top: calc(50% + var(--co) / 2 + 60px); left: 0; right: 0; text-align: center; }
-.aira-close {
-  position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); z-index: 6;
-  background: transparent; border: 1px solid var(--a-line); border-radius: 999px; color: var(--muted);
-  font: inherit; font-size: 12px; padding: 5px 12px; cursor: pointer;
+/* Barra delle azioni sotto l'orb: un'unica pillola di vetro, centrata, con Stato · Svuota · Chiudi */
+.aira-dock {
+  position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); z-index: 6;
+  display: inline-flex; align-items: stretch; gap: 2px; padding: 3px; white-space: nowrap;
+  background: rgba(8, 16, 26, 0.62); border: 1px solid var(--a-line); border-radius: 999px;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
 }
-.aira-close:hover { color: var(--text); border-color: var(--a-cyan); }
-/* "Stato" sopra all'orb: porta alla pagina con lo status di Aira */
-.aira-state {
-  position: absolute; top: calc(50% - 27px - var(--co, 300px) / 2 - 46px); left: 50%; transform: translateX(-50%); z-index: 6;
-  display: inline-flex; align-items: center; gap: 7px; text-decoration: none;
-  background: rgba(8, 16, 26, 0.6); border: 1px solid var(--a-line); border-radius: 999px; color: var(--muted);
-  font: inherit; font-size: 12px; letter-spacing: 1.4px; text-transform: uppercase; padding: 6px 14px;
+.aira-dock > .aira-state, .aira-dock > .aira-clear, .aira-dock > .aira-close {
+  --hc: var(--a-cyan);
+  display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 14px; margin: 0;
+  background: transparent; border: 0; border-radius: 999px; color: var(--muted); text-decoration: none; cursor: pointer;
+  font: inherit; font-size: 12px; letter-spacing: 0.04em; line-height: 1; transition: color 0.18s ease, background 0.18s ease;
 }
-.aira-clear {
-  position: absolute; bottom: 4px; left: calc(50% + 70px); z-index: 6; white-space: nowrap;
-  background: transparent; border: 1px solid var(--a-line); border-radius: 999px; color: var(--muted);
-  font: inherit; font-size: 12px; padding: 5px 12px; cursor: pointer;
+.aira-dock .ico { display: inline-flex; }
+.aira-dock .aira-state { --hc: var(--a-teal); }
+.aira-dock .aira-clear { --hc: var(--c-bad); }
+.aira-dock > a:hover, .aira-dock > button:hover, .aira-dock > a:focus-visible, .aira-dock > button:focus-visible {
+  color: var(--hc); background: color-mix(in srgb, var(--hc) 13%, transparent); outline: none;
 }
-.aira-clear:hover { color: var(--c-bad); border-color: var(--c-bad); }
+.aira-dock > a:focus-visible, .aira-dock > button:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--hc) 55%, transparent); }
+/* separatori sottili tra un'azione e l'altra */
+.aira-dock > * + *::before { content: none; }
+.aira-dock .aira-clear, .aira-dock .aira-close { position: relative; }
+.aira-dock .aira-clear::before, .aira-dock .aira-close::before {
+  content: ""; position: absolute; left: -2px; top: 9px; bottom: 9px; width: 1px; background: var(--a-line);
+}
 .bubble .via-tag { display: block; margin-bottom: 3px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.6px; color: var(--faint); }
-.aira-state .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--a-teal); box-shadow: 0 0 8px var(--a-teal); }
-.aira-state:hover { color: var(--text); border-color: var(--a-cyan); }
 .hub-stage.console .hub-home, .hub-stage.console .hub-bar-top { opacity: 0; pointer-events: none; }
 .hub-stage.console .hub-orbwrap { left: 50%; top: calc(50% - 27px); width: min(44vh, 400px, 26vw); height: min(44vh, 400px, 26vw); }
 .hub-stage.console { --co: min(44vh, 400px, 26vw); }
 .aira-root.embedded .aira-core .status { justify-content: center; }
 .aira-name, .aira-bar .arrow { display: none; }
-.aira-close .arrow { display: inline; }
 
 /* orb di Aira: al passaggio si ingrandisce, si accende e un alone pulsa (l'area sensibile è il cerchio, non il quadrato) */
 .hub-orbwrap canvas { clip-path: circle(50%); transition: transform 0.45s cubic-bezier(0.3, 1.5, 0.5, 1), filter 0.4s ease; }
@@ -1783,14 +1787,20 @@ main > *:nth-child(n + 6) {
     position: static; top: auto; left: auto; right: auto; text-align: left; max-width: none; min-height: 0; margin: 2px 0 0; font-size: 12px;
   }
   .aira-root.embedded .aira-core .heard:empty, .aira-root.embedded .aira-core .heard:blank { display: none; }
-  .aira-close {
-    position: absolute; left: 8px; top: 14px; width: 40px; height: 40px; padding: 0; margin: 0; transform: none;
-    display: grid; place-items: center; border-radius: 50%; font-size: 20px;
+  /* azioni: Chiudi a sinistra (tondo), Stato e Svuota a destra in una pillola compatta */
+  .aira-dock { position: static; transform: none; display: block; padding: 0; background: none; border: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .aira-dock > .aira-close {
+    position: absolute; left: 8px; top: 14px; width: 40px; height: 40px; padding: 0; justify-content: center;
+    border: 1px solid var(--a-line); background: rgba(255, 255, 255, 0.04);
   }
-  .aira-close .lbl { display: none; }
-  .aira-state { top: 20px; right: 12px; left: auto; transform: none; padding: 6px 12px; font-size: 11px; }
-  .aira-clear { top: 20px; bottom: auto; right: 92px; left: auto; padding: 6px 10px; font-size: 13px; }
-  .aira-clear .lbl { display: none; }
+  .aira-dock > .aira-close::before { content: none; }
+  .aira-dock > .aira-state, .aira-dock > .aira-clear {
+    position: absolute; top: 19px; height: 32px; border: 1px solid var(--a-line); background: rgba(255, 255, 255, 0.04); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .aira-dock > .aira-clear { right: 12px; width: 32px; padding: 0; justify-content: center; }
+  .aira-dock > .aira-clear::before { content: none; }
+  .aira-dock > .aira-state { right: 52px; padding: 0 12px 0 10px; gap: 6px; }
+  .aira-dock .aira-close .lbl, .aira-dock .aira-clear .lbl { display: none; }
 
   /* messaggi */
   .aira-root.embedded .aira-log {
@@ -1870,3 +1880,25 @@ a.pass-text { color: var(--accent); text-decoration: none; }
 .mood-scale button { width: 40px; height: 36px; font: inherit; font-size: 14px; color: var(--text); background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
 .mood-scale button:hover { border-color: #b78cff; }
 .mood-scale button.on { background: rgba(183, 140, 255, 0.28); border-color: #b78cff; color: #fff; }
+
+/* schede a testo colorato: niente pallino, il nome ha il colore della sezione (spento se inattivo) e una linea verticale separa una scheda dall'altra */
+.topnav .tab:not(.tab-icon-only) i { display: none; }
+.topnav .tab { color: color-mix(in srgb, var(--tc) 62%, var(--muted)); }
+.topnav .tab:hover, .topnav .tab.on { color: var(--tc); }
+.topnav .tab.on { text-shadow: 0 0 12px color-mix(in srgb, var(--tc) 55%, transparent); }
+.topnav .tab + .tab::before {
+  content: ""; position: absolute; left: -1px; top: 50%; height: 16px; width: 1px; transform: translateY(-50%);
+  background: var(--border);
+}
+.topnav { gap: 0; }
+@media (max-width: 899px) {
+  /* mobile: anche i pilastri diventano icone colorate, distribuite sulla larghezza e divise da linee verticali */
+  .topnav.pillars .tab { flex: 1 1 0; justify-content: center; padding: 0; }
+  .topnav.pillars .tab .tab-lbl { display: none; }
+  .topnav.pillars .tab .tab-ico { display: block; opacity: 0.75; transition: opacity 0.2s ease, filter 0.2s ease; }
+  .topnav.pillars .tab.on .tab-ico { opacity: 1; filter: drop-shadow(0 0 5px var(--tc)); }
+  .topnav.pillars .tab::after { left: 28%; right: 28%; }
+  .topbar-row .topnav .tab.on { text-shadow: none; }
+  .topbar-row .topnav .tab .tab-ico { color: var(--tc); opacity: 0.75; }
+  .topbar-row .topnav .tab.on .tab-ico { opacity: 1; }
+}
