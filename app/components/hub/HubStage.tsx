@@ -218,7 +218,6 @@ function Stage() {
         <div className="hub-cc">
           <PillarRadar pillars={pillars} active={p} onSelect={select} />
           <div className="hub-text">
-            <p className="hub-hint">Tocca Aira per parlarci e scriverle</p>
           </div>
         </div>
       </div>
