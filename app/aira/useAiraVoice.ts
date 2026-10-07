@@ -1,7 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ASK_TOOL_NAME, MAX_SESSION_MS } from "../../src/lib/realtimeSession";
 import type { Phase } from "./Orb";
+
+/** Cosa fa la console quando la sessione live produce testo o chiede dati: la voce resta qui, la chat resta lì. */
+export interface RealtimeHandlers {
+  onUser: (text: string) => void;
+  onAssistant: (text: string) => void;
+  onAsk: (request: string) => Promise<{ speech: string; sensitive: boolean }>;
+}
+
+interface RtEvent {
+  type: string;
+  transcript?: string;
+  error?: { message?: string; code?: string };
+  response?: { status?: string; output?: { type: string; name?: string; call_id?: string; arguments?: string; content?: { transcript?: string }[] }[] };
+}
 
 function pickMime(): string | undefined {
   if (typeof MediaRecorder === "undefined") return undefined;
@@ -36,6 +51,16 @@ export function useAiraVoice() {
   const recRef = useRef<{ rec: MediaRecorder; chunks: Blob[]; startedAt: number; send: boolean } | null>(null);
   const vadRef = useRef({ floor: 0.01, speaking: false, speechStart: 0, lastVoice: 0 });
 
+  // sessione live realtime (WebRTC verso OpenAI)
+  const rtRef = useRef(false);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const dcRef = useRef<RTCDataChannel | null>(null);
+  const rtAudioRef = useRef<HTMLAudioElement | null>(null);
+  const rtOutAnalyserRef = useRef<AnalyserNode | null>(null);
+  const rtTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const afterToolRef = useRef(false);
+  const rtHandlersRef = useRef<RealtimeHandlers | null>(null);
+
   const setPhaseBoth = useCallback((p: Phase) => {
     phaseRef.current = p;
     setPhase(p);
@@ -68,13 +93,28 @@ export function useAiraVoice() {
     else recRef.current = null;
   }, []);
 
+  const rtSend = useCallback((ev: Record<string, unknown>): boolean => {
+    const dc = dcRef.current;
+    if (!dc || dc.readyState !== "open") return false;
+    dc.send(JSON.stringify(ev));
+    return true;
+  }, []);
+
   const stopSpeaking = useCallback(() => {
+    if (rtRef.current) {
+      // interruzione a tocco: ferma la risposta in corso e svuota l'audio già in coda
+      if (phaseRef.current === "speaking" || phaseRef.current === "thinking") {
+        rtSend({ type: "response.cancel" });
+        rtSend({ type: "output_audio_buffer.clear" });
+      }
+      return;
+    }
     const el = outElRef.current;
     if (el) {
       el.pause();
       el.removeAttribute("src");
     }
-  }, []);
+  }, [rtSend]);
 
   const beginListeningIfLive = useCallback(() => {
     // ripartenza pulita: niente audio residuo (compresa la voce di Aira) nel prossimo segmento
@@ -172,8 +212,9 @@ export function useAiraVoice() {
       const ph = phaseRef.current;
       const now = performance.now();
 
-      if (ph === "speaking" && outAnalyserRef.current) {
-        const a = outAnalyserRef.current;
+      const speakAnalyser = rtRef.current ? rtOutAnalyserRef.current : outAnalyserRef.current;
+      if (ph === "speaking" && speakAnalyser) {
+        const a = speakAnalyser;
         if (!specBuf.current || specBuf.current.length !== a.frequencyBinCount) specBuf.current = new Uint8Array(a.frequencyBinCount);
         a.getByteFrequencyData(specBuf.current as Uint8Array<ArrayBuffer>);
         let sum = 0;
@@ -199,6 +240,8 @@ export function useAiraVoice() {
       }
       const rms = Math.sqrt(acc / a.fftSize);
       levelRef.current = Math.min(1, rms * 6);
+      // in sessione realtime il rilevamento del parlato lo fa il server: qui serve solo il livello per l'orb
+      if (rtRef.current) return;
 
       const vad = vadRef.current;
       if (!vad.speaking) vad.floor = Math.max(0.004, vad.floor * 0.97 + rms * 0.03);
@@ -231,38 +274,231 @@ export function useAiraVoice() {
     return () => cancelAnimationFrame(raf);
   }, [endSegment, startSegment]);
 
+  const closeRealtime = useCallback(() => {
+    if (rtTimerRef.current) clearTimeout(rtTimerRef.current);
+    rtTimerRef.current = null;
+    rtRef.current = false;
+    afterToolRef.current = false;
+    const dc = dcRef.current;
+    const pc = pcRef.current;
+    dcRef.current = null;
+    pcRef.current = null;
+    if (dc) {
+      dc.onmessage = null;
+      dc.onclose = null;
+      dc.close();
+    }
+    if (pc) {
+      pc.onconnectionstatechange = null;
+      pc.close();
+    }
+    const el = rtAudioRef.current;
+    if (el) {
+      el.pause();
+      el.srcObject = null;
+    }
+    rtAudioRef.current = null;
+    rtOutAnalyserRef.current = null;
+  }, []);
+
   const stopLive = useCallback(() => {
     liveRef.current = false;
     setLive(false);
+    closeRealtime();
     endSegment(false);
     vadRef.current.speaking = false;
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
     micAnalyserRef.current = null;
-    if (phaseRef.current === "listening") setPhaseBoth("idle");
-  }, [endSegment, setPhaseBoth]);
+    if (phaseRef.current !== "idle") setPhaseBoth("idle");
+  }, [closeRealtime, endSegment, setPhaseBoth]);
+  const stopLiveRef = useRef(stopLive);
+  stopLiveRef.current = stopLive;
+
+  /** Esegue le chiamate al tool ask_aira di una risposta e restituisce i risultati al modello, che li dirà a voce. */
+  const runToolCalls = useCallback(
+    async (calls: { call_id?: string; arguments?: string }[]) => {
+      setPhaseBoth("thinking");
+      await Promise.all(
+        calls.map(async (c) => {
+          let output = "Non sono riuscita a completare la richiesta: dillo a Francesco in modo breve.";
+          try {
+            const request = String((JSON.parse(c.arguments || "{}") as { request?: unknown }).request ?? "").trim();
+            const r = await rtHandlersRef.current!.onAsk(request);
+            output = r.sensitive ? "Il contenuto è sensibile ed è stato mostrato a schermo: non leggerlo ad alta voce, di' solo che è sullo schermo." : r.speech || "Fatto.";
+          } catch {
+            /* resta il messaggio di errore: il modello lo comunica a voce */
+          }
+          if (!rtRef.current) return;
+          rtSend({ type: "conversation.item.create", item: { type: "function_call_output", call_id: c.call_id, output } });
+        }),
+      );
+      if (!rtRef.current) return;
+      afterToolRef.current = true;
+      rtSend({ type: "response.create" });
+    },
+    [rtSend, setPhaseBoth],
+  );
+
+  const handleRealtimeEvent = useCallback(
+    (raw: string) => {
+      let ev: RtEvent;
+      try {
+        ev = JSON.parse(raw) as RtEvent;
+      } catch {
+        return;
+      }
+      const h = rtHandlersRef.current;
+      switch (ev.type) {
+        case "input_audio_buffer.speech_started":
+          setPhaseBoth("listening"); // anche durante la voce di Aira: il server interrompe da solo la risposta
+          break;
+        case "input_audio_buffer.speech_stopped":
+          if (phaseRef.current === "listening") setPhaseBoth("thinking");
+          break;
+        case "conversation.item.input_audio_transcription.completed": {
+          const t = (ev.transcript ?? "").trim();
+          if (t) {
+            setHeard(t);
+            h?.onUser(t);
+          }
+          break;
+        }
+        case "output_audio_buffer.started":
+          setPhaseBoth("speaking");
+          break;
+        case "output_audio_buffer.stopped":
+        case "output_audio_buffer.cleared":
+          if (phaseRef.current === "speaking") setPhaseBoth("listening");
+          break;
+        case "response.done": {
+          const out = ev.response?.output ?? [];
+          const calls = out.filter((o) => o.type === "function_call" && o.name === ASK_TOOL_NAME);
+          if (ev.response?.status === "failed") setNotice("La risposta vocale non è riuscita: riprova.");
+          if (calls.length) {
+            void runToolCalls(calls);
+            break;
+          }
+          // risposta data a voce senza tool: nella chat appare il testo; dopo un tool la bolla c'è già (con le fonti)
+          if (ev.response?.status === "completed") {
+            const text = out.flatMap((o) => o.content ?? []).map((c) => c.transcript ?? "").join(" ").trim();
+            if (text && !afterToolRef.current) h?.onAssistant(text);
+          }
+          afterToolRef.current = false;
+          if (phaseRef.current === "thinking") setPhaseBoth("listening");
+          break;
+        }
+        case "error":
+          // «nessuna risposta da annullare» capita di continuo con le interruzioni: non è un errore per l'utente
+          if (ev.error?.code !== "response_cancel_not_active") setNotice(ev.error?.message ? `Voce live: ${ev.error.message}` : "Errore nella voce live.");
+          break;
+      }
+    },
+    [runToolCalls, setHeard, setNotice, setPhaseBoth],
+  );
+
+  /** Sessione realtime: l'audio va direttamente tra il browser e OpenAI, il server fa solo da tramite per la chiave. */
+  const startRealtime = useCallback(
+    async (stream: MediaStream, ctx: AudioContext) => {
+      const pc = new RTCPeerConnection();
+      pcRef.current = pc;
+      const el = new Audio();
+      el.autoplay = true;
+      el.setAttribute("playsinline", "");
+      rtAudioRef.current = el;
+      pc.ontrack = (e) => {
+        el.srcObject = e.streams[0];
+        const an = ctx.createAnalyser();
+        an.fftSize = 256;
+        an.smoothingTimeConstant = 0.7;
+        ctx.createMediaStreamSource(e.streams[0]).connect(an); // solo per l'orb: la riproduzione la fa l'elemento audio
+        rtOutAnalyserRef.current = an;
+        void el.play().catch(() => undefined);
+      };
+      stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+      const dc = pc.createDataChannel("oai-events");
+      dcRef.current = dc;
+      dc.onmessage = (e) => handleRealtimeEvent(String(e.data));
+      const opened = new Promise<void>((resolve, reject) => {
+        dc.onopen = () => resolve();
+        setTimeout(() => reject(new Error("timeout")), 12_000);
+      });
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      const res = await fetch("/api/aira/realtime", { method: "POST", headers: { "Content-Type": "application/sdp" }, body: offer.sdp });
+      if (!res.ok) throw new Error(`realtime ${res.status}`);
+      await pc.setRemoteDescription({ type: "answer", sdp: await res.text() });
+      await opened;
+      pc.onconnectionstatechange = () => {
+        if (pcRef.current !== pc) return;
+        if (pc.connectionState === "failed" || pc.connectionState === "disconnected" || pc.connectionState === "closed") {
+          setNotice("Connessione live interrotta.");
+          stopLiveRef.current();
+        }
+      };
+      dc.onclose = () => {
+        if (dcRef.current === dc) {
+          setNotice("Connessione live interrotta.");
+          stopLiveRef.current();
+        }
+      };
+      rtRef.current = true;
+      rtTimerRef.current = setTimeout(() => {
+        setNotice("Sessione live terminata dopo 10 minuti: riavviala quando vuoi.");
+        stopLiveRef.current();
+      }, MAX_SESSION_MS);
+    },
+    [handleRealtimeEvent, setNotice],
+  );
 
   const startLive = useCallback(async () => {
     setNotice(null);
+    let stream: MediaStream;
+    let ctx: AudioContext;
     try {
-      const ctx = ensureAudio();
-      const stream = await navigator.mediaDevices.getUserMedia({
+      ctx = ensureAudio();
+      stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
-      micStreamRef.current = stream;
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 1024;
-      analyser.smoothingTimeConstant = 0.6;
-      ctx.createMediaStreamSource(stream).connect(analyser);
-      micAnalyserRef.current = analyser;
-      vadRef.current = { floor: 0.01, speaking: false, speechStart: 0, lastVoice: 0 };
-      liveRef.current = true;
-      setLive(true);
-      if (phaseRef.current === "idle") setPhaseBoth("listening");
     } catch {
       setNotice("Non riesco ad accedere al microfono: controlla i permessi del browser.");
+      return;
     }
-  }, [ensureAudio, setPhaseBoth]);
+    micStreamRef.current = stream;
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 1024;
+    analyser.smoothingTimeConstant = 0.6;
+    ctx.createMediaStreamSource(stream).connect(analyser);
+    micAnalyserRef.current = analyser;
+    vadRef.current = { floor: 0.01, speaking: false, speechStart: 0, lastVoice: 0 };
+    setPhaseBoth("thinking"); // connessione in corso
+    liveRef.current = true;
+    setLive(true);
+    try {
+      await startRealtime(stream, ctx);
+      setPhaseBoth("listening");
+    } catch (err) {
+      // ripiego: la modalità a turni (registra, trascrive, risponde, legge) funziona anche senza realtime
+      console.warn("[aira] voce realtime non disponibile, uso la modalità a turni:", err);
+      closeRealtime();
+      setNotice("Voce live non disponibile ora: uso la modalità a turni.");
+      setPhaseBoth("listening");
+    }
+  }, [closeRealtime, ensureAudio, setNotice, setPhaseBoth, startRealtime]);
+
+  /** Testo scritto durante una sessione live: lo gestisce il modello (ed eventualmente il tool). false = nessuna sessione. */
+  const sendTextLive = useCallback(
+    (text: string): boolean => {
+      if (!rtRef.current) return false;
+      const ok = rtSend({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text }] } });
+      if (ok) {
+        rtSend({ type: "response.create" });
+        setPhaseBoth("thinking");
+      }
+      return ok;
+    },
+    [rtSend, setPhaseBoth],
+  );
 
   useEffect(() => {
     voiceRepliesRef.current = voiceReplies;
@@ -270,6 +506,7 @@ export function useAiraVoice() {
 
   useEffect(() => () => {
     liveRef.current = false;
+    closeRealtime();
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     outElRef.current?.pause();
     void audioCtxRef.current?.close();
@@ -306,6 +543,8 @@ export function useAiraVoice() {
     startLive,
     stopLive,
     onOrbClick,
+    rtHandlersRef,
+    sendTextLive,
   };
 }
 

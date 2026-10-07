@@ -106,6 +106,8 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
     heard,
     setHeard,
     onHeardRef,
+    rtHandlersRef,
+    sendTextLive,
     ensureAudio,
     speak,
     stopSpeaking,
@@ -170,6 +172,48 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
   };
 
   // ───────── chat ─────────
+  /** Una richiesta alla pipeline di Aira: aggiorna la bolla (intento, fonti, risposta) e restituisce cosa dire a voce. */
+  const runChat = useCallback(async (text: string, patch: (fn: (m: Msg) => Msg) => void): Promise<{ speech: string; sensitive: boolean }> => {
+    const res = await fetch("/api/aira/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(58_000),
+    });
+    if (!res.ok || !res.body) {
+      const msg =
+        res.status === 503
+          ? "Aira sul web non è ancora abilitata: manca la password della dashboard sul server."
+          : res.status === 401
+            ? "Accesso negato: ricarica la pagina e inserisci la password."
+            : "Non riesco a raggiungere il server.";
+      throw new Error(msg);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let result = { speech: "", sensitive: false };
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line) continue;
+        const ev = JSON.parse(line);
+        if (ev.t === "intent") patch((m) => ({ ...m, intent: ev.type }));
+        else if (ev.t === "source") patch((m) => ({ ...m, sources: [...m.sources, ev.source as Source] }));
+        else if (ev.t === "reply") {
+          patch((m) => ({ ...m, html: ev.html, pending: false, sensitive: ev.sensitive }));
+          result = { speech: String(ev.speech ?? ""), sensitive: Boolean(ev.sensitive) };
+        } else if (ev.t === "error") throw new Error(ev.message);
+      }
+    }
+    return result;
+  }, []);
+
   const send = useCallback(
     async (raw: string, viaVoice: boolean) => {
       const text = raw.trim();
@@ -191,43 +235,10 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
       const patch = (fn: (m: Msg) => Msg) => setMessages((all) => all.map((x) => (x.id === airaId ? fn(x) : x)));
       let spoke = false;
       try {
-        const res = await fetch("/api/aira/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        });
-        if (!res.ok || !res.body) {
-          const msg =
-            res.status === 503
-              ? "Aira sul web non è ancora abilitata: manca la password della dashboard sul server."
-              : res.status === 401
-                ? "Accesso negato: ricarica la pagina e inserisci la password."
-                : "Non riesco a raggiungere il server.";
-          throw new Error(msg);
-        }
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = "";
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += decoder.decode(value, { stream: true });
-          let nl: number;
-          while ((nl = buf.indexOf("\n")) >= 0) {
-            const line = buf.slice(0, nl).trim();
-            buf = buf.slice(nl + 1);
-            if (!line) continue;
-            const ev = JSON.parse(line);
-            if (ev.t === "intent") patch((m) => ({ ...m, intent: ev.type }));
-            else if (ev.t === "source") patch((m) => ({ ...m, sources: [...m.sources, ev.source as Source] }));
-            else if (ev.t === "reply") {
-              patch((m) => ({ ...m, html: ev.html, pending: false, sensitive: ev.sensitive }));
-              if (!ev.sensitive && (viaVoice || voiceRepliesRef.current || liveRef.current)) {
-                spoke = true;
-                void speak(ev.speech);
-              }
-            } else if (ev.t === "error") throw new Error(ev.message);
-          }
+        const r = await runChat(text, patch);
+        if (!r.sensitive && (viaVoice || voiceRepliesRef.current || liveRef.current)) {
+          spoke = true;
+          void speak(r.speech);
         }
       } catch (err) {
         patch((m) => ({ ...m, pending: false, error: true, html: (err as Error).message || "Errore." }));
@@ -235,18 +246,46 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
       sendingRef.current = false;
       if (!spoke) beginListeningIfLive();
     },
-    [beginListeningIfLive, liveRef, voiceRepliesRef, setHeard, setNotice, setPhaseBoth, speak, stopSpeaking],
+    [beginListeningIfLive, liveRef, runChat, voiceRepliesRef, setHeard, setNotice, setPhaseBoth, speak, stopSpeaking],
   );
 
   useEffect(() => {
     onHeardRef.current = (text) => send(text, true);
   }, [onHeardRef, send]);
 
+  // Sessione live (realtime): il modello parla, qui compaiono le bolle. Le richieste sui dati passano dal tool e
+  // riusano la stessa pipeline della chat, quindi la bolla ha intento e fonti come sempre.
+  useEffect(() => {
+    rtHandlersRef.current = {
+      onUser: (text) => setMessages((m) => [...m, { id: idRef.current++, role: "user", text, sources: [], viaVoice: true }]),
+      onAssistant: (text) => setMessages((m) => [...m, { id: idRef.current++, role: "aira", html: escapeHtml(text), sources: [] }]),
+      onAsk: async (request) => {
+        const airaId = idRef.current++;
+        setMessages((m) => [...m, { id: airaId, role: "aira", sources: [], pending: true }]);
+        setSelectedId(airaId);
+        const patch = (fn: (m: Msg) => Msg) => setMessages((all) => all.map((x) => (x.id === airaId ? fn(x) : x)));
+        try {
+          return await runChat(request, patch);
+        } catch (err) {
+          patch((m) => ({ ...m, pending: false, error: true, html: (err as Error).message || "Errore." }));
+          throw err;
+        }
+      },
+    };
+    return () => {
+      rtHandlersRef.current = null;
+    };
+  }, [rtHandlersRef, runChat]);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const v = input;
     setInput("");
     ensureAudio();
+    if (v.trim() && sendTextLive(v.trim())) {
+      setMessages((m) => [...m, { id: idRef.current++, role: "user", text: v.trim(), sources: [] }]);
+      return;
+    }
     void send(v, false);
   };
 

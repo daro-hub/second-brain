@@ -111,9 +111,15 @@ pipeline del bot Telegram (`handleMessageTraced` in `src/lib/respond.ts`, stesso
 stesse integrazioni), più un pannello **Fonti dati** che mostra in tempo reale da quali sorgenti
 arriva la risposta (calendario, Apple Health, Strava, KB, Linear…) con link alla dashboard dedicata.
 
-- **Testo**: scrivi nella barra in basso. **Live**: il bottone 🎙 attiva l'ascolto a mani libere
-  (rilevamento del parlato nel browser → `/api/aira/transcribe` → chat → `/api/aira/speak`).
-  Toccando l'orb mentre Aira parla la interrompi.
+- **Testo**: scrivi nella barra in basso. **Live**: il bottone LIVE apre una sessione voce↔voce con la
+  **Realtime API di OpenAI** (WebRTC: l'audio va direttamente tra browser e OpenAI, risposta in meno di un
+  secondo, la interrompi parlando o toccando l'orb). `/api/aira/realtime` fa solo da tramite per l'offerta SDP
+  aggiungendo la configurazione (`src/lib/realtimeSession.ts`: istruzioni, voce `marin`, un solo tool
+  `ask_aira`) con la chiave, che non esce dal server. Tutto ciò che riguarda i tuoi dati passa dal tool, che
+  esegue la stessa pipeline della chat (`/api/aira/chat`: intento, fonti, cronologia condivisa con Telegram);
+  le password restano a schermo e non vengono lette. Modello da `REALTIME_MODEL` (default `gpt-realtime-2.1`,
+  prova `gpt-realtime-2.1-mini` per costare meno). Una sessione dura al massimo 10 minuti. Se il realtime non è
+  raggiungibile si ricade sulla vecchia modalità a turni (`/api/aira/transcribe` → chat → `/api/aira/speak`).
 - Le API `/api/aira/*` (chat in streaming NDJSON, trascrizione, voce) leggono password, calendario
   ed email: **richiedono `DASHBOARD_PASSWORD`**; in produzione, senza, rispondono 503 (fail closed).
 - Le risposte con password non vengono mai lette ad alta voce e restano mascherate finché non
