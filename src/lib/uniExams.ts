@@ -10,6 +10,8 @@ export interface Course {
   status: CourseStatus;
   grade: string | null;
   passedOn: string | null;
+  semesters?: number | null;
+  hours?: number | null;
 }
 
 export interface PlannedExam {
@@ -30,6 +32,8 @@ export async function getCourses(): Promise<Course[]> {
     status: r.status,
     grade: r.grade,
     passedOn: r.passed_on,
+    semesters: r.semesters ?? null,
+    hours: r.hours ?? null,
   }));
 }
 

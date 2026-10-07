@@ -1487,7 +1487,7 @@ main > *:nth-child(n + 6) {
 .career-h { margin: 14px 0 4px; font-family: var(--mono); font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--muted); font-weight: 600; }
 .career-year { margin: 10px 0 2px; font-size: 12px; color: var(--faint); }
 .career-list { list-style: none; margin: 0; padding: 0; }
-.career-list li { display: grid; grid-template-columns: 1fr 70px 90px 90px auto; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border-soft); align-items: center; font-size: 13px; }
+.career-list li { display: grid; grid-template-columns: 1fr 150px 90px 90px auto; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border-soft); align-items: center; font-size: 13px; }
 .career-list li:last-child { border-bottom: 0; }
 .career-meta { font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
 .career-grade { font-family: var(--mono); font-weight: 700; color: var(--c-good); }
