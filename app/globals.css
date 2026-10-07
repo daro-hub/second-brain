@@ -1768,17 +1768,22 @@ main > *:nth-child(n + 6) {
   body.hub-console-open::before { display: none; }
   body::after { display: none; }
 
+  /* testata e barra in basso FLUTTUANO sopra i messaggi (niente sfondo): i messaggi occupano tutto lo schermo e sfumano sotto i comandi */
   .aira-root.embedded {
-    grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
-    grid-template-areas: "core" "log" "bar"; gap: 0; padding: 0; background: var(--bg);
+    grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "stack"; gap: 0; padding: 0; background: var(--bg);
   }
+  .aira-root.embedded .aira-core, .aira-root.embedded .aira-log, .aira-root.embedded .aira-bar { grid-area: stack; }
+  .aira-root.embedded .aira-core { align-self: start; z-index: 3; }
+  .aira-root.embedded .aira-bar { align-self: end; z-index: 3; }
   .aira-root.embedded .aira-sources { display: none; } /* niente riquadro delle fonti dati */
 
-  /* testata: indietro · orb (lo disegna lo stage) · nome e stato */
-  .hub-stage.console .hub-orbwrap { left: 72px; top: 34px; width: 46px; height: 46px; }
+  /* l'orb (lo disegna lo stage) sta in basso a sinistra, al posto del tasto LIVE: un tocco avvia/ferma la conversazione dal vivo */
+  .hub-stage.console .hub-orbwrap { left: 33px; top: calc(100% - env(safe-area-inset-bottom) - 29px); width: 46px; height: 46px; }
+  /* testata: indietro · nome e stato · Stato e Svuota, senza sfondo */
   .aira-root.embedded .aira-core {
-    display: block; position: relative; min-height: 68px; padding: 10px 14px 8px 104px; --co: 46px;
-    background: rgba(8, 16, 26, 0.92); border-bottom: 1px solid var(--a-line);
+    display: block; position: relative; min-height: 68px; padding: 10px 150px 8px 58px; --co: 46px;
+    background: none; border: 0; text-shadow: 0 1px 10px rgba(5, 8, 12, 0.9);
   }
   .aira-root.embedded .orb-wrap { display: none; }
   .aira-name { display: block; font-size: 16px; font-weight: 600; color: #fff; line-height: 1.2; }
@@ -1791,11 +1796,11 @@ main > *:nth-child(n + 6) {
   .aira-dock { position: static; transform: none; display: block; padding: 0; background: none; border: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
   .aira-dock > .aira-close {
     position: absolute; left: 8px; top: 14px; width: 40px; height: 40px; padding: 0; justify-content: center;
-    border: 1px solid var(--a-line); background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--a-line); background: transparent;
   }
   .aira-dock > .aira-close::before { content: none; }
   .aira-dock > .aira-state, .aira-dock > .aira-clear {
-    position: absolute; top: 19px; height: 32px; border: 1px solid var(--a-line); background: rgba(255, 255, 255, 0.04); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+    position: absolute; top: 19px; height: 32px; border: 1px solid var(--a-line); background: transparent; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
   }
   .aira-dock > .aira-clear { right: 12px; width: 32px; padding: 0; justify-content: center; }
   .aira-dock > .aira-clear::before { content: none; }
@@ -1804,9 +1809,12 @@ main > *:nth-child(n + 6) {
 
   /* messaggi */
   .aira-root.embedded .aira-log {
-    max-height: none; min-height: 0; grid-row: auto; /* annulla il limite del 38% dello stile originale */
-    background: transparent; border: 0; border-radius: 0; backdrop-filter: none; padding: 12px 12px 8px; gap: 8px;
+    max-height: none; min-height: 0; /* annulla il limite del 38% dello stile originale */
+    background: transparent; border: 0; border-radius: 0; backdrop-filter: none; gap: 8px;
+    padding: calc(76px + env(safe-area-inset-top)) 12px calc(74px + env(safe-area-inset-bottom));
     overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent 38px, #000 92px, #000 calc(100% - 100px), transparent calc(100% - 50px));
+    mask-image: linear-gradient(to bottom, transparent 0, transparent 38px, #000 92px, #000 calc(100% - 100px), transparent calc(100% - 50px));
   }
   .aira-root.embedded .aira-log::-webkit-scrollbar { display: none; }
   /* distanziatore flessibile: i messaggi stanno in basso vicino alla barra; con molti messaggi si riduce a zero e si scorre */
@@ -1822,8 +1830,8 @@ main > *:nth-child(n + 6) {
 
   /* barra di scrittura: campo tondo, microfono, volume, invio */
   .aira-root.embedded .aira-bar {
-    max-width: none; margin: 0; width: 100%; flex-wrap: nowrap; gap: 8px; border: 0; border-top: 1px solid var(--a-line); border-radius: 0;
-    background: rgba(8, 16, 26, 0.95); padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    max-width: none; margin: 0; width: 100%; flex-wrap: nowrap; gap: 8px; border: 0; border-radius: 0;
+    background: none; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) 64px; /* 64px = spazio per l'orb */
   }
   /* Campo di scrittura su iOS: il cursore finiva "prima" dell'ultima lettera e il testo sfarfallava. Cause: blur (backdrop-filter)
      sul contenitore, aspetto nativo dell'input e altezza data dal padding invece che fissa. Qui tutto resta piatto e a misura fissa. */
@@ -1840,6 +1848,8 @@ main > *:nth-child(n + 6) {
     flex: 0 0 auto; width: 42px; height: 42px; padding: 0; display: grid; place-items: center; border-radius: 50%; font-size: 16px; letter-spacing: 0;
   }
   .aira-root.embedded .aira-bar .lbl { display: none; }
+  .aira-root.embedded .aira-bar .btn-mic, .aira-root.embedded .aira-bar .btn-vol { display: none; } /* LIVE = l'orb; i vocali = microfono */
+  .aira-root.embedded .aira-bar .btn-rec { display: grid; background: transparent; }
   .aira-root.embedded .aira-bar .btn-send .arrow { display: block; font-size: 20px; line-height: 1; }
   .aira-root.embedded .aira-bar .btn-send { background: linear-gradient(135deg, rgba(77, 225, 255, 0.45), rgba(183, 140, 255, 0.45)); }
 }
@@ -1901,4 +1911,14 @@ a.pass-text { color: var(--accent); text-decoration: none; }
   .topbar-row .topnav .tab.on { text-shadow: none; }
   .topbar-row .topnav .tab .tab-ico { color: var(--tc); opacity: 0.75; }
   .topbar-row .topnav .tab.on .tab-ico { opacity: 1; }
+}
+
+@media (max-width: 899px) {
+  /* fuori da panoramica e chat l'orb non sta più in alto a sinistra: fluttua in basso al centro e apre la chat */
+  .hub-stage:not(.home):not(.console) .hub-orbwrap {
+    position: fixed; left: 50%; top: calc(100dvh - env(safe-area-inset-bottom) - 44px); width: 56px; height: 56px; z-index: 40;
+    filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.55));
+  }
+  .hub-bar-top { padding-left: 12px; }
+  main { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 }

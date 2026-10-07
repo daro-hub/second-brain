@@ -192,7 +192,8 @@ function Stage() {
     else if (mode === "console") {
       ensureAudio();
       voice.onOrbClick(); // nella console l'orb attiva/disattiva la voce
-    } else router.push("/"); // dall'angolo, l'orb riporta alla schermata principale
+    } else if (window.matchMedia("(max-width: 899px)").matches) router.push("/?console=1"); // da mobile l'orb fluttua in basso al centro e apre la chat
+    else router.push("/"); // dall'angolo, l'orb riporta alla schermata principale
   };
 
   if (pathname.startsWith("/login")) return null;
