@@ -446,11 +446,13 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
           </button>
         </div>
         <div className="orb-wrap" aria-hidden />
-        <div className="aira-name">Aira</div>
-        <div className={`status status-${phase}`}>
-          <span className="pulse" />
-          {STATUS[phase]}
-        </div>
+        <Link href="/?p=aira" className="aira-head" aria-label="Stato di Aira">
+          <div className="aira-name">Aira</div>
+          <div className={`status status-${phase}`}>
+            <span className="pulse" />
+            {STATUS[phase]}
+          </div>
+        </Link>
         <div className="heard">{phase === "listening" ? "Parla pure, ti ascolto…" : heard ? `“${heard}”` : " "}</div>
         {notice && <div className="notice">{notice}</div>}
       </section>
