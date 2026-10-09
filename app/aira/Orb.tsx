@@ -56,10 +56,12 @@ export function Orb({ phase, getLevel, onClick }: Props) {
     let colA: [number, number, number] = [...PALETTE.idle.a];
     let colB: [number, number, number] = [...PALETTE.idle.b];
     const t0 = performance.now();
+    // Riduci movimento: la sfera resta ferma (si ridisegna solo quando cambia stato o livello audio)
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const draw = (now: number) => {
       raf = requestAnimationFrame(draw);
-      const t = (now - t0) / 1000;
+      const t = reduceMotion ? 0 : (now - t0) / 1000;
       const ph = phaseRef.current;
       const pal = PALETTE[ph];
       for (let i = 0; i < 3; i++) {

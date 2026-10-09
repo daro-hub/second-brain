@@ -7,7 +7,7 @@
   --border-soft: rgba(255, 255, 255, 0.07);
   --text: #f5f5f7;
   --muted: #98989f;
-  --faint: #636366;
+  --faint: #8e8e93;
   --accent: #0a84ff;
   --accent-2: #ff375f;
   --brand: #30d158;
@@ -1573,3 +1573,76 @@ a.pass-text { color: var(--accent); text-decoration: none; }
 
 /* select: stessa spaziatura per la freccia anche dove il contesto reimposta il padding */
 .exam-form select, .hub-form select, .uni-upload select { padding-right: 32px; margin-bottom: 0; }
+
+/* ───────── accessibilità (apple-design: accessibility.md) ───────── */
+/* focus visibile con la tastiera */
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* testo piccolo: almeno 12px */
+.kpi .kpi-sub,
+.hub-body .hub-card .kpi-sub,
+.pill {
+  font-size: 12px;
+}
+
+/* su telefono i controlli toccabili arrivano a 44pt */
+@media (max-width: 899px) {
+  .topnav .tab {
+    height: 40px;
+  }
+  .topbar-row {
+    height: 56px;
+  }
+  .topbar-row .topnav {
+    padding: 2px;
+  }
+  .brand-mark,
+  .topbar .logout {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Aumenta contrasto: testi secondari più chiari, bordi visibili */
+@media (prefers-contrast: more) {
+  :root {
+    --muted: #c7c7cc;
+    --faint: #aeaeb2;
+    --border: rgba(255, 255, 255, 0.4);
+    --border-soft: rgba(255, 255, 255, 0.25);
+  }
+  .topnav .tab.on {
+    background: #8e8e93;
+    color: #000;
+  }
+}
+
+/* Riduci trasparenza: niente sfocature, superfici piene */
+@media (prefers-reduced-transparency: reduce) {
+  .topbar {
+    background: #000;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .aira-dock {
+    background: #2c2c2e;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Riduci movimento: nessuna transizione di posizione dell'orb */
+@media (prefers-reduced-motion: reduce) {
+  .hub-orbwrap,
+  .hub-home,
+  .hub-bar-top {
+    transition: none !important;
+  }
+}
