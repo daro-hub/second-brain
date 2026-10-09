@@ -35,11 +35,10 @@ export function PillarRadar({
   return (
     <div className="hub-radar">
       <svg viewBox="-10 24 420 352" role="img" aria-label="Radar dei cinque pilastri">
-        {[0.25, 0.5, 0.75, 1].map((f) => (
-          <polygon key={f} points={poly(pillars.map(() => f))} fill="none" stroke="rgba(120,170,220,0.16)" />
+        {[1 / 3, 2 / 3, 1].map((f) => (
+          <polygon key={f} points={poly(pillars.map(() => f))} fill="none" stroke="rgba(255,255,255,0.09)" strokeLinejoin="round" />
         ))}
-        <polygon points={poly(pillars.map(() => 0.7))} fill="none" stroke="rgba(255,122,217,0.5)" strokeDasharray="4 4" />
-        <polygon points={poly(real)} fill="rgba(77,225,255,0.14)" stroke="#4de1ff" strokeWidth="1.6" />
+        <polygon points={poly(real)} fill="rgba(10,132,255,0.18)" stroke="#0a84ff" strokeWidth="2" strokeLinejoin="round" />
         {pillars.map((p, i) => {
           const [x, y] = pt(i, real[i]);
           const [hx, hy] = pt(i, 1);
@@ -49,7 +48,7 @@ export function PillarRadar({
           const [mx, my] = pt(i, 1.15);
           const anchor = lx < C - 8 ? "end" : lx > C + 8 ? "start" : "middle";
           // larghezza stimata dell'etichetta già ingrandita (×1.25): l'area sensibile la copre tutta anche da animata
-          const labelW = p.label.length * 9.8 * 1.25;
+          const labelW = p.label.length * 8.6 * 1.25;
           const labelX0 = anchor === "end" ? lx - labelW : anchor === "middle" ? lx - labelW / 2 : lx;
           return (
             <g
@@ -75,10 +74,10 @@ export function PillarRadar({
               ) : (
                 <circle className="v-dot empty" cx={hx} cy={hy} r="4" />
               )}
-              <text className="v-label" x={lx} y={ly} textAnchor={anchor} fontSize="13" letterSpacing="1.2">
-                {p.label.toUpperCase()}
+              <text className="v-label" x={lx} y={ly} textAnchor={anchor} fontSize="14">
+                {p.label}
               </text>
-              <text className="v-score" x={lx} y={ly + 18} textAnchor={anchor} fontSize="17">
+              <text className="v-score" x={lx} y={ly + 22} textAnchor={anchor} fontSize="22">
                 {p.score === null ? "n/d" : p.score}
               </text>
             </g>

@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Aira">
   <defs>
     <radialGradient id="glow" cx="50%" cy="50%" r="50%">
-      <stop offset="0" stop-color="#4de1ff" stop-opacity="0.55"/>
-      <stop offset="0.55" stop-color="#4de1ff" stop-opacity="0.12"/>
-      <stop offset="1" stop-color="#4de1ff" stop-opacity="0"/>
+      <stop offset="0" stop-color="#0a84ff" stop-opacity="0.55"/>
+      <stop offset="0.55" stop-color="#0a84ff" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#0a84ff" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="orb" cx="38%" cy="34%" r="75%">
       <stop offset="0" stop-color="#ffffff"/>
@@ -19,12 +19,12 @@
   <rect width="512" height="512" rx="112" fill="url(#bg)"/>
   <circle cx="256" cy="256" r="236" fill="url(#glow)"/>
   <!-- i cinque pilastri: il pentagono del radar -->
-  <polygon points="256,86 417,203 355,392 157,392 95,203" fill="none" stroke="#ff7ad9" stroke-opacity="0.55" stroke-width="5" stroke-dasharray="14 12" stroke-linejoin="round"/>
-  <g fill="#ff7ad9" fill-opacity="0.9">
+  <polygon points="256,86 417,203 355,392 157,392 95,203" fill="none" stroke="#ff375f" stroke-opacity="0.55" stroke-width="5" stroke-dasharray="14 12" stroke-linejoin="round"/>
+  <g fill="#ff375f" fill-opacity="0.9">
     <circle cx="256" cy="86" r="9"/><circle cx="417" cy="203" r="9"/><circle cx="355" cy="392" r="9"/><circle cx="157" cy="392" r="9"/><circle cx="95" cy="203" r="9"/>
   </g>
-  <circle cx="256" cy="256" r="132" fill="none" stroke="#4de1ff" stroke-opacity="0.7" stroke-width="5"/>
-  <circle cx="256" cy="256" r="150" fill="none" stroke="#4de1ff" stroke-opacity="0.28" stroke-width="3" stroke-dasharray="3 14" stroke-linecap="round"/>
+  <circle cx="256" cy="256" r="132" fill="none" stroke="#0a84ff" stroke-opacity="0.7" stroke-width="5"/>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#0a84ff" stroke-opacity="0.28" stroke-width="3" stroke-dasharray="3 14" stroke-linecap="round"/>
   <circle cx="256" cy="256" r="84" fill="url(#orb)"/>
   <ellipse cx="228" cy="224" rx="26" ry="16" fill="#ffffff" fill-opacity="0.55" transform="rotate(-30 228 224)"/>
 </svg>

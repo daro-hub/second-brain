@@ -24,15 +24,15 @@ export function Radar({ muscles }: { muscles: MuscleStat[] }) {
         const [x, y] = pt(i, 1);
         return <line key={m.group} x1={c} y1={c} x2={x} y2={y} stroke="rgba(120,170,220,0.18)" />;
       })}
-      <polygon points={poly(idealPoly)} fill="none" stroke="rgba(255,122,217,0.7)" strokeDasharray="4 4" />
-      <polygon points={poly(real)} fill="rgba(77,225,255,0.2)" stroke="#4de1ff" strokeWidth="1.6" style={{ filter: "drop-shadow(0 0 6px rgba(77,225,255,0.7))" }} />
+      <polygon points={poly(idealPoly)} fill="none" stroke="rgba(255, 55, 95,0.7)" strokeDasharray="4 4" />
+      <polygon points={poly(real)} fill="rgba(10, 132, 255,0.2)" stroke="#0a84ff" strokeWidth="1.6" style={{ filter: "drop-shadow(0 0 6px rgba(10, 132, 255,0.7))" }} />
       {muscles.map((m, i) => {
         const [x, y] = pt(i, real[i]);
         const [lx, ly] = pt(i, 1.2);
         const anchor = lx < c - 8 ? "end" : lx > c + 8 ? "start" : "middle";
         return (
           <g key={m.group}>
-            <circle cx={x} cy={y} r="3" fill="#4de1ff" />
+            <circle cx={x} cy={y} r="3" fill="#0a84ff" />
             <text x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle">
               {m.label.toUpperCase()}
             </text>

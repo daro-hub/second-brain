@@ -124,7 +124,7 @@ export async function SaluteView({ date }: { date?: string }) {
             <>
               <AreaLine
                 points={night.points.map((p) => ({ x: p.hour, y: p.avg, label: clock((p.hour + 24) % 24) }))}
-                color="#ff5d73"
+                color="#ff453a"
                 height={190}
                 yFormat={(v) => `${Math.round(v)}`}
                 xFormat={(v) => clock((v + 24) % 24)}
@@ -146,8 +146,8 @@ export async function SaluteView({ date }: { date?: string }) {
           <GroupedBars
             categories={energyWeek.days.map((d) => ({ label: weekdayShort(d.dayKey), values: [d.kcalIn, d.kcalOut] }))}
             series={[
-              { name: "Assunte", color: "#f5a524" },
-              { name: "Bruciate", color: "#7aa2ff" },
+              { name: "Assunte", color: "#ff9f0a" },
+              { name: "Bruciate", color: "#0a84ff" },
             ]}
             unit=" kcal"
             partialLabelIndex={energyWeek.days.findIndex((d) => d.isToday)}

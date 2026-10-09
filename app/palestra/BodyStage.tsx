@@ -107,8 +107,8 @@ function Body({
     <svg viewBox="0 0 220 480" className="body-svg" role="img" aria-label={`Avatar, vista ${view === "front" ? "frontale" : "posteriore"}`}>
       <defs>
         <linearGradient id="bodyfill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="rgba(77,225,255,0.16)" />
-          <stop offset="1" stopColor="rgba(77,225,255,0.03)" />
+          <stop offset="0" stopColor="rgba(10, 132, 255,0.16)" />
+          <stop offset="1" stopColor="rgba(10, 132, 255,0.03)" />
         </linearGradient>
       </defs>
 
@@ -328,7 +328,7 @@ export function BodyStage({ muscles, heart }: { muscles: MuscleStat[]; heart: He
             {heart.restingNow !== null ? fmt(heart.restingNow) : "—"}
             <small>bpm a riposo</small>
           </div>
-          <Spark values={heart.restingSeries} color="#ff5d73" />
+          <Spark values={heart.restingSeries} color="#ff453a" />
           <div className="n-sub">
             {heart.sessionAvg !== null ? `${fmt(heart.sessionAvg)} bpm medi in allenamento` : "nessun dato nelle sessioni"}
             {heart.sessionMax ? ` · picco ${fmt(heart.sessionMax)}` : ""}

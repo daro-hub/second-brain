@@ -13,7 +13,7 @@ export function BrainPanel({ brain }: { brain: BrainSnapshot }) {
         <h3>Rete neurale</h3>
         <Link href="/?console=1" className="muted small">apri la chat con Aira →</Link>
       </div>
-      <div className="hub-brain" style={{ ["--a-cyan" as string]: "#4de1ff", ["--a-teal" as string]: "#5eead4", ["--a-rose" as string]: "#ff7ad9", ["--a-violet" as string]: "#b78cff", ["--a-line" as string]: "rgba(77,225,255,0.22)", ["--a-panel" as string]: "rgba(8,16,26,0.72)" }}>
+      <div className="hub-brain" style={{ ["--a-cyan" as string]: "#0a84ff", ["--a-teal" as string]: "#64d2ff", ["--a-rose" as string]: "#ff375f", ["--a-violet" as string]: "#bf5af2", ["--a-line" as string]: "rgba(10, 132, 255,0.22)", ["--a-panel" as string]: "rgba(8,16,26,0.72)" }}>
         <BrainView brain={brain} lit={new Set()} />
       </div>
     </div>

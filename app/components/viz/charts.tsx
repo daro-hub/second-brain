@@ -4,8 +4,8 @@ import type { ActivityDay } from "../../../src/lib/overview";
 /* ───────────────────────── Heatmap attività (stile "contributi") ───────────────────────── */
 
 const CAT = {
-  weights: { color: "#7aa2ff", label: "Pesi" },
-  run: { color: "#b78cff", label: "Corsa" },
+  weights: { color: "#0a84ff", label: "Pesi" },
+  run: { color: "#bf5af2", label: "Corsa" },
   walk: { color: "#3cc7e0", label: "Camminata" },
   other: { color: "#8b94a9", label: "Altro" },
 } as const;
@@ -99,7 +99,7 @@ export function ActivityHeatmap({ days }: { days: ActivityDay[] }) {
 export function HourHistogram({
   counts,
   busy,
-  color = "#7aa2ff",
+  color = "#0a84ff",
 }: {
   counts: number[];
   busy: number[];
@@ -117,7 +117,7 @@ export function HourHistogram({
       <svg className="viz" viewBox={`0 0 ${W} ${H}`} style={{ minWidth: 520 }}>
         {busy.map((b, h) =>
           b > 0 ? (
-            <rect key={`b${h}`} x={L + h * bw} y={T} width={bw} height={H - B - T} fill="#5eead4" fillOpacity={b * 0.2}>
+            <rect key={`b${h}`} x={L + h * bw} y={T} width={bw} height={H - B - T} fill="#64d2ff" fillOpacity={b * 0.2}>
               <title>{`${String(h).padStart(2, "0")}:00 · occupato (studio/lezioni) ${Math.round(b * 100)}% dei giorni feriali`}</title>
             </rect>
           ) : null,
@@ -145,7 +145,7 @@ export function HourHistogram({
       </svg>
       <div className="legend">
         <span><i style={{ background: color }} />Allenamenti (orario di inizio reale, Strava)</span>
-        <span><i style={{ background: "#5eead4", opacity: 0.5 }} />Ore occupate da studio/lezioni</span>
+        <span><i style={{ background: "#64d2ff", opacity: 0.5 }} />Ore occupate da studio/lezioni</span>
       </div>
     </div>
   );
@@ -159,7 +159,7 @@ export function XYScatter({
   yLabel,
   yFormat = (v) => String(Math.round(v * 10) / 10),
   xFormat = (v) => String(Math.round(v * 10) / 10),
-  color = "#7aa2ff",
+  color = "#0a84ff",
   trend,
 }: {
   points: { x: number; y: number; label?: string }[];
@@ -239,7 +239,7 @@ export function XYScatter({
 
 export function AreaLine({
   points,
-  color = "#7aa2ff",
+  color = "#0a84ff",
   height = 200,
   yFormat = (v) => String(Math.round(v)),
   xFormat = (v) => String(v),

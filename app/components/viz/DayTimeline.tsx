@@ -22,14 +22,14 @@ const H = 446;
 const x = (hour: number) => L + (Math.min(Math.max(hour, 0), 24) / 24) * PLOT_W;
 
 const COLORS = {
-  heart: "#ff5d73",
+  heart: "#ff453a",
   steps: "#34d399",
-  meal: "#f5a524",
-  study: "#5eead4",
-  lesson: "#f9a8d4",
+  meal: "#ff9f0a",
+  study: "#64d2ff",
+  lesson: "#ff6482",
   event: "#9ca3b8",
-  weights: "#7aa2ff",
-  run: "#b78cff",
+  weights: "#0a84ff",
+  run: "#bf5af2",
   walk: "#3cc7e0",
   other: "#8b94a9",
 };
@@ -261,8 +261,8 @@ export function DayTimeline({ bundle }: { bundle: DayBundle }) {
         {/* adesso: attraversa tutte le corsie */}
         {nowHour !== null && (
           <g>
-            <line x1={x(nowHour)} x2={x(nowHour)} y1={AGENDA_Y} y2={AXIS_Y - 14} stroke="#7aa2ff" strokeWidth={1.4} strokeDasharray="4 4" />
-            <rect x={x(nowHour) - 18} y={AXIS_Y - 11} width={36} height={19} rx={9} fill="#7aa2ff" />
+            <line x1={x(nowHour)} x2={x(nowHour)} y1={AGENDA_Y} y2={AXIS_Y - 14} stroke="#0a84ff" strokeWidth={1.4} strokeDasharray="4 4" />
+            <rect x={x(nowHour) - 18} y={AXIS_Y - 11} width={36} height={19} rx={9} fill="#0a84ff" />
             <text x={x(nowHour)} y={AXIS_Y + 3} textAnchor="middle" fontSize={11.5} fill="#0a0c11" fontWeight={800}>
               ora
             </text>

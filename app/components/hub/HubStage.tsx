@@ -91,15 +91,15 @@ function useCached<T>(url: string, enabled: boolean, ttl = TTL): { data: T | nul
 function airaCards(a: AiraStatus): Card[] {
   const down = a.integrations.filter((i) => !i.ok);
   const cards: Card[] = [
-    { key: "int", label: "Integrazioni", value: `${a.integrations.length - down.length}/${a.integrations.length}`, detail: down.length ? `da controllare: ${down.map((d) => d.label).join(", ")}` : "tutte attive", score: Math.round(((a.integrations.length - down.length) / a.integrations.length) * 100), color: down.length ? "#f5a524" : "#3ecf8e" },
-    { key: "kb", label: "Rete neurale", value: `${a.docs}`, detail: `note nella base di conoscenza · ${a.logs} allenamenti`, color: "#b78cff" },
-    { key: "bot", label: "Bot Telegram", value: a.webhook.active ? "attivo" : "spento", detail: `${a.webhook.pending} aggiornamenti in coda`, color: a.webhook.active ? "#3ecf8e" : "#ff5d73" },
+    { key: "int", label: "Integrazioni", value: `${a.integrations.length - down.length}/${a.integrations.length}`, detail: down.length ? `da controllare: ${down.map((d) => d.label).join(", ")}` : "tutte attive", score: Math.round(((a.integrations.length - down.length) / a.integrations.length) * 100), color: down.length ? "#ff9f0a" : "#30d158" },
+    { key: "kb", label: "Rete neurale", value: `${a.docs}`, detail: `note nella base di conoscenza · ${a.logs} allenamenti`, color: "#bf5af2" },
+    { key: "bot", label: "Bot Telegram", value: a.webhook.active ? "attivo" : "spento", detail: `${a.webhook.pending} aggiornamenti in coda`, color: a.webhook.active ? "#30d158" : "#ff453a" },
   ];
   if (a.cost) {
-    cards.push({ key: "cost", label: "Costi AI", value: usd(a.cost.d30), detail: `ultimi 30 giorni · oggi ${usd(a.cost.today)} · 7 giorni ${usd(a.cost.d7)}`, color: "#4de1ff" });
-    cards.push({ key: "tok", label: "Utilizzo", value: a.cost.tokens30.toLocaleString("it-IT"), detail: "token negli ultimi 30 giorni", color: "#ff7ad9" });
+    cards.push({ key: "cost", label: "Costi AI", value: usd(a.cost.d30), detail: `ultimi 30 giorni · oggi ${usd(a.cost.today)} · 7 giorni ${usd(a.cost.d7)}`, color: "#0a84ff" });
+    cards.push({ key: "tok", label: "Utilizzo", value: a.cost.tokens30.toLocaleString("it-IT"), detail: "token negli ultimi 30 giorni", color: "#ff375f" });
     if (a.cost.total !== null && a.cost.remaining !== null && a.cost.total > 0) {
-      cards.push({ key: "credit", label: "Credito residuo", value: usd(a.cost.remaining), detail: `su ${usd(a.cost.total)} caricati`, score: Math.round((a.cost.remaining / a.cost.total) * 100), color: "#f5a524" });
+      cards.push({ key: "credit", label: "Credito residuo", value: usd(a.cost.remaining), detail: `su ${usd(a.cost.total)} caricati`, score: Math.round((a.cost.remaining / a.cost.total) * 100), color: "#ff9f0a" });
     }
   } else {
     cards.push({ key: "cost", label: "Costi AI", value: "—", detail: "chiave admin OpenAI non configurata", color: "#5a6677" });
@@ -225,7 +225,7 @@ function Stage() {
       {consoleOpened && <AiraConsole voice={voice} active={mode === "console"} onClose={() => router.push("/")} />}
 
       <div className="hub-orbwrap">
-        <Orb phase={voice.phase} getLevel={() => voice.levelRef.current} getSpectrum={() => voice.specBuf.current} onClick={onOrb} />
+        <Orb phase={voice.phase} getLevel={() => voice.levelRef.current} onClick={onOrb} />
       </div>
 
       <div className="hub-bar-top">

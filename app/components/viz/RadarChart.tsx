@@ -29,15 +29,15 @@ export function RadarChart({ axes, target = 70, size = 300 }: { axes: RadarAxis[
         const [x, y] = pt(i, 1);
         return <line key={a.label} x1={c} y1={c} x2={x} y2={y} stroke="rgba(120,170,220,0.18)" />;
       })}
-      <polygon points={poly(axes.map(() => target / 100))} fill="none" stroke="rgba(255,122,217,0.7)" strokeDasharray="4 4" />
-      <polygon points={poly(real)} fill="rgba(77,225,255,0.2)" stroke="#4de1ff" strokeWidth="1.6" style={{ filter: "drop-shadow(0 0 6px rgba(77,225,255,0.7))" }} />
+      <polygon points={poly(axes.map(() => target / 100))} fill="none" stroke="rgba(255, 55, 95,0.7)" strokeDasharray="4 4" />
+      <polygon points={poly(real)} fill="rgba(10, 132, 255,0.2)" stroke="#0a84ff" strokeWidth="1.6" style={{ filter: "drop-shadow(0 0 6px rgba(10, 132, 255,0.7))" }} />
       {axes.map((a, i) => {
         const [x, y] = pt(i, real[i]);
         const [lx, ly] = pt(i, 1.2);
         const anchor = lx < c - 8 ? "end" : lx > c + 8 ? "start" : "middle";
         return (
           <g key={a.label}>
-            {a.value !== null && <circle cx={x} cy={y} r="3" fill="#4de1ff" />}
+            {a.value !== null && <circle cx={x} cy={y} r="3" fill="#0a84ff" />}
             <text x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle">
               {a.label.toUpperCase()}
             </text>

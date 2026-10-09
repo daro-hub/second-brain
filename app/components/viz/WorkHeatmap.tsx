@@ -16,7 +16,7 @@ export function WorkHeatmap({ today, weeks = 26, minutes, commits }: { today: st
     const day = addDays(start, w * 7 + r);
     if (day <= today) cells.push({ day, col: w, row: r });
   }
-  const shade = (m: number) => (m <= 0 ? "rgba(120,170,220,0.08)" : m < 120 ? "rgba(245,165,36,0.35)" : m < 240 ? "rgba(245,165,36,0.6)" : m < 360 ? "rgba(245,165,36,0.85)" : "#f5a524");
+  const shade = (m: number) => (m <= 0 ? "rgba(120,170,220,0.08)" : m < 120 ? "rgba(255, 159, 10,0.35)" : m < 240 ? "rgba(255, 159, 10,0.6)" : m < 360 ? "rgba(255, 159, 10,0.85)" : "#ff9f0a");
   const width = LEFT + weeks * (CELL + GAP);
   const height = TOP + 7 * (CELL + GAP);
   return (
@@ -31,13 +31,13 @@ export function WorkHeatmap({ today, weeks = 26, minutes, commits }: { today: st
               <rect x={x} y={y} width={CELL} height={CELL} rx={3} fill={shade(m)}>
                 <title>{`${c.day}: ${m ? `${Math.round((m / 60) * 10) / 10} h` : "niente ore"}${commits?.[c.day] ? ` · ${commits[c.day]} commit` : ""}`}</title>
               </rect>
-              {commits?.[c.day] ? <circle cx={x + CELL / 2} cy={y + CELL / 2} r={2.2} fill="#4de1ff" /> : null}
+              {commits?.[c.day] ? <circle cx={x + CELL / 2} cy={y + CELL / 2} r={2.2} fill="#0a84ff" /> : null}
             </g>
           );
         })}
       </svg>
       <p className="muted small" style={{ marginTop: 6 }}>
-        Più scuro = più ore · <span style={{ color: "#4de1ff" }}>●</span> = giorno con commit
+        Più scuro = più ore · <span style={{ color: "#0a84ff" }}>●</span> = giorno con commit
       </p>
     </div>
   );

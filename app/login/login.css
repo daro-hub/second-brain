@@ -26,7 +26,7 @@
   display: grid;
   place-items: center;
   background: radial-gradient(circle at 35% 30%, #9ff3ff, var(--accent) 45%, #1b7fa0);
-  box-shadow: 0 0 22px -4px rgba(77, 225, 255, 0.7);
+  box-shadow: 0 0 22px -4px rgba(10, 132, 255, 0.7);
   color: #04141a;
   font-family: var(--mono);
   font-weight: 800;
@@ -73,7 +73,7 @@
 
 .pin-row input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(77, 225, 255, 0.14);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.14);
 }
 
 .pin-row input:disabled {

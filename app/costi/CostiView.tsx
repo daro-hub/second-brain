@@ -73,23 +73,23 @@ export async function CostiView() {
       <p className="page-sub">Spesa e token delle chiamate OpenAI (chat, trascrizione, voce, embeddings) negli ultimi 30 giorni.</p>
 
       <div className="hud-tiles">
-        <div className="tile" style={{ ["--t" as string]: "#4de1ff" }}>
+        <div className="tile" style={{ ["--t" as string]: "#0a84ff" }}>
           <div className="t-lbl">Oggi</div>
           <div className="t-val">{usd(u.totalCostUsdToday)}</div>
           <div className="t-sub">spesa di oggi</div>
         </div>
-        <div className="tile" style={{ ["--t" as string]: "#3ecf8e" }}>
+        <div className="tile" style={{ ["--t" as string]: "#30d158" }}>
           <div className="t-lbl">Ultimi 7 giorni</div>
           <div className="t-val">{usd(u.totalCostUsd7d)}</div>
           <div className="t-sub">media {usd(u.totalCostUsd7d / 7)}/giorno</div>
         </div>
-        <div className="tile" style={{ ["--t" as string]: "#b78cff" }}>
+        <div className="tile" style={{ ["--t" as string]: "#bf5af2" }}>
           <div className="t-lbl">Ultimi 30 giorni</div>
           <div className="t-val">{usd(u.totalCostUsd30d)}</div>
           <div className="t-sub">{tok(u.totalTokens30d)} token totali</div>
         </div>
         <CreditTile total={u.creditTotalUsd} />
-        <div className="tile" style={{ ["--t" as string]: "#ff7ad9" }}>
+        <div className="tile" style={{ ["--t" as string]: "#ff375f" }}>
           <div className="t-lbl">Credito residuo (stima)</div>
           <div className="t-val">{u.creditRemainingUsd === null ? "—" : usd(u.creditRemainingUsd)}</div>
           <div className="t-sub">{u.creditTotalUsd === null ? "imposta il totale caricato qui accanto" : `su ${usd(u.creditTotalUsd)} ricaricati`}</div>

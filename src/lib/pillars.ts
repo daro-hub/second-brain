@@ -18,11 +18,11 @@ import { supabase } from "./supabase";
 export type PillarKey = "studio" | "salute" | "allenamento" | "umore" | "lavoro";
 
 export const PILLAR_META: Record<PillarKey, { label: string; color: string }> = {
-  studio: { label: "Studio", color: "#5eead4" },
-  salute: { label: "Salute", color: "#3ecf8e" },
-  allenamento: { label: "Allenamento", color: "#4de1ff" },
-  umore: { label: "Umore", color: "#b78cff" },
-  lavoro: { label: "Lavoro", color: "#f5a524" },
+  studio: { label: "Studio", color: "#64d2ff" },
+  salute: { label: "Salute", color: "#30d158" },
+  allenamento: { label: "Allenamento", color: "#0a84ff" },
+  umore: { label: "Umore", color: "#bf5af2" },
+  lavoro: { label: "Lavoro", color: "#ff9f0a" },
 };
 export const PILLAR_ORDER: PillarKey[] = ["studio", "salute", "allenamento", "umore", "lavoro"];
 

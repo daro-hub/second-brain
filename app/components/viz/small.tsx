@@ -89,7 +89,7 @@ export function MacroBar({ proteinG, carbsG, fatG }: { proteinG: number; carbsG:
   const parts = [
     { name: "Proteine", g: proteinG, kcal: p, color: "#ff8a5c" },
     { name: "Carboidrati", g: carbsG, kcal: c, color: "#f5c542" },
-    { name: "Grassi", g: fatG, kcal: f, color: "#7aa2ff" },
+    { name: "Grassi", g: fatG, kcal: f, color: "#0a84ff" },
   ];
   return (
     <div>

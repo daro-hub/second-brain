@@ -4,11 +4,11 @@ import { useMemo, useState } from "react";
 import type { BrainSnapshot } from "../../src/lib/brain";
 
 const COLORS: Record<string, string> = {
-  profile: "#4de1ff",
-  telegram: "#3ecf8e",
-  fitness_note: "#f5a524",
+  profile: "#0a84ff",
+  telegram: "#30d158",
+  fitness_note: "#ff9f0a",
 };
-const colorFor = (s: string) => COLORS[s] ?? "#ff7ad9";
+const colorFor = (s: string) => COLORS[s] ?? "#ff375f";
 
 /**
  * Mappa del cervello: ogni punto è una nota della KB, posizionata per somiglianza semantica reale
@@ -90,8 +90,8 @@ export function BrainView({ brain, lit }: { brain: BrainSnapshot; lit: Set<strin
           <svg viewBox={`0 0 ${W} ${H}`} className="brain-svg">
             <defs>
               <radialGradient id="core-glow">
-                <stop offset="0" stopColor="#ff7ad9" stopOpacity="0.9" />
-                <stop offset="1" stopColor="#ff7ad9" stopOpacity="0" />
+                <stop offset="0" stopColor="#ff375f" stopOpacity="0.9" />
+                <stop offset="1" stopColor="#ff375f" stopOpacity="0" />
               </radialGradient>
             </defs>
             <g className="rotor">

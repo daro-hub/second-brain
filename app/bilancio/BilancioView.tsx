@@ -30,7 +30,7 @@ function DeficitBars({ days }: { days: EnergyDay[] }) {
         const def = d.deficit;
         const h = def === null ? 0 : Math.abs(def) * scale;
         const up = (def ?? 0) >= 0;
-        const color = up ? "#3ecf8e" : "#f5a524";
+        const color = up ? "#30d158" : "#ff9f0a";
         return (
           <g key={d.dayKey}>
             <title>
@@ -57,7 +57,7 @@ function DeficitBars({ days }: { days: EnergyDay[] }) {
                 {sgn(def)}
               </text>
             )}
-            <text x={x + w / 2} y={H - 8} textAnchor="middle" fontSize="9" fontFamily="var(--mono)" fill={d.isToday ? "#4de1ff" : "#5a6677"}>
+            <text x={x + w / 2} y={H - 8} textAnchor="middle" fontSize="9" fontFamily="var(--mono)" fill={d.isToday ? "#0a84ff" : "#5a6677"}>
               {weekdayShort(d.dayKey).slice(0, 3)} {d.dayKey.slice(8)}
             </text>
           </g>
@@ -106,22 +106,22 @@ function WeightChart({ ov }: { ov: EnergyOverview }) {
           </g>
         );
       })}
-      <line x1={todayX} x2={todayX} y1="10" y2={H - 30} stroke="#4de1ff" strokeDasharray="3 4" opacity="0.6" />
-      <text x={todayX} y="8" textAnchor="middle" fontSize="9" fontFamily="var(--mono)" fill="#4de1ff">
+      <line x1={todayX} x2={todayX} y1="10" y2={H - 30} stroke="#0a84ff" strokeDasharray="3 4" opacity="0.6" />
+      <text x={todayX} y="8" textAnchor="middle" fontSize="9" fontFamily="var(--mono)" fill="#0a84ff">
         OGGI
       </text>
-      {proj && <polygon points={band} fill="rgba(255,122,217,0.14)" />}
-      {hist.length > 1 && <polyline points={hLine} fill="none" stroke="#4de1ff" strokeWidth="2" style={{ filter: "drop-shadow(0 0 5px rgba(77,225,255,0.7))" }} />}
+      {proj && <polygon points={band} fill="rgba(255, 55, 95,0.14)" />}
+      {hist.length > 1 && <polyline points={hLine} fill="none" stroke="#0a84ff" strokeWidth="2" style={{ filter: "drop-shadow(0 0 5px rgba(10, 132, 255,0.7))" }} />}
       {hist.map((h) => (
-        <circle key={h.dayKey} cx={x(dayIdx(h.dayKey))} cy={y(h.kg)} r="3" fill="#4de1ff">
+        <circle key={h.dayKey} cx={x(dayIdx(h.dayKey))} cy={y(h.kg)} r="3" fill="#0a84ff">
           <title>{`${formatDayShort(h.dayKey)}: ${it(h.kg, 1)} kg`}</title>
         </circle>
       ))}
-      {proj && <polyline points={pLine} fill="none" stroke="#ff7ad9" strokeWidth="2" strokeDasharray="5 5" />}
+      {proj && <polyline points={pLine} fill="none" stroke="#ff375f" strokeWidth="2" strokeDasharray="5 5" />}
       {proj &&
         proj.weeks.map((w) => (
           <g key={w.week}>
-            <circle cx={x(60 + w.week * 7)} cy={y(w.kg)} r="3.4" fill="#ff7ad9" />
+            <circle cx={x(60 + w.week * 7)} cy={y(w.kg)} r="3.4" fill="#ff375f" />
             {w.week > 0 && (
               <text x={x(60 + w.week * 7)} y={y(w.kg) - 9} textAnchor="middle" fontSize="10" fontFamily="var(--mono)" fill="#ffd2f2">
                 {it(w.kg, 1)}
@@ -158,22 +158,22 @@ export async function BilancioView() {
       </p>
 
       <div className="hud-tiles">
-        <div className="tile" style={{ ["--t" as string]: "#3ecf8e" }}>
+        <div className="tile" style={{ ["--t" as string]: "#30d158" }}>
           <div className="t-lbl">Oggi (finora)</div>
           <div className="t-val">{left === null ? "—" : sgn(left)}<small>kcal</small></div>
           <div className="t-sub">{left === null ? "nessun pasto registrato" : left >= 0 ? "margine rimasto prima del fabbisogno" : "oltre il fabbisogno"}</div>
         </div>
-        <div className="tile" style={{ ["--t" as string]: "#4de1ff" }}>
+        <div className="tile" style={{ ["--t" as string]: "#0a84ff" }}>
           <div className="t-lbl">Ultimi 7 giorni</div>
           <div className="t-val">{ov.week.days ? sgn(ov.week.deficit) : "—"}<small>kcal</small></div>
           <div className="t-sub">{ov.week.days ? `${ov.week.deficit >= 0 ? "deficit" : "surplus"} su ${ov.week.days} giorni registrati` : "servono giorni completi"}</div>
         </div>
-        <div className="tile" style={{ ["--t" as string]: "#b78cff" }}>
+        <div className="tile" style={{ ["--t" as string]: "#bf5af2" }}>
           <div className="t-lbl">Media giornaliera · 30 gg</div>
           <div className="t-val">{ov.month.avgDeficit === null ? "—" : sgn(ov.month.avgDeficit)}<small>kcal/giorno</small></div>
           <div className="t-sub">su {ov.month.days} giorni completi</div>
         </div>
-        <div className="tile" style={{ ["--t" as string]: "#ff7ad9" }}>
+        <div className="tile" style={{ ["--t" as string]: "#ff375f" }}>
           <div className="t-lbl">Tra 3 settimane</div>
           <div className="t-val">{ov.projection ? it(ov.projection.endKg, 1) : "—"}<small>kg</small></div>
           <div className="t-sub">{ov.projection ? `${ov.projection.lossKg >= 0 ? "−" : "+"}${it(Math.abs(ov.projection.lossKg), 1)} kg dai ${it(ov.currentKg, 1)} attuali` : "senza dati sufficienti"}</div>

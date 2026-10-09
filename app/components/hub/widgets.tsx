@@ -168,7 +168,7 @@ export async function WorkTracker() {
         {[["7 giorni", w7], ["28 giorni", w28], ["90 giorni", w90]].map(([label, st]) => {
           const x = st as ReturnType<typeof workStats>;
           return (
-            <div key={label as string} className="card kpi" style={{ ["--kpi" as string]: "#f5a524" }}>
+            <div key={label as string} className="card kpi" style={{ ["--kpi" as string]: "#ff9f0a" }}>
               <div className="kpi-top"><span>{label as string}</span></div>
               <div className="kpi-value" style={{ fontSize: 22 }}>{fmtHours(x.totalMinutes)}</div>
               <div className="kpi-sub">{x.daysWorked} giorni lavorati{x.avgMinutesPerWorkedDay ? ` · ${fmtHours(x.avgMinutesPerWorkedDay)} al giorno` : ""}{rate ? ` · ≈ ${Math.round((x.totalMinutes / 60) * rate + x.extraEur).toLocaleString("it-IT")} €` : ""}</div>
@@ -248,7 +248,7 @@ export async function MoodPanel() {
       </div>
       <div className="card">
         <div className="card-head"><h3>Umore · ultimi 30 giorni</h3><span className="muted small">{todayRow?.completed ? "check-in di oggi fatto" : "il check-in arriva alle 22"}</span></div>
-        {pts.length >= 2 ? <AreaLine points={pts} color="#b78cff" height={180} xFormat={(v) => formatDayShort(recent[Math.round(v)]?.day ?? today)} /> : <p className="muted small">Servono almeno due sere di diario per disegnare l&apos;andamento.</p>}
+        {pts.length >= 2 ? <AreaLine points={pts} color="#bf5af2" height={180} xFormat={(v) => formatDayShort(recent[Math.round(v)]?.day ?? today)} /> : <p className="muted small">Servono almeno due sere di diario per disegnare l&apos;andamento.</p>}
       </div>
       <div className="card">
         <div className="card-head"><h3>Aspetti</h3><span className="muted small">media ultimi 7 giorni</span></div>
@@ -258,7 +258,7 @@ export async function MoodPanel() {
           return (
             <div className="agenda-row" key={a.key}>
               <span className="time">{a.label}</span>
-              <div className="hub-bar" style={{ flex: 1, margin: 0 }}><i style={{ width: `${avg ?? 0}%`, background: "#b78cff" }} /></div>
+              <div className="hub-bar" style={{ flex: 1, margin: 0 }}><i style={{ width: `${avg ?? 0}%`, background: "#bf5af2" }} /></div>
               <span className="muted small">{avg === null ? "—" : avg}</span>
             </div>
           );

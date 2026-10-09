@@ -49,7 +49,7 @@ export function CreditTile({ total }: { total: number | null }) {
   }
 
   return (
-    <div className="tile credit-tile" style={{ ["--t" as string]: "#f5a524" }} onDoubleClick={() => !editing && start()} title="Doppio click per modificare">
+    <div className="tile credit-tile" style={{ ["--t" as string]: "#ff9f0a" }} onDoubleClick={() => !editing && start()} title="Doppio click per modificare">
       <div className="t-lbl">Totale caricato</div>
       {editing ? (
         <div className="t-val">

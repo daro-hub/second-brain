@@ -130,9 +130,9 @@ export async function InsightsView() {
           <GroupedBars
             categories={budget.days.map((d) => ({ label: weekdayShort(d.dayKey), values: [d.study, d.lesson, d.training] }))}
             series={[
-              { name: "Studio", color: "#5eead4" },
-              { name: "Lezioni", color: "#f9a8d4" },
-              { name: "Allenamento", color: "#7aa2ff" },
+              { name: "Studio", color: "#64d2ff" },
+              { name: "Lezioni", color: "#ff6482" },
+              { name: "Allenamento", color: "#0a84ff" },
             ]}
             unit=" h"
             partialLabelIndex={todayIdx}
@@ -155,8 +155,8 @@ export async function InsightsView() {
           <GroupedBars
             categories={energy.days.map((d) => ({ label: weekdayShort(d.dayKey), values: [d.kcalIn, d.kcalOut] }))}
             series={[
-              { name: "Assunte", color: "#f5a524" },
-              { name: "Bruciate", color: "#7aa2ff" },
+              { name: "Assunte", color: "#ff9f0a" },
+              { name: "Bruciate", color: "#0a84ff" },
             ]}
             unit=" kcal"
             partialLabelIndex={energy.days.findIndex((d) => d.isToday)}
@@ -199,7 +199,7 @@ export async function InsightsView() {
             yLabel="FC a riposo (bpm)"
             yFormat={(v) => `${Math.round(v)}`}
             xFormat={(v) => `${Math.round(v)}`}
-            color="#ff5d73"
+            color="#ff453a"
             trend={nightTrain.fit}
           />
         </Insight>
@@ -218,7 +218,7 @@ export async function InsightsView() {
             yLabel="FC a riposo (bpm)"
             yFormat={(v) => `${Math.round(v)}`}
             xFormat={clock}
-            color="#f5a524"
+            color="#ff9f0a"
             trend={nightMeal.fit}
           />
         </Insight>
@@ -238,7 +238,7 @@ export async function InsightsView() {
             yLabel="Passo (min/km)"
             yFormat={pace}
             xFormat={(v) => `${Math.round(v)}`}
-            color="#b78cff"
+            color="#bf5af2"
             trend={runs.fit}
           />
         </Insight>

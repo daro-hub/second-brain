@@ -67,32 +67,32 @@ export async function PalestraView({ exercise: selected }: { exercise?: string }
       <BodyStage muscles={overview.muscles} heart={overview.heart} />
 
       <div className="hud-tiles">
-        <div className="tile" style={{ ["--t" as string]: "#4de1ff" }}>
+        <div className="tile" style={{ ["--t" as string]: "#0a84ff" }}>
           <div className="t-lbl">Pesi · 30 giorni</div>
           <div className="t-val">{weights30.length}<small>sessioni</small></div>
           <div className="t-sub">{int(weights30.reduce((s, a) => s + a.movingTimeMin, 0))} minuti totali</div>
         </div>
-        <div className="tile" style={{ ["--t" as string]: "#b78cff" }}>
+        <div className="tile" style={{ ["--t" as string]: "#bf5af2" }}>
           <div className="t-lbl">Corsa · 30 giorni</div>
           <div className="t-val">{dec(runKm)}<small>km</small></div>
           <div className="t-sub">{runs30.length} {runs30.length === 1 ? "uscita" : "uscite"}{runKm > 0 ? ` · ${pace(runMin / runKm)} /km` : ""}</div>
         </div>
-        <div className="tile" style={{ ["--t" as string]: "#3ecf8e" }}>
+        <div className="tile" style={{ ["--t" as string]: "#30d158" }}>
           <div className="t-lbl">Costanza · 28 giorni</div>
           <div className="t-val">{activeDays28}<small>/ 28 giorni</small></div>
           <div className="t-sub">almeno un&apos;attività su Strava</div>
         </div>
-        <div className="tile" style={{ ["--t" as string]: "#f5a524" }}>
+        <div className="tile" style={{ ["--t" as string]: "#ff9f0a" }}>
           <div className="t-lbl">Volume sollevato</div>
           <div className="t-val">{dec(overview.totalVolumeKg / 1000)}<small>tonnellate</small></div>
           <div className="t-sub">{int(overview.totalSets)} serie · {int(overview.totalLogs)} log</div>
         </div>
-        <div className="tile" style={{ ["--t" as string]: "#ff5d73" }}>
+        <div className="tile" style={{ ["--t" as string]: "#ff453a" }}>
           <div className="t-lbl">Battito in allenamento</div>
           <div className="t-val">{overview.heart.sessionAvg !== null ? int(overview.heart.sessionAvg) : "—"}<small>bpm medi</small></div>
           <div className="t-sub">{overview.heart.sessionMax ? `picco ${int(overview.heart.sessionMax)} bpm` : "nessun dato nelle sessioni"}</div>
         </div>
-        <div className="tile" style={{ ["--t" as string]: "#ff7ad9" }}>
+        <div className="tile" style={{ ["--t" as string]: "#ff375f" }}>
           <div className="t-lbl">Miglior progresso</div>
           <div className="t-val" style={{ fontSize: 18, textTransform: "capitalize" }}>{strength[0]?.exercise ?? "—"}</div>
           <div className="t-sub">{strength[0] ? `+${int(strength[0].deltaPct)}% di massimale stimato` : "servono 3 sessioni per esercizio"}</div>
@@ -200,7 +200,7 @@ export async function PalestraView({ exercise: selected }: { exercise?: string }
           <div className="card-head"><h3><Icon name="run" size={17} /> Corse (Strava)</h3></div>
           {runs.length > 1 && (
             <AreaLine
-              color="#b78cff"
+              color="#bf5af2"
               height={170}
               minWidth={260}
               points={runs.map((r, i) => ({ x: i + 1, y: r.movingTimeMin / r.distanceKm, label: `${formatDayShort(r.dateKey)} · ${r.distanceKm} km → ` }))}

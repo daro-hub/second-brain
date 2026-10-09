@@ -69,10 +69,10 @@ const GYM_INTENTS = new Set(["workout", "exercise_query", "session_query", "gym_
 const SUGGESTIONS = ["Cosa ho in agenda oggi?", "Quante calorie ho mangiato oggi?", "Cosa devo comprare?", "Come stanno andando le mie corse?"];
 
 const STATUS: Record<Phase, string> = {
-  idle: "PRONTA",
-  listening: "IN ASCOLTO",
-  thinking: "ELABORO",
-  speaking: "STO PARLANDO",
+  idle: "Pronta",
+  listening: "In ascolto",
+  thinking: "Elaboro…",
+  speaking: "Sto parlando",
 };
 
 /** La risposta arriva nel dialetto HTML di Telegram (b/i/u/s/code/pre/a): si lascia passare solo quello, con link http(s). */
@@ -368,7 +368,7 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
   return (
     <div className={`aira-root embedded${active ? "" : " off"}`} aria-hidden={!active}>
       <section className="aira-log" ref={logRef} aria-live="polite">
-        <div className="hud-label">CONVERSAZIONE</div>
+        <div className="hud-label">Conversazione</div>
         {showSkeleton && (
           <div className="bubble-skeletons" role="status" aria-label="Carico la conversazione">
             <span className="sk sk-aira" />
@@ -477,7 +477,7 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
 
       <aside className="aira-sources">
         <div className="hud-label">
-          FONTI DATI
+          Fonti dati
           {shown?.intent && <span className="intent-tag">{INTENT_LABELS[shown.intent] ?? shown.intent}</span>}
         </div>
         {shown?.pending && shownSources.length === 0 && <div className="scan">Interrogo le fonti…</div>}
@@ -534,7 +534,7 @@ export function AiraConsole({ voice, active, onClose }: { voice: AiraVoice; acti
           aria-label={live ? "Termina la modalità live" : "Parla con Aira in diretta"}
         >
           <span aria-hidden className="ico">{live ? <StopIcon size={16} /> : <WaveIcon size={18} />}</span>
-          <span className="lbl"> LIVE</span>
+          <span className="lbl">Live</span>
         </button>
         <input
           value={input}
