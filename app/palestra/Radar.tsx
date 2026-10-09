@@ -18,11 +18,11 @@ export function Radar({ muscles }: { muscles: MuscleStat[] }) {
   return (
     <svg className="radar" viewBox="-36 0 332 260" role="img" aria-label="Bilanciamento del volume tra gruppi muscolari">
       {[0.25, 0.5, 0.75, 1].map((f) => (
-        <polygon key={f} points={poly(muscles.map(() => f))} fill="none" stroke="rgba(120,170,220,0.18)" />
+        <polygon key={f} points={poly(muscles.map(() => f))} fill="none" stroke="rgb(var(--ov) / 0.18)" />
       ))}
       {muscles.map((m, i) => {
         const [x, y] = pt(i, 1);
-        return <line key={m.group} x1={c} y1={c} x2={x} y2={y} stroke="rgba(120,170,220,0.18)" />;
+        return <line key={m.group} x1={c} y1={c} x2={x} y2={y} stroke="rgb(var(--ov) / 0.18)" />;
       })}
       <polygon points={poly(idealPoly)} fill="none" stroke="rgba(255, 55, 95,0.7)" strokeDasharray="4 4" />
       <polygon points={poly(real)} fill="rgba(10, 132, 255,0.2)" stroke="#0a84ff" strokeWidth="1.6" style={{ filter: "drop-shadow(0 0 6px rgba(10, 132, 255,0.7))" }} />
@@ -36,7 +36,7 @@ export function Radar({ muscles }: { muscles: MuscleStat[] }) {
             <text x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle">
               {m.label.toUpperCase()}
             </text>
-            <text x={lx} y={ly + 11} textAnchor={anchor} dominantBaseline="middle" style={{ fill: "#e6edf3", fontSize: 10 }}>
+            <text x={lx} y={ly + 11} textAnchor={anchor} dominantBaseline="middle" style={{ fill: "var(--text)", fontSize: 10 }}>
               {Math.round(m.share * 100)}%
             </text>
           </g>

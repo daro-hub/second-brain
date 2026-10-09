@@ -57,6 +57,7 @@ export function Orb({ phase, getLevel, onClick }: Props) {
     let colB: [number, number, number] = [...PALETTE.idle.b];
     const t0 = performance.now();
     // Riduci movimento: la sfera resta ferma (si ridisegna solo quando cambia stato o livello audio)
+    const lightMq = window.matchMedia("(prefers-color-scheme: light)");
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const draw = (now: number) => {
@@ -96,9 +97,11 @@ export function Orb({ phase, getLevel, onClick }: Props) {
       ctx.beginPath();
       ctx.arc(0, 0, R, 0, Math.PI * 2);
       ctx.clip();
-      ctx.fillStyle = "#0b0b14";
+      const light = lightMq.matches;
+      ctx.fillStyle = light ? "#ffffff" : "#0b0b14";
       ctx.fillRect(-R, -R, R * 2, R * 2);
-      ctx.globalCompositeOperation = "lighter";
+      // sul chiaro le macchie si sovrappongono come inchiostro, sullo scuro si sommano come luce
+      ctx.globalCompositeOperation = light ? "source-over" : "lighter";
       const speed = 0.5 + level * 1.5;
       for (let i = 0; i < 3; i++) {
         const ang = t * speed * (i % 2 ? -0.7 : 0.9) + (i * Math.PI * 2) / 3;

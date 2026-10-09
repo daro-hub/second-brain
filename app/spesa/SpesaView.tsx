@@ -19,7 +19,7 @@ export async function SpesaView() {
         </form>
 
         {items.length === 0 ? (
-          <p style={{ color: "#9aa0a6" }}>Lista vuota — niente da comprare.</p>
+          <p style={{ color: "var(--muted)" }}>Lista vuota — niente da comprare.</p>
         ) : (
           <ul className="checklist">
             {items.map((item) => (

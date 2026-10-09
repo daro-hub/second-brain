@@ -102,7 +102,7 @@ function airaCards(a: AiraStatus): Card[] {
       cards.push({ key: "credit", label: "Credito residuo", value: usd(a.cost.remaining), detail: `su ${usd(a.cost.total)} caricati`, score: Math.round((a.cost.remaining / a.cost.total) * 100), color: "#ff9f0a" });
     }
   } else {
-    cards.push({ key: "cost", label: "Costi AI", value: "—", detail: "chiave admin OpenAI non configurata", color: "#5a6677" });
+    cards.push({ key: "cost", label: "Costi AI", value: "—", detail: "chiave admin OpenAI non configurata", color: "#8e8e93" });
   }
   return cards;
 }
@@ -198,7 +198,7 @@ function Stage() {
 
   if (pathname.startsWith("/login")) return null;
 
-  const pillars: HubPillar[] = data?.pillars ?? ["studio", "salute", "allenamento", "umore", "lavoro"].map((k) => ({ key: k, label: k[0].toUpperCase() + k.slice(1), color: "#5a6677", score: null, trend: null }));
+  const pillars: HubPillar[] = data?.pillars ?? ["studio", "salute", "allenamento", "umore", "lavoro"].map((k) => ({ key: k, label: k[0].toUpperCase() + k.slice(1), color: "#8e8e93", score: null, trend: null }));
   const current = pillars.find((x) => x.key === p);
   const title = p === "aira" ? "Aira" : p === "incroci" ? "Statistiche" : p === "passaggi" ? "Trasferisci" : p === "spesa" ? "Spesa" : current ? current.label : "Oggi";
   const hasStrip = p === "aira" || Boolean(current);

@@ -21,7 +21,7 @@ function DeficitBars({ days }: { days: EnergyDay[] }) {
       {[500, 1000].filter((v) => v <= maxAbs).map((v) => (
         <g key={v}>
           <line x1="0" x2={W} y1={mid - v * scale} y2={mid - v * scale} stroke="rgba(120,170,220,0.1)" strokeDasharray="3 5" />
-          <text x="2" y={mid - v * scale - 3} fontSize="9" fill="#5a6677" fontFamily="var(--mono)">+{v}</text>
+          <text x="2" y={mid - v * scale - 3} fontSize="9" fill="var(--muted)" fontFamily="var(--mono)">+{v}</text>
         </g>
       ))}
       {days.map((d, i) => {
@@ -37,7 +37,7 @@ function DeficitBars({ days }: { days: EnergyDay[] }) {
               {`${formatDayShort(d.dayKey)} — ${def === null ? "pasti non registrati" : `${up ? "deficit" : "surplus"} ${it(Math.abs(def))} kcal`}\nmangiate ${d.intake ? it(d.intake) : "—"} · fabbisogno ${it(d.expenditure)} (passi ${sgn(d.stepsAdj)}, allenamento ${sgn(d.trainingAdj)})`}
             </title>
             {def === null ? (
-              <rect x={x} y={mid - 3} width={w} height={6} rx="2" fill="none" stroke="#5a6677" strokeDasharray="2 2" />
+              <rect x={x} y={mid - 3} width={w} height={6} rx="2" fill="none" stroke="var(--muted)" strokeDasharray="2 2" />
             ) : (
               <rect
                 x={x}
@@ -57,7 +57,7 @@ function DeficitBars({ days }: { days: EnergyDay[] }) {
                 {sgn(def)}
               </text>
             )}
-            <text x={x + w / 2} y={H - 8} textAnchor="middle" fontSize="9" fontFamily="var(--mono)" fill={d.isToday ? "#0a84ff" : "#5a6677"}>
+            <text x={x + w / 2} y={H - 8} textAnchor="middle" fontSize="9" fontFamily="var(--mono)" fill={d.isToday ? "#0a84ff" : "var(--muted)"}>
               {weekdayShort(d.dayKey).slice(0, 3)} {d.dayKey.slice(8)}
             </text>
           </g>
@@ -100,7 +100,7 @@ function WeightChart({ ov }: { ov: EnergyOverview }) {
         return (
           <g key={f}>
             <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke="rgba(120,170,220,0.1)" />
-            <text x={padL - 6} y={y(v) + 3} textAnchor="end" fontSize="9.5" fontFamily="var(--mono)" fill="#5a6677">
+            <text x={padL - 6} y={y(v) + 3} textAnchor="end" fontSize="9.5" fontFamily="var(--mono)" fill="var(--muted)">
               {it(v, 1)}
             </text>
           </g>
@@ -130,11 +130,11 @@ function WeightChart({ ov }: { ov: EnergyOverview }) {
           </g>
         ))}
       {[0, 7, 14, 21].map((d) => (
-        <text key={d} x={x(60 + d)} y={H - 10} textAnchor="middle" fontSize="9" fontFamily="var(--mono)" fill="#5a6677">
+        <text key={d} x={x(60 + d)} y={H - 10} textAnchor="middle" fontSize="9" fontFamily="var(--mono)" fill="var(--muted)">
           {d === 0 ? "oggi" : `+${d / 7} sett`}
         </text>
       ))}
-      <text x={x(0)} y={H - 10} fontSize="9" fontFamily="var(--mono)" fill="#5a6677">
+      <text x={x(0)} y={H - 10} fontSize="9" fontFamily="var(--mono)" fill="var(--muted)">
         {formatDayShort(histFrom)}
       </text>
     </svg>

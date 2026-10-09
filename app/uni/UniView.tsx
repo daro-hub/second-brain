@@ -101,7 +101,7 @@ export async function UniView({ path: rawPath }: { path?: string }) {
         {path === "" && <UniDashboard />}
         <div className="card">
           {entries.length === 0 ? (
-            <p style={{ color: "#9aa0a6" }}>Cartella vuota.</p>
+            <p style={{ color: "var(--muted)" }}>Cartella vuota.</p>
           ) : (
             <ul className="uni-list">
               {entries.map((e) => (

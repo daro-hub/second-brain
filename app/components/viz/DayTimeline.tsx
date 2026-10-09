@@ -31,7 +31,7 @@ const COLORS = {
   weights: "#0a84ff",
   run: "#bf5af2",
   walk: "#3cc7e0",
-  other: "#8b94a9",
+  other: "#8e8e93",
 };
 
 const typeColor = (t: string) =>
@@ -95,12 +95,12 @@ export function DayTimeline({ bundle }: { bundle: DayBundle }) {
   const timed = events.filter((e) => !e.allDay);
   const sessions = activities.filter((a) => a.movingTimeMin > 0);
 
-  const laneLabel = (y: number, text: string, color = "#8b94a9") => (
+  const laneLabel = (y: number, text: string, color = "var(--muted)") => (
     <text x={L - 12} y={y} textAnchor="end" fontSize={12} fontWeight={700} fill={color}>
       {text}
     </text>
   );
-  const band = (y: number, h: number) => <rect x={L} y={y} width={PLOT_W} height={h} rx={8} fill="rgba(255,255,255,0.025)" />;
+  const band = (y: number, h: number) => <rect x={L} y={y} width={PLOT_W} height={h} rx={8} fill="rgb(var(--ov) / 0.025)" />;
 
   return (
     <div className="viz-scroll" style={{ overflowX: "auto" }}>
@@ -109,7 +109,7 @@ export function DayTimeline({ bundle }: { bundle: DayBundle }) {
         {Array.from({ length: 9 }, (_, i) => i * 3).map((h) => (
           <g key={h}>
             <line x1={x(h)} x2={x(h)} y1={AGENDA_Y} y2={AXIS_Y - 14} stroke="#1a2030" strokeWidth={1} />
-            <text x={x(h)} y={AXIS_Y + 4} textAnchor="middle" fontSize={12} fill="#8b94a9">
+            <text x={x(h)} y={AXIS_Y + 4} textAnchor="middle" fontSize={12} fill="var(--muted)">
               {String(h).padStart(2, "0")}:00
             </text>
           </g>
@@ -119,7 +119,7 @@ export function DayTimeline({ bundle }: { bundle: DayBundle }) {
         {band(AGENDA_Y, 68)}
         {laneLabel(AGENDA_Y + 28, "Agenda")}
         {schedule.length === 0 && timed.length === 0 && (
-          <text x={L + 12} y={AGENDA_Y + 38} fontSize={12.5} fill="#6b7489">
+          <text x={L + 12} y={AGENDA_Y + 38} fontSize={12.5} fill="var(--muted)">
             Nessuna lezione o evento
           </text>
         )}
@@ -153,7 +153,7 @@ export function DayTimeline({ bundle }: { bundle: DayBundle }) {
         {band(SPORT_Y, 36)}
         {laneLabel(SPORT_Y + 23, "Sport")}
         {sessions.length === 0 && gymLogs.length === 0 && (
-          <text x={L + 12} y={SPORT_Y + 23} fontSize={12.5} fill="#6b7489">
+          <text x={L + 12} y={SPORT_Y + 23} fontSize={12.5} fill="var(--muted)">
             Nessun allenamento registrato
           </text>
         )}
@@ -177,7 +177,7 @@ export function DayTimeline({ bundle }: { bundle: DayBundle }) {
           return (
             <g key={`g${i}`}>
               <title>{`${g.exercise} — ${g.weightKg} kg × ${g.reps} (${fmt(h)})`}</title>
-              <path d={`M ${x(h)} ${SPORT_Y + 6} l 8 12 l -8 12 l -8 -12 z`} fill={COLORS.weights} stroke="#0a0c11" strokeWidth={1.5} />
+              <path d={`M ${x(h)} ${SPORT_Y + 6} l 8 12 l -8 12 l -8 -12 z`} fill={COLORS.weights} stroke="var(--bg)" strokeWidth={1.5} />
             </g>
           );
         })}
@@ -186,7 +186,7 @@ export function DayTimeline({ bundle }: { bundle: DayBundle }) {
         {band(MEALS_Y, 40)}
         {laneLabel(MEALS_Y + 25, "Pasti", COLORS.meal)}
         {meals.length === 0 && (
-          <text x={L + 12} y={MEALS_Y + 25} fontSize={12.5} fill="#6b7489">
+          <text x={L + 12} y={MEALS_Y + 25} fontSize={12.5} fill="var(--muted)">
             Nessun pasto registrato
           </text>
         )}
@@ -203,13 +203,13 @@ export function DayTimeline({ bundle }: { bundle: DayBundle }) {
         {/* battito: pannello con asse in bpm */}
         {band(HR_TOP - 12, HR_H + 24)}
         {laneLabel(HR_TOP + 6, "Battito", COLORS.heart)}
-        <text x={L - 12} y={HR_TOP + 22} textAnchor="end" fontSize={11} fill="#6b7489">
+        <text x={L - 12} y={HR_TOP + 22} textAnchor="end" fontSize={11} fill="var(--muted)">
           bpm
         </text>
         {hrTicks.map((v) => (
           <g key={v}>
-            <line x1={L + 4} x2={W - R - 4} y1={yHr(v)} y2={yHr(v)} stroke="#1f2536" strokeWidth={1} />
-            <text x={L + 8} y={yHr(v) - 4} fontSize={11} fill="#6b7489">
+            <line x1={L + 4} x2={W - R - 4} y1={yHr(v)} y2={yHr(v)} stroke="rgb(var(--ov) / 0.1)" strokeWidth={1} />
+            <text x={L + 8} y={yHr(v) - 4} fontSize={11} fill="var(--muted)">
               {v}
             </text>
           </g>
@@ -230,7 +230,7 @@ export function DayTimeline({ bundle }: { bundle: DayBundle }) {
           );
         })}
         {!hasHr && (
-          <text x={x(12)} y={(HR_TOP + HR_BOTTOM) / 2} textAnchor="middle" fontSize={13} fill="#6b7489">
+          <text x={x(12)} y={(HR_TOP + HR_BOTTOM) / 2} textAnchor="middle" fontSize={13} fill="var(--muted)">
             Nessun dato di battito per questo giorno
           </text>
         )}
@@ -238,7 +238,7 @@ export function DayTimeline({ bundle }: { bundle: DayBundle }) {
         {/* passi per ora: pannello a parte, sotto il battito */}
         {band(STEPS_TOP - 8, STEPS_H + 16)}
         {laneLabel(STEPS_TOP + 12, "Passi", COLORS.steps)}
-        <text x={L - 12} y={STEPS_TOP + 28} textAnchor="end" fontSize={11} fill="#6b7489">
+        <text x={L - 12} y={STEPS_TOP + 28} textAnchor="end" fontSize={11} fill="var(--muted)">
           per ora
         </text>
         {hasSteps ? (
@@ -253,7 +253,7 @@ export function DayTimeline({ bundle }: { bundle: DayBundle }) {
             );
           })
         ) : (
-          <text x={x(12)} y={(STEPS_TOP + STEPS_BOTTOM) / 2 + 4} textAnchor="middle" fontSize={13} fill="#6b7489">
+          <text x={x(12)} y={(STEPS_TOP + STEPS_BOTTOM) / 2 + 4} textAnchor="middle" fontSize={13} fill="var(--muted)">
             Nessun passo registrato
           </text>
         )}

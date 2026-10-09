@@ -206,7 +206,7 @@ function Ruler() {
   for (let i = 0; i <= 19; i++) {
     marks.push(
       <g key={i} transform={`translate(0 ${(i / 19) * 456 + 12})`}>
-        <line x1="0" x2={i % 5 === 0 ? 14 : 7} stroke="rgba(120,170,220,0.45)" />
+        <line x1="0" x2={i % 5 === 0 ? 14 : 7} stroke="rgb(var(--ov) / 0.45)" />
         {i % 5 === 0 && <text x="18" y="3">{`${190 - i * 10}`}</text>}
       </g>,
     );

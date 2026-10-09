@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 };
 
 // Chrome Android ridimensiona la pagina quando compare la tastiera (come fa già lo stage con visualViewport)
-export const viewport: Viewport = { width: "device-width", initialScale: 1, interactiveWidget: "resizes-content", themeColor: "#070a10" };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, interactiveWidget: "resizes-content", themeColor: [{ media: "(prefers-color-scheme: light)", color: "#f2f2f7" }, { media: "(prefers-color-scheme: dark)", color: "#000000" }] };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

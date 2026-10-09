@@ -36,7 +36,7 @@ export function PillarRadar({
     <div className="hub-radar">
       <svg viewBox="-10 24 420 352" role="img" aria-label="Radar dei cinque pilastri">
         {[1 / 3, 2 / 3, 1].map((f) => (
-          <polygon key={f} points={poly(pillars.map(() => f))} fill="none" stroke="rgba(255,255,255,0.09)" strokeLinejoin="round" />
+          <polygon key={f} points={poly(pillars.map(() => f))} fill="none" stroke="rgb(var(--ov) / 0.12)" strokeLinejoin="round" />
         ))}
         <polygon points={poly(real)} fill="rgba(10,132,255,0.18)" stroke="#0a84ff" strokeWidth="2" strokeLinejoin="round" />
         {pillars.map((p, i) => {

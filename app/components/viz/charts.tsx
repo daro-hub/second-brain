@@ -7,7 +7,7 @@ const CAT = {
   weights: { color: "#0a84ff", label: "Pesi" },
   run: { color: "#bf5af2", label: "Corsa" },
   walk: { color: "#3cc7e0", label: "Camminata" },
-  other: { color: "#8b94a9", label: "Altro" },
+  other: { color: "#8e8e93", label: "Altro" },
 } as const;
 
 type CatKey = keyof typeof CAT;
@@ -40,12 +40,12 @@ export function ActivityHeatmap({ days }: { days: ActivityDay[] }) {
     <div style={{ overflowX: "auto" }}>
       <svg className="viz" viewBox={`0 0 ${width} ${height}`} style={{ minWidth: Math.min(width, 560), maxWidth: width * 1.9 }}>
         {["L", "", "M", "", "V", "", "D"].map((t, i) => (
-          <text key={i} x={0} y={TOP + i * (CELL + GAP) + CELL - 3} fontSize={9.5} fill="#5b6478">
+          <text key={i} x={0} y={TOP + i * (CELL + GAP) + CELL - 3} fontSize={9.5} fill="var(--muted)">
             {t}
           </text>
         ))}
         {monthLabels.map((m) => (
-          <text key={m.col} x={LEFT + m.col * (CELL + GAP)} y={11} fontSize={10} fill="#7a8398">
+          <text key={m.col} x={LEFT + m.col * (CELL + GAP)} y={11} fontSize={10} fill="var(--muted)">
             {m.text}
           </text>
         ))}
@@ -64,7 +64,7 @@ export function ActivityHeatmap({ days }: { days: ActivityDay[] }) {
             return (
               <g key={d.dayKey}>
                 <title>{tip}</title>
-                <rect x={cx} y={cy} width={CELL} height={CELL} rx={4} fill="rgba(255,255,255,0.045)" />
+                <rect x={cx} y={cy} width={CELL} height={CELL} rx={4} fill="rgb(var(--ov) / 0.045)" />
               </g>
             );
           }
@@ -137,7 +137,7 @@ export function HourHistogram({
           );
         })}
         {Array.from({ length: 8 }, (_, i) => i * 3).map((h) => (
-          <text key={h} x={L + h * bw} y={H - 8} fontSize={10.5} fill="#7a8398">
+          <text key={h} x={L + h * bw} y={H - 8} fontSize={10.5} fill="var(--muted)">
             {String(h).padStart(2, "0")}
           </text>
         ))}
@@ -205,21 +205,21 @@ export function XYScatter({
     <svg className="viz" viewBox={`0 0 ${W} ${H}`}>
       {yTicks.map((t, i) => (
         <g key={i}>
-          <line x1={L} x2={W - R} y1={sy(t)} y2={sy(t)} stroke="#1f2536" />
-          <text x={L - 8} y={sy(t) + 3.5} textAnchor="end" fontSize={10} fill="#5b6478">
+          <line x1={L} x2={W - R} y1={sy(t)} y2={sy(t)} stroke="rgb(var(--ov) / 0.1)" />
+          <text x={L - 8} y={sy(t) + 3.5} textAnchor="end" fontSize={10} fill="var(--muted)">
             {yFormat(t)}
           </text>
         </g>
       ))}
       {[minX, (minX + maxX) / 2, maxX].map((t, i) => (
-        <text key={i} x={sx(t)} y={H - B + 16} textAnchor="middle" fontSize={10} fill="#5b6478">
+        <text key={i} x={sx(t)} y={H - B + 16} textAnchor="middle" fontSize={10} fill="var(--muted)">
           {xFormat(t)}
         </text>
       ))}
-      <text x={(L + W - R) / 2} y={H - 6} textAnchor="middle" fontSize={11} fill="#8b94a9">
+      <text x={(L + W - R) / 2} y={H - 6} textAnchor="middle" fontSize={11} fill="var(--muted)">
         {xLabel}
       </text>
-      <text x={12} y={T - 4} fontSize={11} fill="#8b94a9">
+      <text x={12} y={T - 4} fontSize={11} fill="var(--muted)">
         {yLabel}
       </text>
       {trend && (
@@ -228,7 +228,7 @@ export function XYScatter({
       {points.map((p, i) => (
         <g key={i}>
           <title>{`${p.label ?? ""} · ${xLabel}: ${xFormat(p.x)} · ${yLabel}: ${yFormat(p.y)}`}</title>
-          <circle cx={sx(p.x)} cy={sy(p.y)} r={6.5} fill={color} fillOpacity={0.85} stroke="#0a0c11" strokeWidth={1.5} />
+          <circle cx={sx(p.x)} cy={sy(p.y)} r={6.5} fill={color} fillOpacity={0.85} stroke="var(--bg)" strokeWidth={1.5} />
         </g>
       ))}
     </svg>
@@ -288,8 +288,8 @@ export function AreaLine({
         </defs>
         {[minY + pad, (minY + maxY) / 2, maxY - pad].map((t, i) => (
           <g key={i}>
-            <line x1={L} x2={W - R} y1={sy(t)} y2={sy(t)} stroke="#1f2536" />
-            <text x={L - 8} y={sy(t) + 3.5} textAnchor="end" fontSize={10} fill="#5b6478">
+            <line x1={L} x2={W - R} y1={sy(t)} y2={sy(t)} stroke="rgb(var(--ov) / 0.1)" />
+            <text x={L - 8} y={sy(t) + 3.5} textAnchor="end" fontSize={10} fill="var(--muted)">
               {yFormat(t)}
             </text>
           </g>
@@ -298,7 +298,7 @@ export function AreaLine({
           <line x1={L} x2={W - R} y1={sy(baseline)} y2={sy(baseline)} stroke={color} strokeOpacity={0.5} strokeDasharray="4 4" />
         )}
         {ticks.map((t, i) => (
-          <text key={i} x={sx(t)} y={H - 8} textAnchor="middle" fontSize={10} fill="#7a8398">
+          <text key={i} x={sx(t)} y={H - 8} textAnchor="middle" fontSize={10} fill="var(--muted)">
             {xFormat(t)}
           </text>
         ))}
@@ -352,8 +352,8 @@ export function GroupedBars({
       <svg className="viz" viewBox={`0 0 ${W} ${H}`} style={{ minWidth: 420 }}>
         {[0, 0.5, 1].map((f) => (
           <g key={f}>
-            <line x1={L} x2={W - R} y1={sy(max * f)} y2={sy(max * f)} stroke="#1f2536" />
-            <text x={L - 8} y={sy(max * f) + 3.5} textAnchor="end" fontSize={10} fill="#5b6478">
+            <line x1={L} x2={W - R} y1={sy(max * f)} y2={sy(max * f)} stroke="rgb(var(--ov) / 0.1)" />
+            <text x={L - 8} y={sy(max * f) + 3.5} textAnchor="end" fontSize={10} fill="var(--muted)">
               {Math.round(max * f)}
             </text>
           </g>
@@ -369,7 +369,7 @@ export function GroupedBars({
                 </g>
               );
             })}
-            <text x={L + ci * gw + gw / 2} y={H - 9} textAnchor="middle" fontSize={10.5} fill="#7a8398">
+            <text x={L + ci * gw + gw / 2} y={H - 9} textAnchor="middle" fontSize={10.5} fill="var(--muted)">
               {c.label}
             </text>
           </g>
