@@ -4,6 +4,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Topbar } from "./components/Topbar";
 import { HubStage } from "./components/hub/HubStage";
+import { TabBar } from "./components/TabBar";
 
 const sans = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap" });
@@ -30,6 +31,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             </Suspense>
             <HubStage />
             {children}
+            <Suspense fallback={null}>
+              <TabBar />
+            </Suspense>
           </div>
         </div>
       </body>

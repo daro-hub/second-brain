@@ -243,9 +243,32 @@ main {
   margin: 0 auto 10px;
 }
 
+.topbar-actions {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hdr-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  color: var(--accent);
+}
+
+.tabbar {
+  display: none;
+}
+
 @media (max-width: 899px) {
+  :root {
+    --tabbar-h: calc(52px + env(safe-area-inset-bottom));
+  }
   .topbar-row {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     height: 52px;
     padding: 0 12px;
     gap: 10px;
@@ -253,16 +276,16 @@ main {
   .brand-mark {
     font-size: 17px;
   }
-  /* strumenti: solo icone */
-  .topbar-row .topnav .tab {
-    flex: 1 1 0;
-    padding: 0;
-  }
-  .topbar-row .topnav .tab .tab-lbl {
+  /* le sezioni stanno nella tab bar in basso */
+  .topbar-row .topnav {
     display: none;
   }
-  .topbar-row .topnav .tab .tab-ico {
-    display: block;
+  .hdr-btn {
+    display: inline-flex;
+  }
+  /* la riga dei pilastri compare solo dentro un pilastro */
+  .topnav.pillars:not(.in-pillar) {
+    display: none;
   }
   .topnav.pillars {
     width: calc(100% - 24px);
@@ -275,8 +298,60 @@ main {
   main {
     padding: 18px 14px 96px;
   }
+
+  /* tab bar in basso, come su iOS: vetro, filo in alto, cinque voci con icona e nome */
+  .content-col {
+    padding-bottom: var(--tabbar-h);
+  }
+  .tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--glass);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-top: 0.5px solid var(--border);
+  }
+  .tabbar-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 52px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 11px;
+    font-weight: 500;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tabbar-item.on {
+    color: var(--accent);
+  }
+  .tabbar-item:active {
+    opacity: 0.6;
+  }
+  /* la chat di Aira occupa tutto lo schermo: lì non c'è né barra in alto né tab bar */
+  body.hub-console-open .tabbar {
+    display: none;
+  }
+  body.hub-console-open .content-col {
+    padding-bottom: 0;
+  }
 }
 
+@media (prefers-reduced-transparency: reduce) {
+  .tabbar {
+    background: var(--bg);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
 
 /* ───────── tipografia ───────── */
 h2 {
@@ -1438,7 +1513,7 @@ main > * {
 
 /* ───────── mobile (< 900px) ───────── */
 @media (max-width: 899px) {
-  .hub-stage { --bar-h: 76px; --gut: 12px; --S: clamp(200px, min(calc(100dvh - var(--top-h) - var(--txt) - 24px), calc((100vw - 8px) / 1.193)), 760px); }
+  .hub-stage { --bar-h: 76px; --gut: 12px; --S: clamp(200px, min(calc(100dvh - var(--top-h) - var(--txt) - var(--tabbar-h) - 24px), calc((100vw - 8px) / 1.193)), 760px); }
   .hub-cc .hub-radar { max-width: 100vw; }
 
   /* schermata di un pilastro: orb piccolo e titolo (la navigazione sta nell'header) */
@@ -1497,7 +1572,7 @@ main > * {
   /* testata: indietro · nome e stato · Stato e Svuota, senza sfondo */
   .aira-root.embedded .aira-core {
     display: block; position: relative; min-height: 68px; padding: 10px 150px 8px 58px; --co: 46px;
-    background: none; border: 0; text-shadow: 0 1px 10px rgba(5, 8, 12, 0.9);
+    background: none; border: 0; text-shadow: 0 1px 10px var(--bg);
   }
   .aira-root.embedded .orb-wrap { display: none; }
   .aira-name { display: block; font-size: 16px; font-weight: 600; color: var(--text-strong); line-height: 1.2; }
@@ -1607,14 +1682,9 @@ a.pass-text { color: var(--accent); text-decoration: none; }
 
 .spesa-add .add-ico { display: none; }
 @media (max-width: 899px) {
-  /* fuori da panoramica e chat l'orb non sta più in alto a sinistra: fluttua in basso al centro e apre la chat */
-  .hub-stage:not(.home):not(.console) .hub-orbwrap {
-    position: fixed; left: 50%; top: calc(100dvh - env(safe-area-inset-bottom) - 52px); width: 68px; height: 68px; z-index: 40;
-    border-radius: 50%; background: var(--panel); /* sfondo quasi opaco: l'orb non si confonde con ciò che scorre dietro */
-    box-shadow: 0 0 0 1px rgba(10, 132, 255, 0.28), var(--shadow-pop);
-  }
+  /* fuori da panoramica e chat l'orb non serve più: Aira è una voce della tab bar */
+  .hub-stage:not(.home):not(.console) .hub-orbwrap { display: none; }
   .hub-bar-top { padding-left: 12px; }
-  main { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
 
   /* lista della spesa: su mobile "Aggiungi" diventa un tondo con il più */
   .spesa-add .add-lbl { display: none; }
