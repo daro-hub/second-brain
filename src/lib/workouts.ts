@@ -304,10 +304,21 @@ export async function resolveExercise(name: string, muscleGroupHint?: string): P
   const exact = known.find((k) => k.name === wanted);
   if (exact) return { match: exact, options: [] };
   const wt = tokens(wanted);
-  const candidates = known.filter((k) => {
+  // stesse parole in un altro modo ("rowing" = "row"): è lui, anche se "high row" lo contiene pure
+  const sameWords = known.filter((k) => {
+    const kt = tokens(k.name);
+    return kt.length === wt.length && wt.every((t) => kt.includes(t));
+  });
+  if (sameWords.length === 1) return { match: sameWords[0], options: [] };
+  let candidates = known.filter((k) => {
     const kt = tokens(k.name);
     return wt.every((t) => kt.includes(t)) || kt.every((t) => wt.includes(t));
   });
+  // «panca inclinata» = l'incline press dello storico, che non ha "bench" nel nome
+  if (!candidates.length && wt.includes("bench")) {
+    const rest = wt.filter((t) => t !== "bench");
+    candidates = known.filter((k) => rest.every((t) => tokens(k.name).includes(t)));
+  }
   if (candidates.length === 1) return { match: candidates[0], options: [] };
   if (candidates.length > 1) {
     // se il gruppo muscolare indicato restringe a un solo esercizio, o uno è nettamente il più usato, è lui

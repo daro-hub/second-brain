@@ -1,5 +1,15 @@
 export type GoogleAccount = "default" | "work";
 
+/** Il refresh token non vale più (scaduto o revocato): riprovare non serve, va riautorizzato con scripts/google-auth.mjs. */
+export class GoogleAuthError extends Error {
+  constructor(
+    readonly account: GoogleAccount,
+    readonly reason: string,
+  ) {
+    super(`Impossibile ottenere access token Google (${account}): ${reason}`);
+  }
+}
+
 const cache = new Map<GoogleAccount, { token: string; exp: number }>();
 
 /** True se è stato autorizzato anche l'account di lavoro (francesco.darin@amuseapp.it), vedi scripts/google-auth.mjs --work. */
@@ -23,7 +33,7 @@ export async function getGoogleAccessToken(account: GoogleAccount = "default"): 
     }),
   });
   const data = await res.json();
-  if (!data.access_token) throw new Error(`Impossibile ottenere access token Google (${account})`);
+  if (!data.access_token) throw new GoogleAuthError(account, String(data.error_description ?? data.error ?? `HTTP ${res.status}`));
   cache.set(account, { token: data.access_token as string, exp: Date.now() + (Number(data.expires_in) || 3600) * 1000 });
   return data.access_token as string;
 }

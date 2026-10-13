@@ -3,6 +3,7 @@ import { formatHistory, type Turn } from "./chatHistory";
 import { parseCalendarOps, type CalendarOp } from "./agenda";
 import { SITE_TOPICS, type SiteTopic } from "./siteData";
 import { describeTopic, type ActiveTopic } from "./topicFormat";
+import { MUSCLE_GROUPS } from "./gym";
 import { perceivedTodayKey } from "./time";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -25,7 +26,7 @@ export interface WorkoutRequest {
 export type MessageIntent =
   | { type: "workout"; entries: WorkoutRequest[] }
   | { type: "clarify"; question: string }
-  | { type: "gym_plan" }
+  | { type: "gym_plan"; muscleGroups?: string[] }
   | { type: "ask"; question: string }
   | { type: "unsupported"; what: string }
   | { type: "exercise_query"; exercise: string }
@@ -86,7 +87,7 @@ Categorie:
 1c. Dati di un allenamento incompleti o ambigui che non si risolvono dalla conversazione recente (es. "41 7" senza esercizio, "ho fatto 50 kg" senza reps né esercizio): {"intent": "clarify", "question": string} dove "question" è UNA domanda brevissima in italiano che chiede solo ciò che manca (es. "Per quale esercizio? 41 kg × 7 reps"). Se invece Daro sta rispondendo a una domanda che gli hai appena fatto nella conversazione recente (es. scrive solo "Leg curl" dopo "per quale esercizio?"), combina con i numeri già detti e restituisci il caso 1.
 1d. Se il messaggio è SOLO il nome di un esercizio, senza numeri né altro (es. "cable lateral", "leg curl", "panca"), Daro vuole sapere quanto faceva: è exercise_query con confidenza alta, MAI "ask" — salvo che Aira gli abbia appena chiesto per quale esercizio (allora è il caso 1 con i numeri già detti). Domanda sullo storico/record di un esercizio (es. "quanto facevo di leg extension?", "qual è il mio massimo di panca?", "che peso uso al leg curl?"): {"intent": "exercise_query", "exercise": string}
 2. Annuncio di un tipo di allenamento senza numeri specifici, per sapere cosa fatto l'ultima volta (es. "oggi faccio petto", "allenamento schiena", "schiena e bicipiti"): {"intent": "session_query", "muscleGroup": string} — se cita più gruppi, riporta la frase dei gruppi così com'è (es. "schiena e bicipiti").
-2b. Domanda su COSA allenare oggi / la scheda / i pesi da usare (es. "cosa devo allenare oggi?", "che allenamento faccio oggi?", "dammi la scheda", "dammi i pesi", "cosa faccio in palestra?", "tutti" come risposta a "per quali esercizi?"): {"intent": "gym_plan"} — NON è session_query (quello è solo quando dice i gruppi che farà) e NON è exercise_query (quello è un esercizio preciso).
+2b. Domanda su COSA allenare oggi / la scheda / i pesi da usare (es. "cosa devo allenare oggi?", "che allenamento faccio oggi?", "dammi la scheda", "dammi i pesi", "cosa faccio in palestra?", "tutti" come risposta a "per quali esercizi?"): {"intent": "gym_plan"} — se chiede gli esercizi o i pesi di UN gruppo (es. "dimmi gli esercizi della schiena", "i pesi del petto") aggiungi "muscleGroups": [i gruppi chiesti, tra quelli elencati in fondo], altrimenti niente muscleGroups — NON è session_query (quello è solo quando dice i gruppi che farà) e NON è exercise_query (quello è un esercizio preciso).
 3. Richiesta di recuperare una password salvata (es. "password di Supabase", "mi serve la password del progetto Longevity", "password wifi"): {"intent": "password_request", "itemName": string}
 4. Domanda su un repository GitHub/progetto di codice, compreso il LINK del progetto (repository o sito online su Vercel) (es. "il link di Orbis", "cosa fa Scolastica", "parlami del progetto Longevity", "dammi il link del second brain"): {"intent": "github_query", "repoName": string}. Se il messaggio è un seguito riferito a un progetto della conversazione recente (es. "vercel", "il sito", "quello online", "il link del deploy"), "repoName" è QUEL progetto, mai la parola "vercel" o "sito". Se chiede i link o l'elenco di TUTTI i progetti pubblici/online (es. "i miei progetti pubblici", "dammi i link dei miei progetti", "cosa ho online?"), "repoName" è "*"
 5. Domanda su issue/task di lavoro Linear (es. "a che punto è l'issue sull'audio?", "ci sono task aperti su AMU-803?"): {"intent": "linear_query", "term": string}
@@ -151,7 +152,8 @@ Categorie:
     };
   }
   if (parsed.intent === "gym_plan") {
-    return { type: "gym_plan" };
+    const muscleGroups = Array.isArray(parsed.muscleGroups) ? parsed.muscleGroups.map((g: unknown) => String(g).toLowerCase().trim()).filter((g: string) => (MUSCLE_GROUPS as readonly string[]).includes(g)) : [];
+    return muscleGroups.length ? { type: "gym_plan", muscleGroups } : { type: "gym_plan" };
   }
   if (parsed.intent === "clarify" && parsed.question) {
     return { type: "clarify", question: String(parsed.question).trim() };

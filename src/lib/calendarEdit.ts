@@ -1,6 +1,7 @@
 import { addMinutes, describeOverlap, findOverlaps, formatWhen, matchEvents, minutesBetween, POINT_MAX_MIN, type CalendarOp } from "./agenda";
 import { createEvent, getEventsInRange, isStudySyncEvent, updateEventTime } from "./calendar";
 import { bold, escapeHtml } from "./format";
+import { GoogleAuthError } from "./googleAuth";
 import { reportError } from "./report";
 import { dateKey, dayRangeUtc, formatDayLong, localHHMM } from "./time";
 
@@ -61,6 +62,10 @@ export async function applyCalendarOps(ops: CalendarOp[]): Promise<{ text: strin
       }
     } catch (err) {
       reportError("calendarEdit/op", err);
+      if (err instanceof GoogleAuthError) {
+        lines.push(`⚠️ Google Calendar non è più autorizzato (${escapeHtml(err.reason)}): non ho modificato "${escapeHtml(op.op === "add" ? op.summary : op.match)}". Va riautorizzato con scripts/google-auth.mjs.`);
+        continue;
+      }
       lines.push(`⚠️ Errore su "${escapeHtml(op.op === "add" ? op.summary : op.match)}": non l'ho modificato.`);
     }
   }

@@ -5,11 +5,13 @@ let store: Ev[] = [];
 const created: unknown[] = [];
 const patched: { id: string; start: string; end: string }[] = [];
 let readOnly = false;
+let authBroken = false;
 
 vi.mock("../src/lib/calendar", () => ({
   isStudySyncEvent: (s: string) => /^[📚🎓]/u.test(s),
   getEventsInRange: async () => store,
   createEvent: async (p: { summary: string; start: string; end: string }) => {
+    if (authBroken) throw new GoogleAuthError("default", "Token has been expired or revoked.");
     created.push(p);
     store = [...store, { summary: p.summary, start: `${p.start}+02:00`, end: `${p.end}+02:00`, allDay: false, id: `n${store.length}`, calendarId: "primary", account: "default" }];
     return { summary: p.summary, start: `${p.start}+02:00`, end: `${p.end}+02:00` };
@@ -24,6 +26,7 @@ vi.mock("../src/lib/calendar", () => ({
 }));
 
 import { applyCalendarOps } from "../src/lib/calendarEdit";
+import { GoogleAuthError } from "../src/lib/googleAuth";
 
 const assemblea = (): Ev => ({ summary: "Assemblea di ESN", start: "2026-10-05T19:30:00+02:00", end: "2026-10-05T20:30:00+02:00", allDay: false, id: "a1", calendarId: "primary", account: "default" });
 
@@ -32,6 +35,7 @@ beforeEach(() => {
   created.length = 0;
   patched.length = 0;
   readOnly = false;
+  authBroken = false;
 });
 
 const nicoleEv = (start: string, end: string): Ev => ({ summary: "Passare da Nicole", start, end, allDay: false, id: "n1", calendarId: "primary", account: "default" });
@@ -115,5 +119,18 @@ describe("applyCalendarOps — casi di errore raccontati, mai taciuti", () => {
     expect(r.changed).toBe(0);
     expect(r.text).toContain("non posso modificare");
     expect(r.text).toContain("19:30");
+  });
+});
+
+describe("applyCalendarOps — token Google scaduto (chat del 13/10: Errore su Incontro con Irene)", () => {
+  it("dice che Google non è più autorizzato e come rimediare, invece di un generico 'Errore'", async () => {
+    authBroken = true;
+    const r = await applyCalendarOps([add("Incontro con Irene", "17:00", "19:00")]);
+    expect(r.changed).toBe(0);
+    expect(created).toHaveLength(0);
+    expect(r.text).toContain("non è più autorizzato");
+    expect(r.text).toContain("Incontro con Irene");
+    expect(r.text).toContain("google-auth");
+    expect(r.text).not.toContain("Errore su");
   });
 });

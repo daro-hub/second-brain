@@ -80,6 +80,22 @@ export function wantsGymPlan(text: string): boolean {
   return /^(la |le )?(scheda|routine|i pesi|pesi)( di oggi)?\s*[?.!]*$/.test(t);
 }
 
+const LIST_WORDS = new Set(["dimmi", "dammi", "mostrami", "passami", "elencami", "fammi", "vedere", "quali", "sono", "gli", "i", "della", "del", "dei", "delle", "di", "per", "tutti", "es", "esercizi", "pesi"]);
+
+/**
+ * «Dimmi gli es della schiena», «quali sono gli esercizi del petto», «i pesi della schiena»: Daro vuole gli esercizi
+ * di quei gruppi, non tutta la scheda del giorno. Restituisce i gruppi, o null se la frase è altro.
+ */
+export function exercisesOfGroups(text: string): string[] | null {
+  const t = strip(text).replace(/[?!.]+$/, "");
+  if (/[0-9?]/.test(t) || /(fatto|facevo|fatti|ieri|scorso|scorsa|ultim[oa]|storico)/.test(t)) return null;
+  const ws = words(t);
+  if (!ws.some((w) => w === "es" || w === "esercizi" || w === "pesi")) return null;
+  if (!ws.every((w) => WORD_TO_GROUPS.has(w) || FILLER.has(w) || LIST_WORDS.has(w))) return null;
+  const groups = groupsFromText(t);
+  return groups.length ? groups : null;
+}
+
 /* ───────── nomi degli esercizi ───────── */
 
 /** Italiano → i termini usati nello storico ("trazioni" = "pull-up"), applicato a entrambi i lati del confronto. */
@@ -95,8 +111,11 @@ const EXERCISE_SYNONYMS: Record<string, string[]> = {
   inclinata: ["incline"],
   inclinato: ["incline"],
   inclinate: ["incline"],
-  panca: ["bench"],
+  panca: ["bench", "press"],
   piana: ["flat"],
+  rowing: ["row"],
+  rematore: ["row"],
+  rematori: ["row"],
 };
 
 export function exerciseTokens(s: string): string[] {

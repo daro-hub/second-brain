@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { exerciseTokens, formatRoutinePreview, groupsFromText, isGroupAnnouncement, latestAnnouncedGroups, routineForGroups, wantsGymPlan } from "../src/lib/gym";
+import { exerciseTokens, exercisesOfGroups, formatRoutinePreview, groupsFromText, isGroupAnnouncement, latestAnnouncedGroups, routineForGroups, wantsGymPlan } from "../src/lib/gym";
 
 const routines = { "petto e schiena": ["schiena", "petto", "addome"], braccia: ["spalle", "bicipiti", "tricipiti", "addome"], "leg day": ["gambe", "addome"] };
 
@@ -82,5 +82,25 @@ describe("formatRoutinePreview", () => {
     expect(t).toContain("chest press — <b>30kg x6</b> · oggi ✓ 30kg x7");
     expect(t).toContain("row — nessun dato precedente");
     expect(t).toContain("ultimi pesi prima di oggi");
+  });
+});
+
+describe("exercisesOfGroups — 'Dimmi gli es della schiena' (chat del 12/10: usciva tutta la scheda, petto compreso)", () => {
+  it("riconosce la richiesta degli esercizi di un gruppo", () => {
+    expect(exercisesOfGroups("Dimmi gli es della schiena")).toEqual(["schiena"]);
+    expect(exercisesOfGroups("quali sono gli esercizi del petto?")).toEqual(["petto"]);
+    expect(exercisesOfGroups("dimmi i pesi della schiena")).toEqual(["schiena"]);
+    expect(exercisesOfGroups("esercizi schiena e bicipiti")).toEqual(["schiena", "bicipiti"]);
+  });
+  it("non ruba altre frasi: scheda intera, passato, numeri, esercizi singoli", () => {
+    for (const t of ["Dammi la scheda", "Dammi i pesi", "Cosa devo allenare oggi", "gli esercizi che ho fatto ieri sulla schiena", "schiena 50 kg 8 es", "dimmi i pesi del leg curl", "Schiena e petto", "Rowing"]) expect(exercisesOfGroups(t), t).toBeNull();
+  });
+});
+
+describe("nomi degli esercizi inglesi/italiani", () => {
+  it("rowing e rematore sono 'row'; panca è 'bench press'", () => {
+    expect(exerciseTokens("rowing")).toEqual(["row"]);
+    expect(exerciseTokens("rematore")).toEqual(["row"]);
+    expect(exerciseTokens("panca inclinata")).toEqual(["bench", "pres", "incline"]);
   });
 });

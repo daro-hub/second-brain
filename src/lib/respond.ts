@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { getPassword } from "./bitwarden";
 import { addMinutes, asksForMeetingLink, describeOverlap, findOverlaps, formatWhen } from "./agenda";
 import { applyCalendarOps } from "./calendarEdit";
+import { GoogleAuthError } from "./googleAuth";
 import { createEvent, getEventsInRange, getUpcomingEvents, isStudySyncEvent } from "./calendar";
 import { addTurns, formatHistory, freshTurns, recentTurns, toPlain, type Turn } from "./chatHistory";
 import { bold, BULLET, dropEmptyIconLines, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
@@ -184,9 +185,10 @@ function addOneHour(time: string): string {
   return `${String(next).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-/** Scheda con i pesi di una routine: gli ultimi valori PRIMA di oggi e, se già fatto, quanto registrato oggi. */
-async function routinePreviewReply(routine: string, trace: Trace | undefined, title = routine): Promise<string> {
-  const preview = await getRoutinePreview(routine, perceivedTodayKey());
+/** Scheda con i pesi di una routine: gli ultimi valori PRIMA di oggi e, se già fatto, quanto registrato oggi. Con `onlyGroups` solo gli esercizi di quei gruppi. */
+async function routinePreviewReply(routine: string, trace: Trace | undefined, title = routine, onlyGroups?: string[]): Promise<string> {
+  const all = await getRoutinePreview(routine, perceivedTodayKey());
+  const preview = onlyGroups && all ? all.filter((p) => p.muscleGroup && onlyGroups.includes(p.muscleGroup)) : all;
   src(trace, "gym", `Pesi di ${routine}`, {
     href: "/?p=allenamento",
     items: (preview ?? []).map((p) => ({ text: p.exercise, meta: p.last ? fmtSet(Number(p.last.weight_kg), Number(p.last.reps)) : "nessun dato" })),
@@ -215,11 +217,20 @@ async function groupsReply(groups: string[], trace: Trace | undefined): Promise<
   return blocks.join("\n\n");
 }
 
+/** «Dimmi gli esercizi della schiena»: solo quelli del gruppo, dalla routine di oggi (o la prima che lo contiene), con i pesi. */
+async function exercisesOfGroupsReply(groups: string[], trace: Trace | undefined): Promise<string> {
+  const routineGroups = await getRoutineGroups();
+  const routine = [await getRoutineForToday(perceivedTodayKey()), ...Object.keys(routineGroups)].find((r) => groups.some((g) => routineGroups[r]?.includes(g)));
+  if (!routine) return groupsReply(groups, trace);
+  return routinePreviewReply(routine, trace, `${groups.join(" e ")} — ${routine}`, groups);
+}
+
 /**
  * "Cosa devo allenare oggi / dammi la scheda / dammi i pesi". Se Daro ha appena detto quali gruppi farà, valgono quelli
  * (la correzione più recente); altrimenti la routine di oggi del ciclo (quella in corso se ha già registrato serie).
  */
-async function replyWithGymPlan(trace: Trace | undefined, history: Turn[]): Promise<string> {
+async function replyWithGymPlan(trace: Trace | undefined, history: Turn[], onlyGroups?: string[]): Promise<string> {
+  if (onlyGroups?.length) return exercisesOfGroupsReply(onlyGroups, trace);
   const announced = latestAnnouncedGroups(freshTurns(history)); // «oggi» = annunci recenti, non di giorni fa
   if (announced?.length) return groupsReply(announced, trace);
   const routine = await getRoutineForToday(perceivedTodayKey());
@@ -357,6 +368,10 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
     trace?.intent("session_query");
     return groupsReply(groupsFromText(text), trace);
   }
+  if (late === "gym_groups") {
+    trace?.intent("gym_plan");
+    return exercisesOfGroupsReply(groupsFromText(text), trace);
+  }
   if (late === "gym_plan") {
     trace?.intent("gym_plan");
     return replyWithGymPlan(trace, history);
@@ -387,7 +402,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
 
   if (intent.type === "gym_plan") {
     try {
-      return await replyWithGymPlan(trace, history);
+      return await replyWithGymPlan(trace, history, intent.muscleGroups);
     } catch (err) {
       reportError("respond/gym_plan", err);
       return "Errore nel recupero della scheda.";
@@ -733,7 +748,9 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
       });
       src(trace, "calendar", `Evento creato: ${event.summary}`, { href: "/" });
       return `📅 Evento creato: ${bold(escapeHtml(event.summary))} — ${label}`;
-    } catch {
+    } catch (err) {
+      reportError("respond/calendar_add", err);
+      if (err instanceof GoogleAuthError) return `⚠️ Google Calendar non è più autorizzato (${escapeHtml(err.reason)}): non ho creato l'evento. Va riautorizzato con scripts/google-auth.mjs.`;
       return "Errore nella creazione dell'evento su Google Calendar.";
     }
   }

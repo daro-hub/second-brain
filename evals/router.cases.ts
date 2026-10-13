@@ -34,6 +34,8 @@ export const ROUTER_CASES: RouterCase[] = [
   { id: "gym-pesi", text: "Dammi i pesi", quick: "gym_plan", expect: { type: "gym_plan" } },
   { id: "gym-scheda", text: "Dammi la scheda", quick: "gym_plan", expect: { type: "gym_plan" } },
   { id: "gym-tutti-seguito", text: "Tutti", history: [...gymChat, { role: "user", content: "Dammi i pesi" }, { role: "assistant", content: "🏋️ Per quali esercizi di schiena e petto?" }], topic: { intent: "gym_plan", text: "Dammi i pesi", minutesAgo: 1 }, expect: { type: ["gym_plan", "session_query"] } },
+  { id: "gym-es-gruppo", text: "Dimmi gli es della schiena", quick: "gym_groups", expect: { type: "gym_plan" } },
+  { id: "gym-pesi-gruppo", text: "Dimmi i pesi della schiena", quick: "gym_groups", expect: { type: "gym_plan" } },
   { id: "gym-quanto-faccio", text: "Quanto faccio di trazioni", expect: { type: "exercise_query" } },
   { id: "gym-log-chest", text: "Chest press inclinata 30 kg 7 reps", expect: { type: "workout" } },
   { id: "gym-log-trazioni", text: "Trazioni 20 kg 6 reps", expect: { type: "workout" } },

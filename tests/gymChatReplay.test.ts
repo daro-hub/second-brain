@@ -16,6 +16,8 @@ const INTENTS: Record<string, Row> = {
   "Chest press inclinata 30 kg 7 reps": { intent: "workout", entries: [{ exercise: "chest press inclinata", weightKg: 30, reps: 7, sets: 1, muscleGroup: "petto", sameAsLast: false }] },
   "Trazioni 20 kg 6 reps": { intent: "workout", entries: [{ exercise: "trazioni", weightKg: 20, reps: 6, sets: 1, muscleGroup: "schiena", sameAsLast: false }] },
   "Dimmi quanti ne facevo l'ultima volta": { intent: "exercise_query", exercise: "chest press" },
+  "28 kg 10 reps panca inclinata": { intent: "workout", entries: [{ exercise: "panca inclinata", weightKg: 28, reps: 10, sets: 1, muscleGroup: "petto", sameAsLast: false }] },
+  Rowing: { intent: "exercise_query", exercise: "rowing" },
   "Oggi uguale": { intent: "workout", entries: [{ exercise: "chest press", weightKg: null, reps: null, sets: 1, sameAsLast: true, fromPreviousSession: true }] },
 };
 vi.mock("openai", () => ({
@@ -151,5 +153,19 @@ describe("replay della chat del 05/10/2026", () => {
     const plan = await say("Cosa devo allenare oggi");
     expect(plan).toContain("Allenamento di oggi: petto e schiena");
     expect(plan).toContain("oggi ✓ 30kg x7"); // il pannello mostra anche quanto già fatto oggi
+  });
+  it("chat del 12/10: 'panca inclinata' si salva come incline db press; 'Rowing' trova row; 'gli es della schiena' = solo la schiena", async () => {
+    const saved = await say("28 kg 10 reps panca inclinata");
+    expect(saved).toContain("incline db press"); // prima: un esercizio nuovo 'panca inclinata' che spezzava lo storico
+    expect(db.workout_logs.some((l) => l.exercise === "panca inclinata")).toBe(false);
+    expect(db.workout_logs.filter((l) => l.exercise === "incline db press").at(-1)).toMatchObject({ weight_kg: 28, reps: 10 });
+
+    const rowing = await say("Rowing");
+    expect(rowing).not.toContain("Non trovo");
+    expect(rowing).toContain("Esercizio: row"); // non 'high row'
+
+    const back = await say("Dimmi gli es della schiena");
+    for (const e of ["weighted pull-up", "high row", "row"]) expect(back).toContain(e);
+    for (const e of ["chest press", "incline db press", "peck fly", "abs machine"]) expect(back).not.toContain(e);
   });
 });
