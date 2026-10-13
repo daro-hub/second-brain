@@ -1,5 +1,13 @@
 # second-brain
 
+> **English summary.** A personal AI assistant ("Aira") that I use every day, on Telegram and on the web, by text or voice. It answers from my own notes (RAG on Supabase pgvector) and from live data, queried on every request instead of copied: Google Calendar, Gmail (read-only), GitHub, Linear, Slack (read-only), Strava and Apple Health. It also runs scheduled automations (morning and evening digests, reminders, a mood check-in, a work log) and a coding agent that investigates and fixes code on my machines, with **nothing pushed until I tap Approve** in Telegram. Built solo, end to end, as a Next.js app on Vercel plus a grammY Telegram webhook.
+>
+> **How it is built.** Every message goes through one shared pipeline: a few exact shortcuts in plain code, then an intent classifier that routes to the right source. Passwords come from the local Bitwarden CLI and never reach the language model. The same pipeline powers the Telegram bot, a full-screen web interface with hands-free voice over the OpenAI Realtime API, and an MCP server that exposes every capability as a tool to Claude Code and Cursor. The dashboard stays behind a password and fails closed in production.
+>
+> **How it is tested.** 435 Vitest unit tests across 36 files, plus an eval set of real phrases the router once got wrong, replayed against the live model whenever the router changes (`npm run eval`, see `docs/bot-routing.md`). The coding agent has no shell, cannot touch lockfiles, CI or secrets, and works in an isolated git worktree.
+>
+> The rest of this README is in Italian.
+
 Segretario personale: knowledge base RAG (Supabase + pgvector), tracking
 allenamenti, e integrazioni live (Bitwarden, GitHub, Linear, Google Calendar,
 Gmail, Strava) — interrogabile su Telegram in linguaggio naturale (testo o vocale,
