@@ -4,6 +4,7 @@ import { MIN_N_FOR_CORRELATION, mean, pearson, type Correlation, kjToKcal } from
 import { getAllActivities, type StravaActivityFull } from "./strava";
 import { supabase } from "./supabase";
 import { addDays, dayRangeUtc, todayKey, weekdayOf } from "./time";
+import { getScheduleForRange, type ScheduleSlot } from "./workouts";
 
 /**
  * Ogni incrocio dichiara quanti dati servono prima di "dire" qualcosa. Con pochi punti un
@@ -21,6 +22,13 @@ const gate = (have: number, need: number, unit: string): Gate => ({ have, need, 
 
 const LOOKBACK_DAYS = 90;
 const TRAINING_TYPES = ["WeightTraining", "Workout", "Run", "TrailRun"];
+const BUSY_LOOKBACK_DAYS = 21;
+
+const decimalHour = (hhmm: string): number => {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h + m / 60;
+};
+const slotHours = (s: ScheduleSlot): number => decimalHour(s.endTime) - decimalHour(s.startTime);
 
 function trainingMinutesByDay(activities: StravaActivityFull[]): Map<string, number> {
   const m = new Map<string, number>();
@@ -214,23 +222,27 @@ export async function getRunPaceVsRest(): Promise<ScatterInsight> {
 /* ───────────────────────── Quando ti alleni vs quando sei occupato ───────────────────────── */
 
 export async function getTrainingHours() {
+  const today = todayKey();
   const [activities, sched] = await Promise.all([
     getAllActivities().catch(() => [] as StravaActivityFull[]),
-    supabase.from("weekly_schedule").select("day_of_week, start_time, end_time"),
+    // le ultime settimane del calendario: è lì che le lezioni si spostano davvero
+    getScheduleForRange(addDays(today, -BUSY_LOOKBACK_DAYS), today).catch(() => new Map<string, ScheduleSlot[]>()),
   ]);
   const counts = Array<number>(24).fill(0);
   const sessions = activities.filter((a) => TRAINING_TYPES.includes(a.type) && a.movingTimeMin > 0);
   for (const a of sessions) counts[Math.min(23, Math.floor(a.startHour))]++;
 
   const busy = Array<number>(24).fill(0);
-  const weekdays = new Set<number>();
-  for (const r of sched.data ?? []) weekdays.add(r.day_of_week as number);
-  for (const r of sched.data ?? []) {
-    const [sh, sm] = String(r.start_time).split(":").map(Number);
-    const [eh, em] = String(r.end_time).split(":").map(Number);
-    for (let h = 0; h < 24; h++) {
-      const overlap = Math.min(eh + em / 60, h + 1) - Math.max(sh + sm / 60, h);
-      if (overlap > 0) busy[h] += Math.min(1, overlap) / Math.max(1, weekdays.size);
+  // quota dei giorni con lezioni/studio in cui quell'ora è occupata
+  const studyDays = [...sched.values()].filter((slots) => slots.length > 0);
+  for (const slots of studyDays) {
+    for (const r of slots) {
+      const sh = decimalHour(r.startTime);
+      const eh = decimalHour(r.endTime);
+      for (let h = 0; h < 24; h++) {
+        const overlap = Math.min(eh, h + 1) - Math.max(sh, h);
+        if (overlap > 0) busy[h] += Math.min(1, overlap) / studyDays.length;
+      }
     }
   }
   const clash = sessions.filter((a) => busy[Math.min(23, Math.floor(a.startHour))] > 0.5).length;
@@ -246,23 +258,17 @@ export async function getWeekBudget() {
   while (weekdayOf(monday) !== 1) monday = addDays(monday, -1);
 
   const [sched, activities] = await Promise.all([
-    supabase.from("weekly_schedule").select("day_of_week, start_time, end_time, type"),
+    getScheduleForRange(monday, addDays(monday, 6)).catch(() => new Map<string, ScheduleSlot[]>()),
     getAllActivities().catch(() => [] as StravaActivityFull[]),
   ]);
   const load = trainingMinutesByDay(activities);
-  const hours = (s: string, e: string) => {
-    const [sh, sm] = s.split(":").map(Number);
-    const [eh, em] = e.split(":").map(Number);
-    return eh + em / 60 - (sh + sm / 60);
-  };
   const days = Array.from({ length: 7 }, (_, i) => {
     const key = addDays(monday, i);
-    const dow = weekdayOf(key);
-    const rows = (sched.data ?? []).filter((r) => r.day_of_week === dow);
+    const rows = sched.get(key) ?? [];
     return {
       dayKey: key,
-      study: rows.filter((r) => r.type === "studio").reduce((a, r) => a + hours(String(r.start_time), String(r.end_time)), 0),
-      lesson: rows.filter((r) => r.type === "lezione").reduce((a, r) => a + hours(String(r.start_time), String(r.end_time)), 0),
+      study: rows.filter((r) => r.type === "studio").reduce((a, r) => a + slotHours(r), 0),
+      lesson: rows.filter((r) => r.type === "lezione").reduce((a, r) => a + slotHours(r), 0),
       training: (load.get(key) ?? 0) / 60,
       future: key > today,
     };

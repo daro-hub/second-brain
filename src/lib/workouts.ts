@@ -1,8 +1,8 @@
 import OpenAI from "openai";
 import { exerciseTokens } from "./gym";
 import { supabase } from "./supabase";
-import { getEventsInRange, isStudySyncEvent } from "./calendar";
-import { dayRangeUtc, localHHMM } from "./time";
+import { getEventsInRange, isStudySyncEvent, type CalendarEventDetailed } from "./calendar";
+import { dateKey, dayRangeUtc, localHHMM } from "./time";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -233,9 +233,7 @@ export interface ScheduleSlot {
  * Lezioni e studio del giorno, lette dal calendario (eventi 📚/🎓): è lì che l'orario si modifica davvero.
  * La vecchia tabella `weekly_schedule` era un orario fisso non più aggiornato e faceva comparire lezioni inesistenti.
  */
-export async function getScheduleForDay(dayKey: string): Promise<ScheduleSlot[]> {
-  const { from, to } = dayRangeUtc(dayKey);
-  const events = await getEventsInRange(from, to);
+function toScheduleSlots(events: CalendarEventDetailed[]): ScheduleSlot[] {
   return events
     .filter((e) => !e.allDay && isStudySyncEvent(e.summary))
     .sort((a, b) => a.start.localeCompare(b.start))
@@ -245,6 +243,22 @@ export async function getScheduleForDay(dayKey: string): Promise<ScheduleSlot[]>
       type: e.summary.startsWith("🎓") ? ("lezione" as const) : ("studio" as const),
       subject: e.summary.replace(/^[📚🎓]\s*/u, ""),
     }));
+}
+
+export async function getScheduleForDay(dayKey: string): Promise<ScheduleSlot[]> {
+  const { from, to } = dayRangeUtc(dayKey);
+  return toScheduleSlots(await getEventsInRange(from, to));
+}
+
+/** Come getScheduleForDay per più giorni (da fromKey a toKey inclusi) con una sola lettura del calendario. */
+export async function getScheduleForRange(fromKey: string, toKey: string): Promise<Map<string, ScheduleSlot[]>> {
+  const events = await getEventsInRange(dayRangeUtc(fromKey).from, dayRangeUtc(toKey).to);
+  const byDay = new Map<string, CalendarEventDetailed[]>();
+  for (const e of events) {
+    const k = dateKey(e.start);
+    byDay.set(k, [...(byDay.get(k) ?? []), e]);
+  }
+  return new Map([...byDay].map(([k, evs]) => [k, toScheduleSlots(evs)]));
 }
 
 export async function getPR(exercise: string) {
