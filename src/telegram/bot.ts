@@ -20,6 +20,7 @@ import { ingest } from "../lib/ingest";
 import { handleMessage } from "../lib/respond";
 import { reportError } from "../lib/report";
 import { TELEGRAM_MAX_BYTES } from "../lib/uniUpload";
+import { tryNotesRequest } from "../lib/uniNotesRequest";
 import { registerPdf } from "../lib/uniUploadJob";
 import { searchSemantic } from "../lib/search";
 import { textToSpeech, transcribe } from "../lib/voice";
@@ -414,6 +415,23 @@ bot.on("message:text", async (ctx) => {
   const hours = await tryApplyHoursReply(ctx.message.text).catch(() => null);
   if (hours) {
     await ctx.reply(hours);
+    return;
+  }
+  // «dammi gli appunti di programmazione, lezione 2»: manda i file della lezione
+  try {
+    const notes = await tryNotesRequest(ctx.message.text);
+    if (notes?.kind === "text") {
+      await ctx.reply(notes.html, { parse_mode: "HTML" });
+      return;
+    }
+    if (notes?.kind === "files") {
+      await ctx.reply(notes.intro, { parse_mode: "HTML" });
+      for (const f of notes.files) await ctx.replyWithDocument(new InputFile(f.data, f.name));
+      return;
+    }
+  } catch (err) {
+    reportError("telegram/notes", err);
+    await ctx.reply("Non riesco a leggere gli appunti dal repo in questo momento. Riprova tra poco.");
     return;
   }
   const reply = await handleMessage(ctx.message.text);
