@@ -127,7 +127,7 @@ export async function getDayBundle(dayKey: string): Promise<DayBundle> {
     getNightRecovery(dayKey),
     getAllActivities().catch(() => [] as StravaActivityFull[]),
     getGymLogsForDay(dayKey),
-    getScheduleForDay(weekdayOf(dayKey)),
+    getScheduleForDay(dayKey),
     getEventsInRange(from, to).catch(() => []),
   ]);
 

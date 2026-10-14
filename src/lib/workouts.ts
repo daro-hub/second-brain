@@ -1,7 +1,8 @@
 import OpenAI from "openai";
 import { exerciseTokens } from "./gym";
 import { supabase } from "./supabase";
-import { dayRangeUtc } from "./time";
+import { getEventsInRange, isStudySyncEvent } from "./calendar";
+import { dayRangeUtc, localHHMM } from "./time";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -228,19 +229,22 @@ export interface ScheduleSlot {
   subject: string;
 }
 
-export async function getScheduleForDay(dayOfWeek: number): Promise<ScheduleSlot[]> {
-  const { data, error } = await supabase
-    .from("weekly_schedule")
-    .select("start_time, end_time, type, subject")
-    .eq("day_of_week", dayOfWeek)
-    .order("order_index", { ascending: true });
-  if (error) throw error;
-  return (data ?? []).map((r) => ({
-    startTime: r.start_time,
-    endTime: r.end_time,
-    type: r.type as "studio" | "lezione",
-    subject: r.subject,
-  }));
+/**
+ * Lezioni e studio del giorno, lette dal calendario (eventi 📚/🎓): è lì che l'orario si modifica davvero.
+ * La vecchia tabella `weekly_schedule` era un orario fisso non più aggiornato e faceva comparire lezioni inesistenti.
+ */
+export async function getScheduleForDay(dayKey: string): Promise<ScheduleSlot[]> {
+  const { from, to } = dayRangeUtc(dayKey);
+  const events = await getEventsInRange(from, to);
+  return events
+    .filter((e) => !e.allDay && isStudySyncEvent(e.summary))
+    .sort((a, b) => a.start.localeCompare(b.start))
+    .map((e) => ({
+      startTime: localHHMM(e.start),
+      endTime: localHHMM(e.end),
+      type: e.summary.startsWith("🎓") ? ("lezione" as const) : ("studio" as const),
+      subject: e.summary.replace(/^[📚🎓]\s*/u, ""),
+    }));
 }
 
 export async function getPR(exercise: string) {

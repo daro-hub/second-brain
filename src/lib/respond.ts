@@ -720,7 +720,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
 
       const [allEvents, weekSchedule, nextRoutine] = await Promise.all([
         hasRange ? getEventsInRange(dayRangeUtc(rangeStart).from, dayRangeUtc(rangeEnd).to) : getUpcomingEvents(30),
-        Promise.all(dayKeys.map((key) => getScheduleForDay(weekdayOf(key)).then((slots) => ({ key, slots })))),
+        Promise.all(dayKeys.map((key) => getScheduleForDay(key).then((slots) => ({ key, slots })))),
         getRoutineForToday(today), // quella di oggi (in corso se hai già fatto serie), non la successiva
       ]);
 
@@ -811,7 +811,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
   if (intent.type === "study_schedule_query") {
     try {
       const dateObj = new Date(`${intent.date}T00:00:00`);
-      const schedule = await getScheduleForDay(dateObj.getDay());
+      const schedule = await getScheduleForDay(intent.date);
       const dateLabel = dateObj.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
       src(trace, "study", `Orario di studio per ${dateLabel}`, {
         href: "/",

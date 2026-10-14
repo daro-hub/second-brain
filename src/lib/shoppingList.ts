@@ -6,8 +6,19 @@ export interface ShoppingListItem {
   added_at: string;
 }
 
+const sameItem = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+
+/** Aggiunge gli articoli saltando quelli già in lista da comprare (maiuscole e spazi non contano) e i doppioni nello stesso messaggio. */
 export async function addShoppingItems(items: string[]): Promise<void> {
-  const rows = items.map((item) => ({ item: item.trim() })).filter((r) => r.item.length > 0);
+  const active = new Set((await getActiveShoppingList()).map((a) => sameItem(a.item)));
+  const rows: { item: string }[] = [];
+  for (const raw of items) {
+    const item = raw.trim();
+    const key = sameItem(item);
+    if (!key || active.has(key)) continue;
+    active.add(key);
+    rows.push({ item });
+  }
   if (!rows.length) return;
   const { error } = await supabase.from("shopping_list").insert(rows);
   if (error) throw error;

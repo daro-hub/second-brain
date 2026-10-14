@@ -1,6 +1,6 @@
 import { getEventsInRange, isStudySyncEvent } from "./calendar";
 import { bold, BULLET, escapeHtml } from "./format";
-import { addDays, dayRangeUtc, formatDayLong, localHHMM, startOfDayUtc, todayKey, weekdayOf } from "./time";
+import { addDays, dayRangeUtc, formatDayLong, localHHMM, startOfDayUtc, todayKey } from "./time";
 import { formatReminderLine, listOpenReminders } from "./todoReminders";
 import { getNextRoutineToTrain, getScheduleForDay, markRestDay } from "./workouts";
 
@@ -11,7 +11,7 @@ export async function buildEveningDigest(): Promise<string> {
   const { from, to } = dayRangeUtc(tomorrowKey);
 
   const [schedule, allEvents, nextRoutine] = await Promise.all([
-    getScheduleForDay(weekdayOf(tomorrowKey)),
+    getScheduleForDay(tomorrowKey),
     getEventsInRange(from, to),
     getNextRoutineToTrain(),
   ]);
