@@ -1,4 +1,5 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config({ path: new URL("../.env.local", import.meta.url).pathname });
 import http from "node:http";
 
 const PORT = 3051;
@@ -51,9 +52,9 @@ const server = http.createServer(async (req, res) => {
 
   if (tokens.refresh_token) {
     console.log("\nAutorizzazione riuscita. Refresh token ottenuto (non lo stampo per sicurezza).");
-    console.log("Lo salvo direttamente in .env...");
+    console.log("Lo salvo direttamente in .env.local...");
     const fs = await import("node:fs");
-    const envPath = new URL("../.env", import.meta.url);
+    const envPath = new URL("../.env.local", import.meta.url);
     let envContent = fs.readFileSync(envPath, "utf-8");
     const line = new RegExp(`^${TOKEN_VAR}=.*`, "m");
     if (line.test(envContent)) {
@@ -62,7 +63,7 @@ const server = http.createServer(async (req, res) => {
       envContent += `${envContent.endsWith("\n") ? "" : "\n"}${TOKEN_VAR}=${tokens.refresh_token}\n`;
     }
     fs.writeFileSync(envPath, envContent);
-    console.log("Salvato in .env. Puoi chiudere questo script (Ctrl+C) e tornare alla chat.");
+    console.log("Salvato in .env.local. Puoi chiudere questo script (Ctrl+C) e tornare alla chat.");
     res.writeHead(200, { "Content-Type": "text/html" }).end("<h1>Fatto, puoi chiudere questa finestra.</h1>");
   } else {
     console.error("Nessun refresh_token nella risposta:", tokens);
