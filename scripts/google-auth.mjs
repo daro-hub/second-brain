@@ -9,7 +9,7 @@ const WORK = process.argv.includes("--work");
 const TOKEN_VAR = WORK ? "GOOGLE_REFRESH_TOKEN_WORK" : "GOOGLE_REFRESH_TOKEN";
 const SCOPE = WORK
   ? "https://www.googleapis.com/auth/calendar.readonly"
-  : "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.readonly";
+  : "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose";
 
 const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
 authUrl.searchParams.set("client_id", process.env.GOOGLE_CLIENT_ID);

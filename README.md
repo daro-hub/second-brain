@@ -61,7 +61,7 @@ non c'è più una route dedicata.
 - `src/telegram/bot.ts` — definizione bot (grammY), nessun `.start()` qui
 - `src/telegram/dev.ts` — long-polling locale, per test (`npm run bot`)
 - `app/api/telegram/route.ts` — webhook Vercel (produzione reale)
-- `src/mcp/server.ts` — server MCP stdio, un tool per ogni capacità
+- `src/mcp/server.ts` — server MCP stdio (Claude Code/Cursor); `app/api/mcp` + `src/lib/tools/registry.ts` — server MCP remoto con OAuth per Claude da telefono (`docs/mcp-remoto.md`)
 - `app/page.tsx` (Oggi), `app/salute`, `app/palestra`, `app/insights`
   (Incroci), `app/spesa`, `app/bot` — dashboard Next.js. "Oggi" sovrappone
   su un asse orario battito, passi, pasti, lezioni, calendario e

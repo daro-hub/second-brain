@@ -12,13 +12,18 @@ vi.mock("../src/lib/bitwarden", () => ({ getPassword: async () => "segreto" }));
 const script: { match: (text: string) => boolean; json: Record<string, unknown> }[] = [];
 const classifierCalls: { user: string; system: string[] }[] = [];
 const chatPrompts: string[] = [];
+const toolAgentCalls: number[] = [];
 
 vi.mock("openai", () => ({
   default: class {
     embeddings = { create: async () => ({ data: [{ embedding: [0, 0, 0] }] }) };
     chat = {
       completions: {
-        create: async (req: { response_format?: unknown; messages: { role: string; content: string }[] }) => {
+        create: async (req: { response_format?: unknown; tools?: unknown; messages: { role: string; content: string }[] }) => {
+          if (req.tools) {
+            toolAgentCalls.push(1); // l'agente a strumenti: qui non chiama nessuno strumento
+            return { choices: [{ message: { content: "nessuno strumento" } }] };
+          }
           if (req.response_format) {
             const user = req.messages.filter((m) => m.role === "user").at(-1)!.content;
             classifierCalls.push({ user, system: req.messages.filter((m) => m.role === "system").map((m) => m.content) });
@@ -43,6 +48,7 @@ beforeEach(() => {
   script.length = 0;
   classifierCalls.length = 0;
   chatPrompts.length = 0;
+  toolAgentCalls.length = 0;
 });
 afterEach(() => vi.useRealTimers());
 
@@ -74,6 +80,7 @@ describe("dice onestamente cosa non può fare", () => {
     expect(r).toContain("Il saldo del conto in banca");
     expect(r).toContain("non riesco a leggerlo");
     expect(r).toContain("agenda");
+    expect(toolAgentCalls).toHaveLength(1); // prima prova l'agente a strumenti; nessuno strumento c'entra → rifiuto onesto
     expect(chatPrompts).toHaveLength(0); // niente chat libera che improvvisa
   });
 });

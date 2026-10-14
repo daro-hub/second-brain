@@ -105,3 +105,28 @@ export async function getRepoInfo(repoQuery: string): Promise<RepoInfo | null> {
 
   return { ...match, readmeExcerpt, liveUrl: await resolveLiveUrl(match) };
 }
+
+async function resolveOwnRepo(repoQuery: string): Promise<{ owner: string; name: string }> {
+  const match = matchRepo(await listRepos(), repoQuery);
+  if (!match) throw new Error(`Repository non trovato: ${repoQuery}`);
+  return { owner: match.owner, name: match.name };
+}
+
+async function githubPost(path: string, body: Record<string, unknown>): Promise<{ html_url: string; number?: number }> {
+  const res = await fetch(`${GITHUB_API}${path}`, { method: "POST", headers: { ...headers(), "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(`GitHub API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return res.json();
+}
+
+/** Apre un'issue su un repo di Daro (richiede un token con permesso issues:write). */
+export async function createRepoIssue(repoQuery: string, title: string, body?: string): Promise<{ url: string; number: number }> {
+  const { owner, name } = await resolveOwnRepo(repoQuery);
+  const r = await githubPost(`/repos/${owner}/${name}/issues`, { title, body });
+  return { url: r.html_url, number: r.number ?? 0 };
+}
+
+export async function commentRepoIssue(repoQuery: string, number: number, body: string): Promise<{ url: string }> {
+  const { owner, name } = await resolveOwnRepo(repoQuery);
+  const r = await githubPost(`/repos/${owner}/${name}/issues/${number}/comments`, { body });
+  return { url: r.html_url };
+}

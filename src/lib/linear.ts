@@ -174,3 +174,32 @@ export async function getMyOpenIssues(limit = 50): Promise<MyOpenIssue[]> {
     updatedAt: n.updatedAt,
   }));
 }
+
+/** Scrittura (aperta il 14/10/2026 su richiesta esplicita di Francesco: solo Linear, mai Slack). Chiamare solo su richiesta chiara. */
+export async function createIssue(input: { title: string; description?: string; teamKey?: string }): Promise<LinearIssue> {
+  const teams = await query<{ teams: { nodes: Array<{ id: string; key: string }> } }>(`query { teams { nodes { id key } } }`, {});
+  const team = input.teamKey ? teams.teams.nodes.find((t) => t.key.toLowerCase() === input.teamKey!.toLowerCase()) : teams.teams.nodes[0];
+  if (!team) throw new Error(`Team Linear non trovato${input.teamKey ? `: ${input.teamKey}` : ""} (disponibili: ${teams.teams.nodes.map((t) => t.key).join(", ")})`);
+  const data = await query<{
+    issueCreate: { success: boolean; issue: { identifier: string; title: string; url: string; state: { name: string }; assignee: { name: string } | null } | null };
+  }>(
+    `mutation($input: IssueCreateInput!) {
+      issueCreate(input: $input) { success issue { identifier title url state { name } assignee { name } } }
+    }`,
+    { input: { teamId: team.id, title: input.title, description: input.description } },
+  );
+  const issue = data.issueCreate.issue;
+  if (!data.issueCreate.success || !issue) throw new Error("Linear non ha creato l'issue");
+  return { identifier: issue.identifier, title: issue.title, url: issue.url, state: issue.state.name, assignee: issue.assignee?.name ?? null };
+}
+
+export async function commentOnIssue(identifier: string, body: string): Promise<{ url: string }> {
+  const found = await query<{ issue: { id: string } | null }>(`query($id: String!) { issue(id: $id) { id } }`, { id: identifier });
+  if (!found.issue) throw new Error(`Issue ${identifier} non trovata`);
+  const data = await query<{ commentCreate: { success: boolean; comment: { url: string } | null } }>(
+    `mutation($input: CommentCreateInput!) { commentCreate(input: $input) { success comment { url } } }`,
+    { input: { issueId: found.issue.id, body } },
+  );
+  if (!data.commentCreate.success || !data.commentCreate.comment) throw new Error("Linear non ha salvato il commento");
+  return { url: data.commentCreate.comment.url };
+}

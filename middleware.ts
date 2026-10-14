@@ -35,5 +35,5 @@ export const config = {
   // Le API restano fuori: il webhook Telegram, i cron e la sincronizzazione Apple Health/passi
   // hanno già i loro segreti e vengono chiamati da servizi che non possono fare login. Restano fuori anche manifest, service
   // worker e icone: il browser li scarica SENZA cookie (installazione sulla home, notifiche) e un redirect a /login li romperebbe.
-  matcher: ["/((?!api/|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icon.svg|apple-icon|opengraph-image).*)"],
+  matcher: ["/((?!api/|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|\\.well-known/|oauth/|icon.svg|apple-icon|opengraph-image).*)"],
 };
