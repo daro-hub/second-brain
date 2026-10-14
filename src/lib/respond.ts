@@ -29,7 +29,8 @@ import { searchSemantic } from "./search";
 import { addDays, dateKey, dayRangeUtc, formatDayLong, localHHMM, perceivedTodayKey, todayKey, weekdayOf } from "./time";
 import { SOURCE_LABELS, type Source, type SourceId, type Trace } from "./trace";
 import { getRunningStats } from "./dashboard";
-import { addTodoReminder, createReminderEvent, formatDue, formatOpenReminders, listOpenReminders, resolveDue } from "./todoReminders";
+import { getAllActivities } from "./strava";
+import { addTodoReminder, completeReminder, createReminderEvent, formatDue, formatOpenReminders, listOpenReminders, resolveDue } from "./todoReminders";
 import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList, getKnownShoppingItems } from "./shoppingList";
 import { getEnergyOverview, PROFILE } from "./energy";
 import { getMetricSummary, type MetricSummary } from "./health";
@@ -124,6 +125,31 @@ ${describeTopic(topic) ? `${describeTopic(topic)}\n\n` : ""}${contextText}${hist
  * può capitare su qualunque fonte dati se la domanda richiede analisi/confronto/consiglio
  * invece di un semplice elenco.
  */
+/** Volume settimanale e record delle ultime 8 settimane, per le domande che chiedono un piano di corsa. Vuoto se Strava non risponde. */
+async function runningHistorySummary(): Promise<string> {
+  try {
+    const since = addDays(todayKey(), -56);
+    const runs = (await getAllActivities()).filter((a) => a.type === "Run" && a.dateKey >= since);
+    if (!runs.length) return "";
+    const weeks = new Map<string, { km: number; n: number }>();
+    for (const r of runs) {
+      const monday = addDays(r.dateKey, -((weekdayOf(r.dateKey) + 6) % 7));
+      const w = weeks.get(monday) ?? { km: 0, n: 0 };
+      w.km += r.distanceKm;
+      w.n += 1;
+      weeks.set(monday, w);
+    }
+    const lines = [...weeks.entries()].sort().map(([d, w]) => `settimana dal ${d}: ${Math.round(w.km * 10) / 10}km in ${w.n} uscite`);
+    const longest = runs.reduce((a, b) => (b.distanceKm > a.distanceKm ? b : a));
+    const long5 = runs.filter((r) => r.distanceKm >= 5);
+    const best = long5.length ? long5.reduce((a, b) => (b.movingTimeMin / b.distanceKm < a.movingTimeMin / a.distanceKm ? b : a)) : null;
+    return `\n\nUltime 8 settimane:\n${lines.join("\n")}\nUscita più lunga: ${longest.distanceKm}km (${longest.dateKey})${best ? `\nMiglior passo su ≥5km: ${formatPace(best.distanceKm, best.movingTimeMin)} (${best.distanceKm}km, ${best.dateKey})` : ""}`;
+  } catch (err) {
+    reportError("respond/running_history", err);
+    return "";
+  }
+}
+
 async function answerFromData(text: string, context: string, extraGuidance?: string): Promise<string> {
   const res = await openai.chat.completions.create({
     model: "gpt-6-luna",
@@ -814,6 +840,35 @@ Per chiuderli: /promemoria.` : formatOpenReminders(items);
     }
   }
 
+  if (intent.type === "reminder_done") {
+    try {
+      const open = await listOpenReminders();
+      if (!open.length) return "📝 Non ho promemoria aperti da chiudere.";
+      const res = await openai.chat.completions.create({
+        model: "gpt-6-luna",
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `Abbina ciò che Daro dice di aver fatto ai suoi promemoria aperti. Rispondi SOLO con JSON {"ids": string[]}: gli id dei promemoria che corrispondono chiaramente a una delle cose dette. Nel dubbio NON includere il promemoria.\n\nPromemoria aperti:\n${open.map((r) => `${r.id} — ${r.text}`).join("\n")}`,
+          },
+          { role: "user", content: intent.texts.join("\n") },
+        ],
+      });
+      const parsed = JSON.parse(res.choices[0].message.content ?? "{}") as { ids?: unknown };
+      const wanted = new Set(Array.isArray(parsed.ids) ? parsed.ids.map(String) : []);
+      const matched = open.filter((r) => wanted.has(r.id));
+      if (!matched.length) return `🤷 Non trovo un promemoria aperto che corrisponda a «${escapeHtml(intent.texts.join("», «"))}». /promemoria per vederli.`;
+      const closed: string[] = [];
+      for (const r of matched) if (await completeReminder(r.id)) closed.push(r.text);
+      src(trace, "calendar", `${closed.length} promemoria chiusi`, { href: "/?p=oggi", items: closed.map((t) => ({ text: t })) });
+      return `✅ Tolti dai promemoria:\n${closed.map((t) => `• ${escapeHtml(t)}`).join("\n")}`;
+    } catch (err) {
+      reportError("respond/reminder_done", err);
+      return "Errore nel chiudere i promemoria.";
+    }
+  }
+
   if (intent.type === "strava_query") {
     try {
       const stats = await getRunningStats(30);
@@ -829,11 +884,11 @@ Per chiuderli: /promemoria.` : formatOpenReminders(items);
           return `${date} — ${r.name}: ${r.distanceKm}km in ${r.movingTimeMin}min (passo ${formatPace(r.distanceKm, r.movingTimeMin)})`;
         })
         .join("\n");
-      const context = `Corse recenti (dalla più recente), passo medio ${formatPace(stats.totalDistanceKm, stats.totalMovingTimeMin)}:\n${runsText}`;
+      const context = `Corse recenti (dalla più recente), passo medio ${formatPace(stats.totalDistanceKm, stats.totalMovingTimeMin)}:\n${runsText}${await runningHistorySummary()}`;
       return await answerFromData(
         text,
         context,
-        "Il passo (min/km) è già calcolato nei dati sopra, non ricalcolarlo tu. Se chiede un consiglio su ritmo/velocità da tenere in un allenamento, guarda l'andamento recente (passo costante, in miglioramento, distanze tipiche) e proponi un ritmo target concreto in min/km con una breve motivazione basata sui dati.",
+        "Il passo (min/km) è già calcolato nei dati sopra, non ricalcolarlo tu. Se chiede un piano di allenamento per una gara, usa le settimane e i record sopra per partire dal suo volume reale: struttura le settimane da oggi alla gara (data nel suo messaggio) con uscite lunghe, qualità (ripetute/ritmo gara) e scarico finale, indicando passi in min/km e un ritmo gara realistico; dichiara cosa non sai (data esatta, obiettivo di passo). Se chiede un consiglio su ritmo/velocità da tenere in un allenamento, guarda l'andamento recente (passo costante, in miglioramento, distanze tipiche) e proponi un ritmo target concreto in min/km con una breve motivazione basata sui dati.",
       );
     } catch {
       return "Errore nel recupero da Strava.";

@@ -64,7 +64,12 @@ export const ROUTER_CASES: RouterCase[] = [
   { id: "rem-orario", text: "Ricordami di chiamare il dentista domani mattina", expect: { type: "reminder_add" } },
   { id: "rem-calendario", text: "Ricordami venerdì alle 10 di mandare la mail a Marco e mettilo in calendario", expect: { type: "reminder_add", calendar: true } },
   { id: "rem-lista", text: "Che promemoria ho?", expect: { type: "reminder_query" } },
+  { id: "rem-fatto-toglilo", text: "Ho richiesto a marco il token, toglilo dai promemoria e ho anche pubblicato l'app mobile", expect: { type: "reminder_done" } },
+  { id: "rem-fatto-completato", text: "E ho anche completato il piano da cto", expect: { type: "reminder_done" } },
   { id: "rem-non-spesa", text: "manca il detersivo", expect: { type: "shopping_add" } },
+
+  // ── corsa ──
+  { id: "corsa-piano-gara", text: "Guarda i miei dati sulla corsa e dimmi come dovrei strutturare i miei allenamenti per una gara che ho a inizio dicembre in cui devo correre per un ora piu distanza possibile", expect: { type: "strava_query" } },
 
   // ── costi, progetti ──
   { id: "costi-crediti", text: "Quanti crediti ho consumato?", expect: { type: "usage_query" } },
