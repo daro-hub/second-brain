@@ -45,6 +45,7 @@ import {
   getPR,
   resolveExercise,
   getRoutineForToday,
+  nextInRoutine,
   getRoutineGroups,
   getRoutinePreview,
   getScheduleForDay,
@@ -454,6 +455,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
   if (intent.type === "workout") {
     const lines: string[] = [];
     const saved: string[] = [];
+    let lastSavedName = "";
     for (const e of intent.entries) {
       const res = await resolveExercise(e.exercise, e.muscleGroup);
       if (!res.match && res.options.length) {
@@ -475,6 +477,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
       }
       const result = await logWorkout({ exercise: name, weightKg: weight, reps, sets: e.sets, muscleGroup: e.muscleGroup ?? res.match?.muscleGroup ?? undefined });
       saved.push(`${name} ${fmtSet(weight, reps)}`);
+      lastSavedName = name;
       // dalla seconda serie dello stesso esercizio nella giornata lo si dice: un doppio invio ("Oggi uguale" ripetuto) si nota subito
       const todayStart = dayRangeUtc(perceivedTodayKey()).from.getTime();
       const setsToday = (await getExerciseHistory(name, 30).catch(() => [])).filter((h) => Date.parse(String(h.performed_at)) >= todayStart).length;
@@ -482,9 +485,17 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
       lines.push(`${BULLET} ${bold(escapeHtml(name))} ${fmtSet(weight, reps)}${result.isPR ? " 🏆 Nuovo PR!" : ""}${nth}`);
     }
     if (saved.length) src(trace, "gym", `Serie salvate: ${saved.join(", ")}`, { href: "/palestra", items: saved.map((t) => ({ text: t })) });
-    if (lines.length === 1 && saved.length === 1) return `✅ Salvato: ${lines[0].slice(BULLET.length + 1)}`;
     if (!saved.length) return lines.join("\n");
-    return `✅ ${bold("Registrato")}\n\n${lines.join("\n")}`;
+    // previsione: dopo l'ultima serie salvata, il prossimo esercizio della scheda con il peso dell'ultima volta
+    let nextLine = "";
+    try {
+      const next = await nextInRoutine(lastSavedName, perceivedTodayKey());
+      if (next) nextLine = `\n\n➡️ Prossimo: ${bold(escapeHtml(next.exercise))}${next.last ? ` — l'ultima volta ${fmtSet(next.last.weight_kg, next.last.reps)}${next.last.sets > 1 ? ` (${next.last.sets} serie)` : ""}` : " — nessun valore precedente"}`;
+    } catch (err) {
+      reportError("respond/workout_next", err, { expected: true });
+    }
+    if (lines.length === 1 && saved.length === 1) return `✅ Aggiornato: ${lines[0].slice(BULLET.length + 1)}${nextLine}`;
+    return `✅ ${bold("Aggiornato")}\n\n${lines.join("\n")}${nextLine}`;
   }
 
   if (intent.type === "exercise_query") {

@@ -320,6 +320,7 @@ export async function resolveExercise(name: string, muscleGroupHint?: string): P
     candidates = known.filter((k) => rest.every((t) => tokens(k.name).includes(t)));
   }
   if (candidates.length === 1) return { match: candidates[0], options: [] };
+  if (!candidates.length) return resolveByModel(wanted, known);
   if (candidates.length > 1) {
     // se il gruppo muscolare indicato restringe a un solo esercizio, o uno è nettamente il più usato, è lui
     const byGroup = muscleGroupHint ? candidates.filter((c) => c.muscleGroup === muscleGroupHint) : [];
@@ -329,6 +330,61 @@ export async function resolveExercise(name: string, muscleGroupHint?: string): P
     return { match: null, options: sorted.map((c) => c.name) };
   }
   return { match: null, options: [] };
+}
+
+/**
+ * Ultima rete: il nome detto non ha parole in comune con nessuno dello storico («stacco rumeno» = «romanian deadlift»,
+ * «alzate laterali» = «lateral raise»). Il modello sceglie SOLO tra i nomi già noti (storico + routine): un nome fuori
+ * elenco viene scartato, quindi non può inventare esercizi. Se fallisce, si comporta come prima (esercizio nuovo).
+ */
+export async function resolveByModel(wanted: string, known: KnownExercise[], routineNames: string[] = []): Promise<ExerciseResolution> {
+  try {
+    if (!routineNames.length) {
+      const { data } = await supabase.from("workout_routines").select("exercise");
+      routineNames = (data ?? []).map((r) => String(r.exercise));
+    }
+    const names = [...new Set([...known.map((k) => k.name), ...routineNames])];
+    if (!names.length || !process.env.OPENAI_API_KEY) return { match: null, options: [] };
+    const res = await openai.chat.completions.create({
+      model: "gpt-6-luna",
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `Daro dice il nome di un esercizio di palestra in italiano o con un nome alternativo; nello storico è salvato spesso in inglese. Scegli quale/i tra i nomi salvati sono lo STESSO esercizio. Rispondi SOLO con JSON {"matches": string[]} usando i nomi ESATTI dell'elenco; [] se nessuno è lo stesso esercizio (varianti diverse come manubri vs bilanciere NON sono lo stesso). Più nomi solo se davvero ambiguo.\n\nNomi salvati:\n${names.join("\n")}`,
+        },
+        { role: "user", content: wanted },
+      ],
+    });
+    const parsed = JSON.parse(res.choices[0].message.content ?? "{}") as { matches?: unknown };
+    const picked = (Array.isArray(parsed.matches) ? parsed.matches.map(String) : []).filter((n) => names.includes(n));
+    const asKnown = (n: string): KnownExercise => known.find((k) => k.name === n) ?? { name: n, muscleGroup: null, logs: 0 };
+    if (picked.length === 1) return { match: asKnown(picked[0]), options: [] };
+    if (picked.length > 1) return { match: null, options: picked.slice(0, 4) };
+  } catch {
+    /* il modello è solo un aiuto: senza, l'esercizio resta quello detto */
+  }
+  return { match: null, options: [] };
+}
+
+export interface NextInRoutine {
+  routine: string;
+  exercise: string;
+  last: { weight_kg: number; reps: number; sets: number } | null;
+}
+
+/**
+ * Dopo una serie: il prossimo esercizio della routine di oggi (in ordine di scheda, saltando quelli già fatti oggi)
+ * con ciò che facevi l'ultima volta. null se la routine è finita, non si trova o l'esercizio non è in scheda.
+ */
+export async function nextInRoutine(justDone: string, dayKey: string): Promise<NextInRoutine | null> {
+  const routine = await getRoutineForToday(dayKey);
+  const preview = await getRoutinePreview(routine, dayKey);
+  if (!preview) return null;
+  const idx = preview.findIndex((e) => e.exercise === justDone);
+  if (idx < 0) return null;
+  const next = preview.slice(idx + 1).find((e) => !e.today);
+  return next ? { routine, exercise: next.exercise, last: next.last ? { weight_kg: Number(next.last.weight_kg), reps: Number(next.last.reps), sets: Number(next.last.sets ?? 1) } : null } : null;
 }
 
 /** Ultimo valore registrato; con `beforeDayKey` solo quello di una sessione PRECEDENTE ("come l'ultima volta"). */

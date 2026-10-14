@@ -17,10 +17,10 @@ import { searchMessages, slackConfigured } from "../slack";
 import { getStepsStats } from "../steps";
 import { getAllActivities } from "../strava";
 import { addTodoReminder, completeReminder, createReminderEvent, formatDue, listOpenReminders, resolveDue } from "../todoReminders";
-import { addDays, dayRangeUtc, todayKey } from "../time";
+import { addDays, dayRangeUtc, perceivedTodayKey, todayKey } from "../time";
 import { getCourses, getPlannedExams } from "../uniExams";
 import { addPayment, addWork, getHourlyRate, getPayments, getWork, outstanding } from "../work";
-import { getExerciseHistory, getLastSession, getPR, getRoutinePreview, logWorkout } from "../workouts";
+import { getExerciseHistory, getLastSession, getPR, getRoutinePreview, logWorkout, nextInRoutine, resolveExercise } from "../workouts";
 
 /**
  * Tutte le capacità di second-brain come strumenti con schema. Un'unica definizione serve due canali:
@@ -104,7 +104,14 @@ export const TOOLS: ToolDef[] = [
   tool("shopping_done", true, "Segna articoli come comprati (per nome, anche parziale).", z.object({ items: z.array(z.string()).min(1) }), async (a) => ({ checkedOff: await checkOffShoppingItemsByName(a.items) })),
   tool("calendar_add", true, "Crea un evento nel calendario. Senza endTime è puntuale (5 minuti).", z.object({ summary: z.string(), date, startTime: time, endTime: time.optional(), location: z.string().optional() }), async (a) => (await applyCalendarOps([{ op: "add", summary: a.summary, date: a.date, startTime: a.startTime, endTime: a.endTime ?? null, location: a.location ?? null }])).text),
   tool("calendar_move", true, "Sposta un evento esistente (cercato per titolo nel giorno indicato) a una nuova ora.", z.object({ match: z.string().describe("parte del titolo"), date, startTime: time, endTime: time.optional() }), async (a) => (await applyCalendarOps([{ op: "update", match: a.match, date: a.date, startTime: a.startTime, endTime: a.endTime ?? null, noDuration: !a.endTime }])).text),
-  tool("gym_log_set", true, "Registra una serie in palestra; segnala se è un nuovo PR.", z.object({ exercise: z.string(), weightKg: z.number().min(0), reps: z.number().int().min(1), sets: z.number().int().min(1).default(1), muscleGroup: z.string().optional() }), (a) => logWorkout(a)),
+  tool("gym_log_set", true, "Registra una serie in palestra. Il nome può essere in italiano o alternativo (viene riconosciuto sullo storico). Restituisce se è un PR e il prossimo esercizio della scheda con il peso dell'ultima volta.", z.object({ exercise: z.string(), weightKg: z.number().min(0), reps: z.number().int().min(1), sets: z.number().int().min(1).default(1), muscleGroup: z.string().optional() }), async (a) => {
+    const res = await resolveExercise(a.exercise, a.muscleGroup);
+    if (!res.match && res.options.length) return { needsClarification: true, options: res.options.slice(0, 4) };
+    const name = res.match?.name ?? a.exercise;
+    const saved = await logWorkout({ ...a, exercise: name, muscleGroup: a.muscleGroup ?? res.match?.muscleGroup ?? undefined });
+    const next = await nextInRoutine(name, perceivedTodayKey()).catch(() => null);
+    return { saved, exercise: name, next };
+  }),
   tool("work_log_add", true, "Aggiunge ore di lavoro al tracker.", z.object({ task: z.string(), minutes: z.number().int().min(0), day: date.optional(), details: z.string().optional() }), (a) => addWork({ task: a.task, minutes: a.minutes, day: a.day, details: a.details ?? null })),
   tool("work_payment_add", true, "Registra un pagamento ricevuto per il lavoro (data, importo, 'coperto fino al').", z.object({ paidOn: date, amountEur: z.number().nullable().optional(), coversUntil: date, note: z.string().optional() }), async (a) => {
     await addPayment({ paidOn: a.paidOn, amountEur: a.amountEur ?? null, coversUntil: a.coversUntil, note: a.note });

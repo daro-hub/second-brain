@@ -18,6 +18,11 @@ const INTENTS: Record<string, Row> = {
   "Dimmi quanti ne facevo l'ultima volta": { intent: "exercise_query", exercise: "chest press" },
   "28 kg 10 reps panca inclinata": { intent: "workout", entries: [{ exercise: "panca inclinata", weightKg: 28, reps: 10, sets: 1, muscleGroup: "petto", sameAsLast: false }] },
   Rowing: { intent: "exercise_query", exercise: "rowing" },
+  "Chest press 30 kg 7 reps": { intent: "workout", entries: [{ exercise: "chest press", weightKg: 30, reps: 7, sets: 1, muscleGroup: "petto", sameAsLast: false }] },
+  "Pectoral machine 40 kg 10 reps": { intent: "workout", entries: [{ exercise: "pectoral machine", weightKg: 40, reps: 10, sets: 1, muscleGroup: "petto", sameAsLast: false }] },
+  "pectoral machine": { matches: ["peck fly"] }, // il modello che abbina il nome detto a quello salvato
+  "Distensioni su panca piana 50 kg 8 reps": { intent: "workout", entries: [{ exercise: "distensioni su panca piana", weightKg: 50, reps: 8, sets: 1, muscleGroup: "petto", sameAsLast: false }] },
+  "distensioni su panca piana": { matches: ["invented press"] }, // fuori elenco: scartato
   "Oggi uguale": { intent: "workout", entries: [{ exercise: "chest press", weightKg: null, reps: null, sets: 1, sameAsLast: true, fromPreviousSession: true }] },
 };
 vi.mock("openai", () => ({
@@ -65,6 +70,7 @@ function seed() {
 
 beforeAll(() => {
   process.env.TELEGRAM_BOT_TOKEN = "x";
+  process.env.OPENAI_API_KEY = "sk-test";
 });
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -167,5 +173,36 @@ describe("replay della chat del 05/10/2026", () => {
     const back = await say("Dimmi gli es della schiena");
     for (const e of ["weighted pull-up", "high row", "row"]) expect(back).toContain(e);
     for (const e of ["chest press", "incline db press", "peck fly", "abs machine"]) expect(back).not.toContain(e);
+  });
+});
+
+describe("serie salvata → «aggiornato» + prossimo esercizio della scheda", () => {
+  it("dice che ha aggiornato e propone il prossimo con il peso dell'ultima volta", async () => {
+    const r = await say("Chest press 30 kg 7 reps");
+    expect(r).toContain("Aggiornato");
+    expect(r).toContain("chest press");
+    expect(r).toContain("Prossimo: <b>row</b>"); // dopo chest press (4) viene row (5)
+    expect(r).toContain("60kg x8"); // quello che faceva l'ultima volta
+  });
+
+  it("salta gli esercizi già fatti oggi", async () => {
+    db.workout_logs.push(L("row", 62, 8, "2026-10-05T15:20:00Z", "schiena"));
+    const r = await say("Chest press 30 kg 7 reps");
+    expect(r).toContain("Prossimo: <b>peck fly</b>");
+    expect(r).toContain("40kg x10");
+  });
+
+  it("nome alternativo: il modello lo abbina a quello salvato, e lo storico non si spezza", async () => {
+    const r = await say("Pectoral machine 40 kg 10 reps");
+    expect(r).toContain("peck fly");
+    expect(r).not.toContain("pectoral machine");
+    expect(db.workout_logs.filter((x) => x.exercise === "peck fly")).toHaveLength(2);
+    expect(db.workout_logs.some((x) => x.exercise === "pectoral machine")).toBe(false);
+  });
+
+  it("un abbinamento inventato dal modello (fuori elenco) viene scartato: resta il nome detto", async () => {
+    const r = await say("Distensioni su panca piana 50 kg 8 reps");
+    expect(r).toContain("distensioni su panca piana");
+    expect(db.workout_logs.some((x) => x.exercise === "invented press")).toBe(false);
   });
 });
