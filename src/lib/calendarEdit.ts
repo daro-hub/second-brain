@@ -1,5 +1,5 @@
 import { addMinutes, describeOverlap, findOverlaps, formatWhen, matchEvents, minutesBetween, POINT_MAX_MIN, type CalendarOp } from "./agenda";
-import { createEvent, getEventsInRange, isStudySyncEvent, updateEventTime } from "./calendar";
+import { createEvent, deleteEvent, getEventsInRange, isStudySyncEvent, renameEvent, updateEventTime } from "./calendar";
 import { bold, escapeHtml } from "./format";
 import { GoogleAuthError } from "./googleAuth";
 import { reportError } from "./report";
@@ -27,18 +27,36 @@ export async function applyCalendarOps(ops: CalendarOp[]): Promise<{ text: strin
       }
 
       const { from, to } = dayRangeUtc(op.date);
-      const found = matchEvents((await getEventsInRange(from, to)).filter((e) => !e.allDay && !isStudySyncEvent(e.summary)), op.match);
+      // rinomina e cancella valgono anche per gli eventi 📚/🎓 (spesso sono proprio quelli sbagliati); lo spostamento no
+      const editsAny = op.op === "rename" || op.op === "delete";
+      const found = matchEvents((await getEventsInRange(from, to)).filter((e) => !e.allDay && (editsAny || !isStudySyncEvent(e.summary))), op.match);
       if (found.length === 0) {
         lines.push(`⚠️ Non ho trovato nessun evento "${escapeHtml(op.match)}" il ${formatDayLong(op.date)}: non ho cambiato nulla.`);
         continue;
       }
       if (found.length > 1) {
-        lines.push(`⚠️ Più eventi corrispondono a "${escapeHtml(op.match)}" il ${formatDayLong(op.date)} (${found.map((e) => `${escapeHtml(e.summary)} ${formatWhen(e)}`).join("; ")}): dimmi quale spostare.`);
+        lines.push(`⚠️ Più eventi corrispondono a "${escapeHtml(op.match)}" il ${formatDayLong(op.date)} (${found.map((e) => `${escapeHtml(e.summary)} ${formatWhen(e)}`).join("; ")}): dimmi quale.`);
         continue;
       }
       const ev = found[0];
       if (!ev.id || !ev.calendarId || !ev.account) {
         lines.push(`⚠️ Non riesco a modificare "${escapeHtml(ev.summary)}".`);
+        continue;
+      }
+      if (op.op === "rename" || op.op === "delete") {
+        try {
+          if (op.op === "delete") {
+            await deleteEvent({ id: ev.id, calendarId: ev.calendarId, account: ev.account });
+            lines.push(`🗑️ Cancellato: ${bold(escapeHtml(ev.summary))} — ${formatDayLong(op.date)}, ${formatWhen(ev)}`);
+          } else {
+            const renamed = await renameEvent({ id: ev.id, calendarId: ev.calendarId, account: ev.account }, op.summary);
+            lines.push(`✏️ Rinominato: ${bold(escapeHtml(ev.summary))} → ${bold(escapeHtml(renamed.summary))} (${formatWhen(ev)})`);
+          }
+          changed++;
+        } catch (err) {
+          if ((err as Error).message !== "read_only") throw err;
+          lines.push(`⚠️ "${escapeHtml(ev.summary)}" sta in un calendario che non posso modificare${ev.calendar ? ` (${escapeHtml(ev.calendar)})` : ""}: resta com'è. Cambialo a mano.`);
+        }
         continue;
       }
       // "non ha una durata" → evento puntuale; una fine detta vince; altrimenti la durata di prima resta invariata

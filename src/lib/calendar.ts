@@ -192,6 +192,27 @@ export async function updateEventTime(ev: { id: string; calendarId: string; acco
   return { summary: e.summary ?? "(senza titolo)", start: e.start?.dateTime ?? e.start?.date ?? "", end: e.end?.dateTime ?? e.end?.date ?? "", location: e.location };
 }
 
+type EventRef = { id: string; calendarId: string; account: GoogleAccount };
+const eventUrl = (ev: EventRef) => `${API}/calendars/${encodeURIComponent(ev.calendarId)}/events/${encodeURIComponent(ev.id)}`;
+
+/** Cambia solo il titolo (PATCH). Lancia "read_only" se il calendario non è modificabile da questo account. */
+export async function renameEvent(ev: EventRef, summary: string): Promise<CalendarEvent> {
+  const token = await getGoogleAccessToken(ev.account);
+  const res = await fetch(eventUrl(ev), { method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ summary }) });
+  if (res.status === 403 || res.status === 404) throw new Error("read_only");
+  if (!res.ok) throw new Error(`Google Calendar API error: ${res.status}`);
+  const e = await res.json();
+  return { summary: e.summary ?? "(senza titolo)", start: e.start?.dateTime ?? e.start?.date ?? "", end: e.end?.dateTime ?? e.end?.date ?? "", location: e.location };
+}
+
+/** Cancella l'evento (Google lo tiene nel cestino del calendario per un po'). "read_only" come sopra. */
+export async function deleteEvent(ev: EventRef): Promise<void> {
+  const token = await getGoogleAccessToken(ev.account);
+  const res = await fetch(eventUrl(ev), { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+  if (res.status === 403 || res.status === 404) throw new Error("read_only");
+  if (!res.ok && res.status !== 410) throw new Error(`Google Calendar API error: ${res.status}`); // 410 = già cancellato
+}
+
 export async function getUpcomingEvents(maxResults = 10, windowDays = 30): Promise<CalendarEvent[]> {
   const timeMax = new Date();
   timeMax.setDate(timeMax.getDate() + windowDays);

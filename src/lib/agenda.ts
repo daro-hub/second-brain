@@ -72,7 +72,9 @@ export const describeOverlap = (o: Overlap): string => {
 
 export type CalendarOp =
   | { op: "add"; summary: string; date: string; startTime: string; endTime: string | null; location: string | null }
-  | { op: "update"; match: string; date: string; startTime: string; endTime: string | null; noDuration: boolean };
+  | { op: "update"; match: string; date: string; startTime: string; endTime: string | null; noDuration: boolean }
+  | { op: "rename"; match: string; date: string; summary: string }
+  | { op: "delete"; match: string; date: string };
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 

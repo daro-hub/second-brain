@@ -4,6 +4,8 @@ type Ev = { summary: string; start: string; end: string; allDay: boolean; id: st
 let store: Ev[] = [];
 const created: unknown[] = [];
 const patched: { id: string; start: string; end: string }[] = [];
+const deleted: string[] = [];
+const renamed: { id: string; summary: string }[] = [];
 let readOnly = false;
 let authBroken = false;
 
@@ -15,6 +17,18 @@ vi.mock("../src/lib/calendar", () => ({
     created.push(p);
     store = [...store, { summary: p.summary, start: `${p.start}+02:00`, end: `${p.end}+02:00`, allDay: false, id: `n${store.length}`, calendarId: "primary", account: "default" }];
     return { summary: p.summary, start: `${p.start}+02:00`, end: `${p.end}+02:00` };
+  },
+  deleteEvent: async (ev: { id: string }) => {
+    if (readOnly) throw new Error("read_only");
+    deleted.push(ev.id);
+    store = store.filter((e) => e.id !== ev.id);
+  },
+  renameEvent: async (ev: { id: string }, summary: string) => {
+    if (readOnly) throw new Error("read_only");
+    renamed.push({ id: ev.id, summary });
+    store = store.map((e) => (e.id === ev.id ? { ...e, summary } : e));
+    const e = store.find((x) => x.id === ev.id)!;
+    return { summary: e.summary, start: e.start, end: e.end };
   },
   updateEventTime: async (ev: { id: string }, start: string, end: string) => {
     if (readOnly) throw new Error("read_only");
@@ -34,6 +48,8 @@ beforeEach(() => {
   store = [assemblea()];
   created.length = 0;
   patched.length = 0;
+  deleted.length = 0;
+  renamed.length = 0;
   readOnly = false;
   authBroken = false;
 });
@@ -132,5 +148,44 @@ describe("applyCalendarOps — token Google scaduto (chat del 13/10: Errore su I
     expect(r.text).toContain("Incontro con Irene");
     expect(r.text).toContain("google-auth");
     expect(r.text).not.toContain("Errore su");
+  });
+});
+
+describe("applyCalendarOps — cancella e rinomina", () => {
+  const lezione = (id: string, summary: string): Ev => ({ summary, start: "2026-10-14T08:00:00+02:00", end: "2026-10-14T10:30:00+02:00", allDay: false, id, calendarId: "primary", account: "default" });
+  const del = (match: string) => ({ op: "delete" as const, match, date: "2026-10-14" });
+  const rename = (match: string, summary: string) => ({ op: "rename" as const, match, date: "2026-10-14", summary });
+
+  it("cancella anche un evento 📚 dell'orario di studio (lo spostamento invece li ignora)", async () => {
+    store = [lezione("l1", "📚 Scienza dei Dati")];
+    const r = await applyCalendarOps([del("scienza dei dati")]);
+    expect(deleted).toEqual(["l1"]);
+    expect(r.changed).toBe(1);
+    expect(r.text).toContain("Cancellato");
+  });
+
+  it("rinomina senza toccare l'orario", async () => {
+    store = [lezione("l2", "✏️ Studio: ripasso Algoritmi")];
+    const r = await applyCalendarOps([rename("ripasso algoritmi", "✏️ Studio: ripasso Programmazione")]);
+    expect(renamed).toEqual([{ id: "l2", summary: "✏️ Studio: ripasso Programmazione" }]);
+    expect(patched).toEqual([]);
+    expect(r.text).toContain("Rinominato");
+  });
+
+  it("se più eventi corrispondono non cancella nulla e li elenca", async () => {
+    store = [lezione("l3", "📚 Algoritmi (Mod. I)"), lezione("l4", "🎓 Algoritmi (Mod. II)")];
+    const r = await applyCalendarOps([del("algoritmi")]);
+    expect(deleted).toEqual([]);
+    expect(r.changed).toBe(0);
+    expect(r.text).toContain("Più eventi");
+  });
+
+  it("nessuna corrispondenza o calendario in sola lettura: non cambia nulla e lo dice", async () => {
+    store = [lezione("l5", "Pedrera")];
+    expect((await applyCalendarOps([del("palestra")])).text).toContain("Non ho trovato");
+    readOnly = true;
+    const r = await applyCalendarOps([del("pedrera")]);
+    expect(r.changed).toBe(0);
+    expect(r.text).toContain("Cambialo a mano");
   });
 });
