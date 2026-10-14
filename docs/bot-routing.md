@@ -8,7 +8,7 @@ Ogni messaggio passa da `src/lib/respond.ts` (`route`) in quest'ordine:
 4. **Classificatore** (`intent.ts`): sceglie UNA categoria dal significato, con tre aiuti:
    - **argomento attivo** (`topic.ts`, 20 minuti): di cosa si stava parlando, per i seguiti brevi ("tutti", "e ieri?");
    - **sicurezza** (`confidence`): sotto 0.55 con una domanda utile → il bot chiede (`ask`) invece di indovinare;
-   - **`unsupported`**: un dato o un'azione che il bot non ha → lo dice, non forza la categoria più vicina.
+   - **`unsupported`**: un dato o un'azione che il bot non ha → prima prova la **risposta trasversale** (`broadQuery.ts`: il modello sceglie fino a 5 fonti tra argomenti del sito, Strava, calendario, promemoria, Apple Health, passi; si leggono e si risponde con `answerFromData`); solo se nessuna fonte c'entra lo dice, senza forzare la categoria più vicina. Nuova integrazione leggibile → aggiungila alle fonti di `broadQuery.ts`.
 5. **Chat libera** (`none`): la conversazione serve solo a capire i riferimenti, non è una fonte di dati.
 
 ## Quando il bot sbaglia

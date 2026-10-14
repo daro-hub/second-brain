@@ -30,6 +30,7 @@ import { addDays, dateKey, dayRangeUtc, formatDayLong, localHHMM, perceivedToday
 import { SOURCE_LABELS, type Source, type SourceId, type Trace } from "./trace";
 import { getRunningStats } from "./dashboard";
 import { getAllActivities } from "./strava";
+import { gatherBroad, planSources } from "./broadQuery";
 import { addTodoReminder, completeReminder, createReminderEvent, formatDue, formatOpenReminders, listOpenReminders, resolveDue } from "./todoReminders";
 import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList, getKnownShoppingItems } from "./shoppingList";
 import { getEnergyOverview, PROFILE } from "./energy";
@@ -147,6 +148,25 @@ async function runningHistorySummary(): Promise<string> {
   } catch (err) {
     reportError("respond/running_history", err);
     return "";
+  }
+}
+
+/** Risposta libera da qualunque integrazione: null se nessuna fonte c'entra o se la lettura fallisce. */
+async function tryBroadAnswer(text: string, trace: Trace | undefined): Promise<string | null> {
+  try {
+    const sources = await planSources(text);
+    if (!sources.length) return null;
+    trace?.intent("broad_query");
+    src(trace, "kb", `Fonti: ${sources.join(", ")}`, { href: "/" });
+    const context = await gatherBroad(sources);
+    return await answerFromData(
+      text,
+      context,
+      "Se ti chiede di analizzare o pianificare, usa i dati reali sopra (volumi, passi, date) e dichiara cosa non sai. Se una sezione è \"non disponibile\" dillo, non stimare.",
+    );
+  } catch (err) {
+    reportError("respond/broad_query", err);
+    return null;
   }
 }
 
@@ -419,6 +439,9 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
   if (intent.type === "unsupported") {
     // persone e fatti raccontati ad Aira stanno nella knowledge base: non sono «un dato che non ho»
     if (isPeopleQuestion(text)) return respondConversationally(text, trace, history, topic);
+    // prima di arrendersi: se qualche integrazione può rispondere, si legge e si risponde (domande trasversali o fuori dagli intent fissi)
+    const broad = await tryBroadAnswer(text, trace);
+    if (broad) return broad;
     return `🤷 ${escapeHtml(intent.what.charAt(0).toUpperCase() + intent.what.slice(1))}: questo non riesco a leggerlo o farlo da qui.\n\nPosso aiutarti con agenda e calendario, spesa, allenamenti e scheda, salute e alimentazione, studio ed esami, progetti e link, costi OpenAI, email, password e appunti in PDF.`;
   }
 
