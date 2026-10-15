@@ -22,9 +22,31 @@ const STOP = new Set(["dammi", "dai", "mandami", "inviami", "passami", "mostrami
 /** parola italiana → frammento del nome cartella (inglese) */
 const ALIAS: Record<string, string> = { programmazione: "programming", oggetti: "object-oriented", algoritmi: "algorithms", strutture: "algorithms", statistica: "statistics", analisi: "analysis", sistemi: "operating", operativi: "operating", inglese: "english", realta: "augmented", aumentata: "augmented", fisica: "physics", reti: "network", cloud: "cloud", machine: "machine-learning", learning: "machine-learning" };
 
-/** Numero di lezione ("lezione 2", "L02", "2ª lezione"), "last" per «ultima», null se non detto. */
+const ORDINALS: Record<string, number> = { prima: 1, primo: 1, seconda: 2, secondo: 2, terza: 3, terzo: 3, quarta: 4, quarto: 4, quinta: 5, quinto: 5, sesta: 6, sesto: 6, settima: 7, settimo: 7, ottava: 8, ottavo: 8, nona: 9, nono: 9, decima: 10, decimo: 10 };
+
+/** Distanza di Levenshtein (parole corte). */
+function distance(a: string, b: string): number {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array<number>(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+
+/** Rimette a posto un refuso sulla materia: «lagoritmi» (da «l'algoritmi») → «algoritmi». Lascia invariato ciò che non somiglia a nessun alias. */
+function fixTypo(w: string): string {
+  if (w in ALIAS) return w;
+  for (const cand of [w, w.startsWith("l") ? w.slice(1) : w]) {
+    const hit = Object.keys(ALIAS).find((k) => k.length >= 6 && Math.abs(k.length - cand.length) <= 2 && distance(k, cand) <= 2);
+    if (hit) return hit;
+  }
+  return w;
+}
+
+/** Numero di lezione ("lezione 2", "L02", "2ª lezione", "la quinta lezione"), "last" per «ultima», null se non detto. */
 export function parseLecture(text: string): number | "last" | null {
   const t = norm(text);
+  const ord = /\b(prima|primo|seconda|secondo|terza|terzo|quarta|quarto|quinta|quinto|sesta|sesto|settima|settimo|ottava|ottavo|nona|nono|decima|decimo)\s+lezione\b/.exec(t) ?? /\blezione\s+(prima|seconda|terza|quarta|quinta|sesta|settima|ottava|nona|decima)\b/.exec(t);
+  if (ord) return ORDINALS[ord[1]];
   const m = /lezion[ei]\s*(?:n\.?|numero)?\s*(\d{1,3})\b/.exec(t) ?? /\bl0*(\d{1,3})\b/.exec(t) ?? /\b(\d{1,3})\s*(?:a|º|°)?\s*lezione\b/.exec(t);
   if (m) return Number(m[1]);
   return /\b(ultima|ultimo|piu recente)\b/.test(t) ? "last" : null;
@@ -32,7 +54,10 @@ export function parseLecture(text: string): number | "last" | null {
 
 /** Materia scelta: più parole in comune con lo slug; a parità l'anno più alto (programmazione → quella del 2° anno). */
 export function pickSubject(text: string, subjects: Subject[]): Subject | null {
-  const words = norm(text).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOP.has(w) && !/^\d+$/.test(w));
+  const words = norm(text)
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 3 && !STOP.has(w) && !/^\d+$/.test(w))
+    .map(fixTypo);
   let best: { s: Subject; hits: number } | null = null;
   for (const s of subjects) {
     const hits = words.filter((w) => s.slug.includes(ALIAS[w] ?? w)).length;

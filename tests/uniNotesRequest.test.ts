@@ -17,6 +17,7 @@ describe("parseLecture", () => {
     expect(parseLecture("appunti lezione 2")).toBe(2);
     expect(parseLecture("la L03")).toBe(3);
     expect(parseLecture("la 4 lezione")).toBe(4);
+    expect(parseLecture("Dammi la quinta lezione di lagoritmi")).toBe(5);
     expect(parseLecture("l'ultima")).toBe("last");
     expect(parseLecture("gli appunti")).toBeNull();
   });
@@ -27,11 +28,17 @@ describe("pickSubject", () => {
     expect(pickSubject("programmazione", subjects)?.slug).toBe("object-oriented-programming");
     expect(pickSubject("programmazione a oggetti", subjects)?.slug).toBe("object-oriented-programming");
     expect(pickSubject("algoritmi", subjects)?.slug).toBe("algorithms-and-data-structures");
+    expect(pickSubject("la quinta lezione di lagoritmi", subjects)?.slug).toBe("algorithms-and-data-structures");
     expect(pickSubject("cucina", subjects)).toBeNull();
   });
 });
 
 describe("tryNotesRequest", () => {
+  it("«la quinta lezione di lagoritmi» (ordinale + refuso) trova la lezione 5", async () => {
+    const five = [{ name: "lecture-05-grafi.pdf", type: "file" as const, size: 10 }];
+    const r = await tryNotesRequest("Dammi la quinta lezione di lagoritmi", deps({ list: async () => five }));
+    expect(r).toMatchObject({ kind: "files", files: [{ name: "lecture-05-grafi.pdf" }] });
+  });
   it("manda il file della lezione chiesta", async () => {
     const r = await tryNotesRequest("dammi gli appunti di programmazione lezione 2", deps());
     expect(r).toMatchObject({ kind: "files", files: [{ name: "lecture-02-funziona-non-vuol-dire-giusto.pdf" }] });
