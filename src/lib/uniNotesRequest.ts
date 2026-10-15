@@ -3,6 +3,7 @@
  * lezione e li restituisce da mandare come documenti. Se la richiesta non è chiaramente questa (verbo + appunti +
  * materia che esiste) ritorna null e il messaggio segue il flusso normale.
  */
+import type { Turn } from "./chatHistory";
 import { escapeHtml } from "./format";
 import { getFileBytes, listDir } from "./university";
 
@@ -85,6 +86,20 @@ export const realDeps: NotesDeps = {
   list: listDir,
   get: getFileBytes,
 };
+
+const FOLLOW_UP_MS = 90 * 60_000; // come FRESH_MINUTES di chatHistory (non importato: tira dentro Supabase)
+const RETRY = /\b(riprova|riproviamo|ancora|di nuovo|riprovaci|ridammela|ridammelo|ridammi|rimandamela|rimandamelo|darmela|darmelo)\b/;
+
+/**
+ * «Riprova a darmela», «ridammela»: senza numero né materia sono un seguito. Se l'ultima richiesta recente di appunti è
+ * in cronologia la si riprende, altrimenti il testo resta com'è.
+ */
+export function resolveNotesFollowUp(text: string, history: Turn[]): string {
+  const t = norm(text);
+  if (t.length > 60 || !RETRY.test(t) || (ASK.test(t) && WHAT.test(t) && parseLecture(text) !== null)) return text;
+  const prev = history.filter((h) => (!h.at || Date.now() - Date.parse(h.at) < FOLLOW_UP_MS) && h.role === "user" && h.content !== text && ASK.test(norm(h.content)) && WHAT.test(norm(h.content)) && parseLecture(h.content) !== null);
+  return prev.at(-1)?.content ?? text;
+}
 
 export async function tryNotesRequest(text: string, deps: NotesDeps = realDeps): Promise<NotesReply | null> {
   const t = norm(text);

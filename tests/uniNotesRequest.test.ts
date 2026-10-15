@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseLecture, pickSubject, tryNotesRequest, type NotesDeps } from "../src/lib/uniNotesRequest";
+import { parseLecture, resolveNotesFollowUp, pickSubject, tryNotesRequest, type NotesDeps } from "../src/lib/uniNotesRequest";
 
 const subjects = [
   { year: 1, slug: "programming-and-lab" },
@@ -55,5 +55,19 @@ describe("tryNotesRequest", () => {
     expect(await tryNotesRequest("mettilo su github, programmazione, lezione 4", deps())).toBeNull();
     expect(await tryNotesRequest("dammi gli appunti di cucina", deps())).toBeNull();
     expect(await tryNotesRequest("com'è andata la lezione di programmazione?", deps())).toBeNull();
+  });
+});
+
+describe("resolveNotesFollowUp", () => {
+  const history = [
+    { role: "user" as const, content: "Dammi la quinta lezione di lagoritmi", at: new Date().toISOString() },
+    { role: "assistant" as const, content: "Non trovo", at: new Date().toISOString() },
+  ];
+  it("«riprova a darmela» riprende l'ultima richiesta di appunti", () => {
+    expect(resolveNotesFollowUp("Riprova a darmela", history)).toBe("Dammi la quinta lezione di lagoritmi");
+  });
+  it("senza richiesta precedente o con richiesta completa resta com'è", () => {
+    expect(resolveNotesFollowUp("Riprova a darmela", [])).toBe("Riprova a darmela");
+    expect(resolveNotesFollowUp("dammi gli appunti di algoritmi lezione 2", history)).toBe("dammi gli appunti di algoritmi lezione 2");
   });
 });

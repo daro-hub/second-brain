@@ -20,7 +20,8 @@ import { ingest } from "../lib/ingest";
 import { handleMessage } from "../lib/respond";
 import { reportError } from "../lib/report";
 import { TELEGRAM_MAX_BYTES } from "../lib/uniUpload";
-import { tryNotesRequest } from "../lib/uniNotesRequest";
+import { addTurns, recentTurns, toPlain } from "../lib/chatHistory";
+import { resolveNotesFollowUp, tryNotesRequest } from "../lib/uniNotesRequest";
 import { registerPdf } from "../lib/uniUploadJob";
 import { searchSemantic } from "../lib/search";
 import { textToSpeech, transcribe } from "../lib/voice";
@@ -419,14 +420,20 @@ bot.on("message:text", async (ctx) => {
   }
   // «dammi gli appunti di programmazione, lezione 2»: manda i file della lezione
   try {
-    const notes = await tryNotesRequest(ctx.message.text);
+    const text = ctx.message.text;
+    const history = await recentTurns().catch(() => []);
+    const notes = await tryNotesRequest(resolveNotesFollowUp(text, history));
+    // la risposta entra nella cronologia: senza, «riprova a darmela» non sapeva a cosa si riferisse
+    const remember = (reply: string) => addTurns("telegram", [{ role: "user", content: text }, { role: "assistant", content: toPlain(reply) }]).catch(() => {});
     if (notes?.kind === "text") {
       await ctx.reply(notes.html, { parse_mode: "HTML" });
+      await remember(notes.html);
       return;
     }
     if (notes?.kind === "files") {
       await ctx.reply(notes.intro, { parse_mode: "HTML" });
       for (const f of notes.files) await ctx.replyWithDocument(new InputFile(f.data, f.name));
+      await remember(`${notes.intro} (inviato: ${notes.files.map((f) => f.name).join(", ")})`);
       return;
     }
   } catch (err) {

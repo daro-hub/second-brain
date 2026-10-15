@@ -148,7 +148,7 @@ const PROVIDERS: Record<SiteTopic, (date: string | null) => Promise<string>> = {
       const subjects = (await listDir(`year-${year}`).catch(() => [])).filter((e) => e.type === "dir");
       for (const s of subjects) {
         const [lectures, raw] = await Promise.all([listDir(`${s.path}/lectures`).catch(() => []), listDir(`${s.path}/raw`).catch(() => [])]);
-        lines.push(`- ${year}° anno, ${s.name}: ${lectures.filter((l) => l.type === "file").length} file di lezione (${lectures.filter((l) => l.name.endsWith(".md")).length} già in Markdown), ${raw.filter((r) => r.type === "file").length} originali in raw/`);
+        lines.push(`- ${year}° anno, ${s.name}: ${raw.filter((r) => r.type === "file").length} file originali (PDF/slide) in raw/, ${lectures.filter((l) => l.name.endsWith(".md")).length} lezioni già convertite in Markdown. Gli originali si mandano su Telegram con «dammi gli appunti di <materia>, lezione N»`);
       }
     }
     return lines.length ? `Materie nel repository degli appunti:\n${lines.join("\n")}` : "Il repository degli appunti è vuoto o non raggiungibile.";
