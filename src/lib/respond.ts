@@ -517,7 +517,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
       const before = hist.filter((h) => Date.parse(String(h.performed_at)) < todayStart);
       const fmt = (rows: typeof hist) => (rows.length ? rows.map((h) => fmtSet(Number(h.weight_kg), Number(h.reps))).join(", ") : "nessuna");
       const context = `Esercizio: ${res.match.name}\nSerie di OGGI (già registrate): ${fmt(doneToday)}\nSessioni PRECEDENTI a oggi (dalla più recente): ${fmt(before)}\n${pr ? `Miglior serie (1RM stimato ${pr.estimatedOneRm.toFixed(1)} kg): ${fmtSet(pr.weight_kg, pr.reps)}` : ""}`;
-      return await answerFromData(text, context, 'Con "l\'ultima volta", "prima" o "di solito" si intende la sessione PRECEDENTE a oggi: rispondi con quella, non con le serie di oggi (che puoi citare a parte se già fatte). Se chiede "quanto faccio" dai il carico più recente e, se utile, il massimo. Le date storiche precedenti al 4 ottobre non sono affidabili: non citarle.');
+      return await answerFromData(text, context, 'Con "l\'ultima volta", "prima" o "di solito" si intende la sessione PRECEDENTE a oggi: rispondi con quella, non con le serie di oggi (che puoi citare a parte se già fatte). Nomina sempre l\'esercizio nella risposta (es. "Overhead triceps: 22,5 kg × 6 l\'ultima volta"), perché il messaggio dopo («oggi uguale») deve poterlo ritrovare. Se chiede "quanto faccio" dai il carico più recente e, se utile, il massimo. Le date storiche precedenti al 4 ottobre non sono affidabili: non citarle.');
     } catch {
       return "Errore nel recupero dello storico dell'esercizio.";
     }

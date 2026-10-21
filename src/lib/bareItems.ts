@@ -14,7 +14,7 @@ grissini fette biscottate caffè caffe tè tisana acqua birra vino succo succhi 
 piselli mais noci mandorle nocciole frutta secca patatine gelato surgelati pizza affettato whey avena fiocchi d'avena
 carta igienica scottex sgrassatore detersivo detersivi ammorbidente sapone bagnoschiuma shampoo balsamo dentifricio spazzolino
 deodorante rasoi schiuma sacchetti spazzatura pellicola alluminio spugne spugna candeggina lavastoviglie pastiglie cotton fioc
-assorbenti lamette filo interdentale collutorio crema profumo batterie lampadine pile`
+gallette barrette ragù ragu philadelphia cacao assorbenti lamette filo interdentale collutorio crema profumo batterie lampadine pile`
   .split(/\s+/)
   .filter(Boolean);
 

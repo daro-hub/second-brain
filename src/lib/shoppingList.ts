@@ -6,6 +6,9 @@ export interface ShoppingListItem {
   added_at: string;
 }
 
+/** Minuscolo, senza accenti né spazi doppi: "Ragù" e "ragu" sono lo stesso articolo. */
+const looseKey = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
 const sameItem = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
 /** Aggiunge gli articoli saltando quelli già in lista da comprare (maiuscole e spazi non contano) e i doppioni nello stesso messaggio. */
@@ -55,13 +58,13 @@ export async function checkOffShoppingItemsByName(names: string[]): Promise<stri
   const active = await getActiveShoppingList();
   const matched: ShoppingListItem[] = [];
   for (const name of names) {
-    const normalized = name.trim().toLowerCase();
-    const found = active.find(
-      (a) =>
-        !matched.includes(a) &&
-        (a.item.toLowerCase().includes(normalized) || normalized.includes(a.item.toLowerCase())),
-    );
-    if (found) matched.push(found);
+    const normalized = looseKey(name);
+    if (!normalized) continue;
+    // prima i nomi uguali (anche i doppioni dello stesso articolo), poi il primo che contiene o è contenuto
+    const free = active.filter((a) => !matched.includes(a));
+    const exact = free.filter((a) => looseKey(a.item) === normalized);
+    const found = exact.length ? exact : free.filter((a) => looseKey(a.item).includes(normalized) || normalized.includes(looseKey(a.item))).slice(0, 1);
+    matched.push(...found);
   }
   if (matched.length) {
     const { error } = await supabase
