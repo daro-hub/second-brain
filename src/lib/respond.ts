@@ -269,6 +269,12 @@ async function exercisesOfGroupsReply(groups: string[], trace: Trace | undefined
  * "Cosa devo allenare oggi / dammi la scheda / dammi i pesi". Se Daro ha appena detto quali gruppi farà, valgono quelli
  * (la correzione più recente); altrimenti la routine di oggi del ciclo (quella in corso se ha già registrato serie).
  */
+/** La scheda di oggi per il messaggio automatico delle 14: null se è giorno di riposo. */
+export async function gymPlanOfToday(): Promise<string | null> {
+  const routine = await getRoutineForToday(perceivedTodayKey());
+  return routine === "riposo" ? null : routinePreviewReply(routine, undefined, `Allenamento di oggi: ${routine}`);
+}
+
 async function replyWithGymPlan(trace: Trace | undefined, history: Turn[], onlyGroups?: string[]): Promise<string> {
   if (onlyGroups?.length) return exercisesOfGroupsReply(onlyGroups, trace);
   const announced = latestAnnouncedGroups(freshTurns(history)); // «oggi» = annunci recenti, non di giorni fa

@@ -2,6 +2,7 @@ import { buildEveningDigest } from "./digest";
 import { supabase } from "./supabase";
 import { getMood, moodKeyboard, moodPrompt, nextAspectIndex } from "./mood";
 import { createPill, formatPill, nextArea } from "./pills";
+import { gymPlanOfToday } from "./respond";
 import { reportError } from "./report";
 import { claimJob, jobsInWindow, releaseJob, type JobName } from "./scheduler";
 import { sendTelegramMessage } from "./telegramSend";
@@ -15,6 +16,14 @@ export async function sendMoodCheckin(day: string): Promise<boolean> {
   const idx = cur ? nextAspectIndex(cur.scores) : 0;
   if (idx === -1) return false;
   await sendTelegramMessage(`📓 <b>Diario della sera</b>\nSette domande veloci, un tap ciascuna.\n\n${moodPrompt(idx)}`, { html: true, markup: moodKeyboard(day, idx), notice: { title: "📓 Diario della sera", body: idx === 0 ? "Sette domande veloci: tocca per rispondere." : "Mancano ancora alcune domande del diario.", url: "/?p=umore", tag: `mood:${day}` } });
+  return true;
+}
+
+/** Alle 14: la scheda di allenamento di oggi con gli ultimi pesi (niente messaggio nei giorni di riposo). */
+export async function sendGymPlan(): Promise<boolean> {
+  const plan = await gymPlanOfToday();
+  if (!plan) return false;
+  await sendTelegramMessage(plan, { html: true, notice: { title: "🏋️ Allenamento di oggi", url: "/?p=allenamento", tag: `gym:${dateKey(new Date())}` } });
   return true;
 }
 
@@ -68,7 +77,7 @@ export async function runDueJobs(now: Date, dry = false): Promise<JobResult[]> {
     if (!(await claimJob(job, now))) continue;
     try {
       const sent =
-        job === "mood_checkin" ? await sendMoodCheckin(dateKey(now)) : job === "work_summary"
+        job === "gym_plan" ? await sendGymPlan() : job === "mood_checkin" ? await sendMoodCheckin(dateKey(now)) : job === "work_summary"
           ? await sendWorkSummary(addDays(dateKey(now), -1))
           : job === "evening_digest"
             ? await sendEveningDigest()

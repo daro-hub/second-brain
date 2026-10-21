@@ -5,6 +5,7 @@ import { dateKey, localHourDecimal } from "./time";
 export const JOBS = [
   { name: "work_summary", fromHour: 0, toHour: 2 },
   { name: "daily_pill", fromHour: 9, toHour: 21 },
+  { name: "gym_plan", fromHour: 14, toHour: 20 },
   { name: "mood_checkin", fromHour: 22, toHour: 24 },
   // ultimo della serata: buonanotte con il programma di domani (era un cron Vercel alle 19 UTC = 21:00, orario e affidabilità non garantiti)
   { name: "evening_digest", fromHour: 22, toHour: 24 },
