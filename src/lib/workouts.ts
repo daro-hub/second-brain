@@ -315,7 +315,7 @@ export interface ExerciseResolution {
   options: string[];
 }
 
-export async function resolveExercise(name: string, muscleGroupHint?: string): Promise<ExerciseResolution> {
+export async function resolveExercise(name: string, muscleGroupHint?: string, inRoutine: string[] = []): Promise<ExerciseResolution> {
   const wanted = name.toLowerCase().trim();
   if (!wanted) return { match: null, options: [] };
   const known = await getKnownExercises();
@@ -340,9 +340,12 @@ export async function resolveExercise(name: string, muscleGroupHint?: string): P
   if (candidates.length === 1) return { match: candidates[0], options: [] };
   if (!candidates.length) return resolveByModel(wanted, known);
   if (candidates.length > 1) {
+    // "incline" a metà petto e schiena è l'incline db press della scheda di oggi, non l'incline-back db curl delle braccia
+    const byRoutine = candidates.filter((c) => inRoutine.includes(c.name));
+    if (byRoutine.length === 1) return { match: byRoutine[0], options: [] };
     // se il gruppo muscolare indicato restringe a un solo esercizio, o uno è nettamente il più usato, è lui
     const byGroup = muscleGroupHint ? candidates.filter((c) => c.muscleGroup === muscleGroupHint) : [];
-    const pool = byGroup.length ? byGroup : candidates;
+    const pool = byRoutine.length ? byRoutine : byGroup.length ? byGroup : candidates;
     const sorted = pool.slice().sort((x, y) => y.logs - x.logs);
     if (sorted.length === 1 || sorted[0].logs >= sorted[1].logs * 2) return { match: sorted[0], options: [] };
     return { match: null, options: sorted.map((c) => c.name) };
@@ -445,4 +448,38 @@ export async function getRoutineForToday(dayKey: string): Promise<string> {
     if (routine) return routine;
   }
   return getNextRoutineToTrain();
+}
+
+/** Gli esercizi della scheda di oggi (vuoto se non si trova): servono a scegliere tra nomi simili ("incline"). */
+export async function getTodayRoutineExercises(dayKey: string): Promise<string[]> {
+  const routine = await getRoutineForToday(dayKey);
+  const { data, error } = await supabase.from("workout_routines").select("exercise").ilike("routine_name", routine);
+  if (error) throw error;
+  return (data ?? []).map((r) => String(r.exercise));
+}
+
+export interface LoggedSet {
+  id: string;
+  exercise: string;
+  weight_kg: number;
+  reps: number;
+}
+
+/** L'ultima serie registrata oggi (null se oggi non ne ha): è quella che "no, intendevo X" corregge. */
+export async function getLastLogToday(dayKey: string): Promise<LoggedSet | null> {
+  const { data, error } = await supabase
+    .from("workout_logs")
+    .select("id, exercise, weight_kg, reps")
+    .neq("exercise", "riposo")
+    .gte("performed_at", dayRangeUtc(dayKey).from.toISOString())
+    .order("performed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? { id: String(data.id), exercise: String(data.exercise), weight_kg: Number(data.weight_kg), reps: Number(data.reps) } : null;
+}
+
+export async function deleteLog(id: string): Promise<void> {
+  const { error } = await supabase.from("workout_logs").delete().eq("id", id);
+  if (error) throw error;
 }

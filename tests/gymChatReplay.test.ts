@@ -23,6 +23,11 @@ const INTENTS: Record<string, Row> = {
   "pectoral machine": { matches: ["peck fly"] }, // il modello che abbina il nome detto a quello salvato
   "Distensioni su panca piana 50 kg 8 reps": { intent: "workout", entries: [{ exercise: "distensioni su panca piana", weightKg: 50, reps: 8, sets: 1, muscleGroup: "petto", sameAsLast: false }] },
   "distensioni su panca piana": { matches: ["invented press"] }, // fuori elenco: scartato
+  "Pullup 25 kg 6 reps": { intent: "workout", entries: [{ exercise: "pullup", weightKg: 25, reps: 6, sets: 1, muscleGroup: "schiena", sameAsLast: false }] },
+  "Incline stesso peso": { intent: "workout", entries: [{ exercise: "incline", weightKg: null, reps: null, sets: 1, sameAsLast: true, fromPreviousSession: true }] },
+  "66 kg 6 reps": { intent: "workout", entries: [{ exercise: "high row", weightKg: 66, reps: 6, sets: 1, muscleGroup: "schiena", sameAsLast: false }] },
+  "No ho sbagliato intendevo row normale": { intent: "workout", entries: [{ exercise: "row", weightKg: 66, reps: 6, sets: 1, muscleGroup: "schiena", sameAsLast: false, correction: true }] },
+  "No intendevo row": { intent: "workout", entries: [{ exercise: "row", weightKg: null, reps: null, sets: 1, muscleGroup: "schiena", sameAsLast: false, correction: true }] },
   "Oggi uguale": { intent: "workout", entries: [{ exercise: "chest press", weightKg: null, reps: null, sets: 1, sameAsLast: true, fromPreviousSession: true }] },
 };
 vi.mock("openai", () => ({
@@ -204,5 +209,37 @@ describe("serie salvata → «aggiornato» + prossimo esercizio della scheda", (
     const r = await say("Distensioni su panca piana 50 kg 8 reps");
     expect(r).toContain("distensioni su panca piana");
     expect(db.workout_logs.some((x) => x.exercise === "invented press")).toBe(false);
+  });
+});
+
+describe("replay della chat del 26/10/2026", () => {
+  const today = () => db.workout_logs.filter((l) => String(l.performed_at) >= "2026-10-04T22:00:00Z" && l.exercise !== "riposo");
+
+  it("'Pullup' è il weighted pull-up, non un esercizio nuovo 'pullup'", async () => {
+    const r = await say("Pullup 25 kg 6 reps");
+    expect(r).toContain("weighted pull-up");
+    expect(db.workout_logs.some((l) => l.exercise === "pullup")).toBe(false);
+  });
+
+  it("'Incline stesso peso' a metà petto e schiena è l'incline db press, non l'incline-back db curl delle braccia", async () => {
+    for (let i = 0; i < 4; i++) db.workout_logs.push(L("incline-back db curl", 16, 8, `2026-09-${20 + i}T09:37:48Z`, "bicipiti")); // il curl ha più storico: prima vinceva lui
+    await say("Pullup 25 kg 6 reps"); // la scheda di oggi è petto e schiena
+    const r = await say("Incline stesso peso");
+    expect(r).toContain("<b>incline db press</b> 24kg x8");
+    expect(today().some((l) => l.exercise === "incline-back db curl")).toBe(false);
+  });
+
+  it("'No intendevo row' toglie la serie sbagliata (high row) e salva row con gli stessi numeri", async () => {
+    await say("66 kg 6 reps");
+    const r = await say("No intendevo row");
+    expect(r).toContain("↩️ Tolto high row 66kg x6");
+    expect(r).toContain("row 66kg x6");
+    expect(today().map((l) => l.exercise)).toEqual(["row"]);
+  });
+
+  it("una correzione senza serie da correggere salva e basta", async () => {
+    const r = await say("No ho sbagliato intendevo row normale");
+    expect(r).not.toContain("Tolto");
+    expect(today().map((l) => l.exercise)).toEqual(["row"]);
   });
 });

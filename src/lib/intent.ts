@@ -21,6 +21,8 @@ export interface WorkoutRequest {
   sameAsLast: boolean;
   /** "come l'ultima volta / oggi uguale": il valore della sessione PRECEDENTE, non la serie appena fatta oggi */
   fromPreviousSession?: boolean;
+  /** "no intendevo row", "ho sbagliato": sostituisce l'ULTIMA serie registrata oggi invece di aggiungerne una */
+  correction?: boolean;
 }
 
 export type MessageIntent =
@@ -85,6 +87,7 @@ REGOLE GENERALI (valgono per ogni categoria):
 
 Categorie:
 1. Una o PIÙ serie di allenamento da registrare (es. "hack 70 kg 8 reps", "leg curl 41 7", "oggi abs machine stesso peso e dragon flag anche"): {"intent": "workout", "entries": [{"exercise": string, "weightKg": number oppure null, "reps": number oppure null, "sets": number, "muscleGroup": string, "sameAsLast": boolean}]}. Regole: una voce per esercizio. Se dice "stesso peso", "come l'ultima volta", "uguale", "anche" (riferito a un esercizio già fatto) metti "sameAsLast": true e lascia a null il peso (e le reps se non le specifica). Aggiungi "fromPreviousSession": true SOLO se intende il valore dell'ALTRA volta (es. "come l'ultima volta", "oggi uguale", "come la scorsa volta", "come sempre"); false se intende la serie che ha appena fatto oggi (es. "ancora stesso peso", "un'altra serie uguale"). Per esercizi a corpo libero senza zavorra (dragon flag, trazioni, plank) il peso è 0. Se i numeri sono dati senza nome dell'esercizio (es. "41 7"), cerca l'esercizio nella conversazione recente: se è chiaro usalo, altrimenti usa il caso 1c. I plurali e i nomi parziali (es. "extension" per "leg extension") vanno comunque restituiti come li ha detti: li normalizza il codice.
+1a. CORREZIONE: se Daro dice esplicitamente che la serie appena registrata era sbagliata ("no intendevo row normale", "ho sbagliato, era il chest press", "no, erano 8 reps", "INTENDEVO incline db press") restituisci il caso 1 con "correction": true sull'esercizio giusto: il codice toglie l'ultima serie e salva questa. Riporta i numeri che Daro aveva detto per quella serie nella conversazione recente (es. "66 kg 6 reps" detti prima di "no intendevo row" → row 66, 6); se quei numeri erano invece ricavati da "stesso peso"/"uguale", lascia null e metti sameAsLast true e fromPreviousSession true. "correction" è false per ogni altra serie, anche per un secondo invio dello stesso esercizio.
 1b. Durante l'allenamento (il tuo ultimo messaggio contiene "Prossimo: <esercizio>" o una serie appena registrata): (a) solo le ripetizioni ("oggi 8 reps", "8") per quell'esercizio = stesso peso dell'ultima volta: workout con weightKg null, sameAsLast true, fromPreviousSession true e reps indicate, NON chiedere il peso; (b) solo il nome di un esercizio, anche con "?" ("Overhead?", "e l'hammer?") = vuole sapere cosa ha fatto l'ultima volta, anche se non è il "Prossimo" proposto (sta saltando l'ordine): exercise_query su quell'esercizio, NON chiedere "intendi il peso o il prossimo esercizio?"; (c) "dimmi il peso" dopo un esercizio nominato = exercise_query su quell'esercizio.
 1c. Dati di un allenamento incompleti o ambigui che non si risolvono dalla conversazione recente (es. "41 7" senza esercizio, "ho fatto 50 kg" senza reps né esercizio): {"intent": "clarify", "question": string} dove "question" è UNA domanda brevissima in italiano che chiede solo ciò che manca (es. "Per quale esercizio? 41 kg × 7 reps"). Se invece Daro sta rispondendo a una domanda che gli hai appena fatto nella conversazione recente (es. scrive solo "Leg curl" dopo "per quale esercizio?"), combina con i numeri già detti e restituisci il caso 1.
 1d. Se il messaggio è SOLO il nome di un esercizio, senza numeri né altro (es. "cable lateral", "leg curl", "panca"), Daro vuole sapere quanto faceva: è exercise_query con confidenza alta, MAI "ask" — salvo che Aira gli abbia appena chiesto per quale esercizio (allora è il caso 1 con i numeri già detti). Domanda sullo storico/record di un esercizio (es. "quanto facevo di leg extension?", "qual è il mio massimo di panca?", "che peso uso al leg curl?"): {"intent": "exercise_query", "exercise": string}
@@ -151,6 +154,7 @@ Categorie:
           muscleGroup: e.muscleGroup ? String(e.muscleGroup).toLowerCase().trim() : undefined,
           sameAsLast: Boolean(e.sameAsLast),
           fromPreviousSession: Boolean(e.fromPreviousSession),
+          correction: Boolean(e.correction),
         })),
     };
   }

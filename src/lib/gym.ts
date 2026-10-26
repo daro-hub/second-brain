@@ -102,6 +102,9 @@ export function exercisesOfGroups(text: string): string[] | null {
 const EXERCISE_SYNONYMS: Record<string, string[]> = {
   trazioni: ["pull", "up"],
   trazione: ["pull", "up"],
+  // "pullup" scritto attaccato: senza, diventava un esercizio nuovo invece di "weighted pull-up"
+  pullup: ["pull", "up"],
+  pullups: ["pull", "up"],
   sbarra: [],
   zavorrate: ["weighted"],
   zavorrata: ["weighted"],

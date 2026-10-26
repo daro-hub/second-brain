@@ -40,7 +40,9 @@ import { getStepsStats } from "./steps";
 import {
   findMatchingRoutine,
   getExerciseHistory,
+  deleteLog,
   getLastLogFor,
+  getLastLogToday,
   getLastSession,
   getPR,
   resolveExercise,
@@ -49,6 +51,7 @@ import {
   getRoutineGroups,
   getRoutinePreview,
   getScheduleForDay,
+  getTodayRoutineExercises,
   logWorkout,
 } from "./workouts";
 
@@ -461,9 +464,14 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
   if (intent.type === "workout") {
     const lines: string[] = [];
     const saved: string[] = [];
+    const removed: string[] = [];
     let lastSavedName = "";
+    const inRoutine = await getTodayRoutineExercises(perceivedTodayKey()).catch((err) => {
+      reportError("respond/workout_routine", err, { expected: true });
+      return [] as string[];
+    });
     for (const e of intent.entries) {
-      const res = await resolveExercise(e.exercise, e.muscleGroup);
+      const res = await resolveExercise(e.exercise, e.muscleGroup, inRoutine);
       if (!res.match && res.options.length) {
         lines.push(`❓ ${bold(escapeHtml(e.exercise))}: intendi ${res.options.slice(0, 3).map((o) => escapeHtml(o)).join(" o ")}?`);
         continue;
@@ -471,6 +479,12 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
       const name = res.match?.name ?? e.exercise;
       let weight = e.weightKg;
       let reps = e.reps;
+      // "no, intendevo row": la serie sbagliata di prima si toglie (solo dopo aver risolto il nome, così un dubbio non fa perdere dati)
+      const prev = e.correction ? await getLastLogToday(perceivedTodayKey()) : null;
+      if (prev && !e.sameAsLast) {
+        weight ??= prev.weight_kg;
+        reps ??= prev.reps;
+      }
       if (e.sameAsLast || weight === null || reps === null) {
         // "come l'ultima volta / oggi uguale" = la sessione PRECEDENTE; "ancora stesso peso" = la serie appena fatta
         const last = await getLastLogFor(name, e.fromPreviousSession ? perceivedTodayKey() : undefined);
@@ -480,6 +494,10 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
         }
         weight = weight ?? last.weight_kg;
         reps = reps ?? last.reps;
+      }
+      if (prev) {
+        await deleteLog(prev.id);
+        removed.push(`${prev.exercise} ${fmtSet(prev.weight_kg, prev.reps)}`);
       }
       const result = await logWorkout({ exercise: name, weightKg: weight, reps, sets: e.sets, muscleGroup: e.muscleGroup ?? res.match?.muscleGroup ?? undefined });
       saved.push(`${name} ${fmtSet(weight, reps)}`);
@@ -500,8 +518,9 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
     } catch (err) {
       reportError("respond/workout_next", err, { expected: true });
     }
-    if (lines.length === 1 && saved.length === 1) return `✅ Aggiornato: ${lines[0].slice(BULLET.length + 1)}${nextLine}`;
-    return `✅ ${bold("Aggiornato")}\n\n${lines.join("\n")}${nextLine}`;
+    const undone = removed.map((r) => `↩️ Tolto ${escapeHtml(r)}\n`).join("");
+    if (lines.length === 1 && saved.length === 1) return `${undone}✅ Aggiornato: ${lines[0].slice(BULLET.length + 1)}${nextLine}`;
+    return `${undone}✅ ${bold("Aggiornato")}\n\n${lines.join("\n")}${nextLine}`;
   }
 
   if (intent.type === "exercise_query") {
