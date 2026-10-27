@@ -7,11 +7,6 @@ import { getFileBytes, listDir, safePath } from "../../src/lib/university";
 import { parsingEnabled } from "../../src/lib/uniParse";
 import { UploadForm } from "./UploadForm";
 import { RawActions } from "./RawActions";
-import { WeekAgenda } from "./WeekAgenda";
-import { ExamPlanner } from "./ExamPlanner";
-import { CareerSummary } from "./CareerSummary";
-import { getCourses, getPlannedExams } from "../../src/lib/uniExams";
-import { todayKey } from "../../src/lib/time";
 import { Icon } from "../components/Icon";
 
 const fmtSize = (n: number) => (n > 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
@@ -29,31 +24,6 @@ function Breadcrumbs({ path }: { path: string }) {
       ))}
     </nav>
   );
-}
-
-/** Agenda settimanale, esami della sessione e resoconto del piano: solo nella radice di /uni. */
-async function UniDashboard() {
-  const today = todayKey();
-  try {
-    const [courses, exams] = await Promise.all([getCourses(), getPlannedExams()]);
-    return (
-      <>
-        <WeekAgenda />
-        <ExamPlanner courses={courses.map(({ code, name, year, status, cfu, semesters, hours }) => ({ code, name, year, status, cfu, semesters, hours }))} exams={exams} today={today} />
-        <CareerSummary courses={courses} today={today} />
-      </>
-    );
-  } catch (err) {
-    console.error("[uni] piano di studi non disponibile:", err);
-    return (
-      <>
-        <WeekAgenda />
-        <div className="card">
-          <p>Impossibile leggere il piano di studi.</p>
-        </div>
-      </>
-    );
-  }
 }
 
 export async function UniView({ path: rawPath }: { path?: string }) {
@@ -98,7 +68,6 @@ export async function UniView({ path: rawPath }: { path?: string }) {
       <>
         <h2><Icon name="graduation" size={24} /> Università</h2>
         <Breadcrumbs path={path} />
-        {path === "" && <UniDashboard />}
         <div className="card">
           {entries.length === 0 ? (
             <p style={{ color: "var(--muted)" }}>Cartella vuota.</p>

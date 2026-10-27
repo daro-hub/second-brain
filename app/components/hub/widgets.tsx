@@ -1,8 +1,8 @@
-import { KNOWLEDGE_AREAS, getKnowledgeStats, getSocialCount } from "../../../src/lib/knowledge";
+import { getSocialCount } from "../../../src/lib/knowledge";
 import type { Pillar } from "../../../src/lib/pillars";
 import { todayKey } from "../../../src/lib/time";
 import { getBrainSnapshot } from "../../../src/lib/brain";
-import { logKnowledgeAction, logSocialAction } from "../../actions/hub";
+import { logSocialAction } from "../../actions/hub";
 import { BrainPanel } from "./BrainPanel";
 import { LiveModeCard } from "./LiveModeCard";
 import { PushToggle } from "./PushToggle";
@@ -14,13 +14,10 @@ import { MOOD_ASPECTS, getMoodHistory, moodIndex } from "../../../src/lib/mood";
 import { listRepos } from "../../../src/lib/github";
 import { getMyRecentActivity } from "../../../src/lib/linear";
 import { getProfile } from "../../../src/lib/profile";
-import { getCultureScore } from "../../../src/lib/pills";
 import { supabase } from "../../../src/lib/supabase";
 import { addDays, formatDayShort } from "../../../src/lib/time";
 import { fmtHours, getHourlyRate, getPayments, getWork, minutesByDay, outstanding, workStats } from "../../../src/lib/work";
-import { refreshTomorrowAction, addPaymentAction, addExtraAction, addWorkAction, decideProposalAction, setProfileFactAction, setRateAction } from "../../actions/hub";
-import { getTomorrowBrief } from "../../../src/lib/tomorrow";
-import { Icon } from "../Icon";
+import { addPaymentAction, addExtraAction, addWorkAction, decideProposalAction, setProfileFactAction, setRateAction } from "../../actions/hub";
 
 const MOOD_DAYS = 14;
 
@@ -55,77 +52,6 @@ export function MeasureGrid({ pillar }: { pillar: Pillar }) {
         ))}
       </div>
     </>
-  );
-}
-
-export async function KnowledgePanel() {
-  const k = await getKnowledgeStats(28);
-  return (
-    <div className="grid grid-2" style={{ marginBottom: 18 }}>
-      <div className="card">
-        <div className="card-head"><h3>Registra una sessione</h3></div>
-        <form action={logKnowledgeAction} className="hub-form">
-          <select name="area" required defaultValue="">
-            <option value="" disabled>Area…</option>
-            {KNOWLEDGE_AREAS.map((a) => <option key={a} value={a}>{a}</option>)}
-          </select>
-          <input name="minutes" type="number" min={1} max={600} placeholder="minuti" required />
-          <select name="kind" defaultValue="lettura">
-            <option>lettura</option><option>documentario</option><option>podcast</option><option>corso</option><option>pratica</option>
-          </select>
-          <input name="note" placeholder="cosa (opzionale)" maxLength={500} />
-          <button type="submit">Aggiungi</button>
-        </form>
-        {k === null && <p className="muted small">La tabella non esiste ancora: applica la migrazione <code>0013_life_stats.sql</code> su Supabase.</p>}
-      </div>
-      <div className="card">
-        <div className="card-head"><h3>Aree</h3><span className="muted small">ultimi 28 giorni</span></div>
-        {KNOWLEDGE_AREAS.map((a) => (
-          <div className="agenda-row" key={a}>
-            <span className="swatch" style={{ background: (k?.minutesByArea[a] ?? 0) > 0 ? "var(--c-good)" : "var(--faint)" }} />
-            <span className="time" style={{ textTransform: "capitalize" }}>{a}</span>
-            <span className="muted small">
-              {k === null ? "—" : `${k.minutesByArea[a] ?? 0} min · ${k.daysSince[a] === null ? "mai" : k.daysSince[a] === 0 ? "oggi" : `${k.daysSince[a]} g fa`}`}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-async function TomorrowCard({ today }: { today: string }) {
-  const brief = await getTomorrowBrief().catch(() => null);
-  // il brief vale finché il suo giorno non è passato: la sera è «domani», la mattina dopo è «oggi»
-  const fresh = brief && brief.forDay >= today ? brief : null;
-  const label = fresh ? (fresh.forDay === today ? "Da fare oggi" : "Da fare domani") : "Da fare domani";
-  const missing = fresh ? (["linear", "slack", "calendar"] as const).filter((k) => !fresh.sources[k]) : [];
-  return (
-    <div className="card">
-      <div className="card-head">
-        <h3>{label}</h3>
-        <form action={refreshTomorrowAction}><button type="submit" className="muted small">{fresh ? `aggiornato ${new Date(fresh.at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" })} · rigenera` : "genera ora"}</button></form>
-      </div>
-      {!fresh ? (
-        <p className="muted small">Il brief si prepara da solo la sera (Linear, Slack e calendario). Tocca «genera ora» per averlo subito.</p>
-      ) : fresh.items.length === 0 ? (
-        <p className="muted small">Niente di urgente nelle fonti collegate.</p>
-      ) : (
-        <ol style={{ margin: 0, paddingLeft: 20 }}>
-          {fresh.items.map((i, n) => (
-            <li key={n} style={{ marginBottom: 6 }}>
-              {i.url ? <a href={i.url} target="_blank" rel="noopener noreferrer">{i.action}</a> : i.action}
-              {i.minutes ? <span className="muted small"> · {i.minutes >= 60 ? fmtHours(i.minutes) : `${i.minutes} min`}</span> : null}
-              <span className="muted small" style={{ display: "block" }}>{i.source === "slack" ? "Slack" : i.source === "calendar" ? "Calendario" : "Linear"}{i.why ? ` · ${i.why}` : ""}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-      {fresh && fresh.other.length > 0 && (
-        <details><summary className="muted small">Altro ({fresh.other.length})</summary>{fresh.other.map((o, n) => <p key={n} className="muted small" style={{ margin: "2px 0" }}>{o}</p>)}</details>
-      )}
-      {missing.length > 0 && <p className="muted small">Incompleto: {missing.map((k) => (k === "linear" ? "Linear" : k === "slack" ? "Slack" : "Calendario")).join(", ")} non {missing.length > 1 ? "hanno risposto" : "ha risposto"}.</p>}
-    </div>
   );
 }
 
@@ -237,23 +163,6 @@ export async function MoodPanel() {
         </div>
       </details>
     </>
-  );
-}
-
-export async function PillsPanel() {
-  const [culture, { data }] = await Promise.all([getCultureScore(), supabase.from("knowledge_pills").select("id, area, title, key_fact, status, sent_on").order("sent_on", { ascending: false }).limit(10)]);
-  return (
-    <div className="card">
-      <div className="card-head"><h3>Pillole di cultura generale</h3><span className="muted small">{culture.score === null ? `${culture.pending} da verificare` : `punteggio ${culture.score}/100 · ${culture.known} assimilate · ${culture.review} da ripassare`}</span></div>
-      {(data ?? []).length === 0 && <p className="muted small">Nessuna pillola ancora: scrivi /pillole al bot.</p>}
-      {(data ?? []).map((p) => (
-        <div className="agenda-row" key={String(p.id)}>
-          <span className="time" style={{ textTransform: "capitalize" }}>{String(p.area)}</span>
-          <span style={{ flex: 1 }}>{String(p.title)}<span className="muted small"> · {String(p.key_fact)}</span></span>
-          <span className="muted small">{p.status === "known" ? <Icon name="check" size={14} /> : p.status === "review" ? <Icon name="rotate" size={14} /> : "·"}</span>
-        </div>
-      ))}
-    </div>
   );
 }
 

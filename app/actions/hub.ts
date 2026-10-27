@@ -1,29 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { KNOWLEDGE_AREAS, logKnowledge, logSocial, saveReflection, type KnowledgeArea } from "../../src/lib/knowledge";
+import { logSocial, saveReflection } from "../../src/lib/knowledge";
 import { reportError } from "../../src/lib/report";
 import { addPayment, addWork, deletePayment, deleteWork, setHourlyRate, setWorkMinutes } from "../../src/lib/work";
 import { setProfileFact } from "../../src/lib/profile";
-import { MOOD_ASPECTS, saveMoodAnswer, saveMoodNote, type MoodKey } from "../../src/lib/mood";
+import { MOOD_ASPECTS, saveMoodAnswer, type MoodKey } from "../../src/lib/mood";
 import { decideProposal } from "../../src/lib/kbProposals";
-import { addDays, todayKey } from "../../src/lib/time";
-import { refreshTomorrowBrief } from "../../src/lib/tomorrow";
+import { todayKey } from "../../src/lib/time";
 
 const text = (fd: FormData, k: string, max: number) => String(fd.get(k) ?? "").trim().slice(0, max);
-
-export async function logKnowledgeAction(fd: FormData): Promise<void> {
-  const area = text(fd, "area", 20) as KnowledgeArea;
-  const minutes = Number(fd.get("minutes"));
-  if (!KNOWLEDGE_AREAS.includes(area) || !Number.isFinite(minutes) || minutes < 1 || minutes > 600) return;
-  try {
-    await logKnowledge({ area, minutes, kind: text(fd, "kind", 30) || "lettura", note: text(fd, "note", 500) });
-  } catch (err) {
-    reportError("actions/logKnowledge", err);
-    return;
-  }
-  revalidatePath("/");
-}
 
 export async function logSocialAction(fd: FormData): Promise<void> {
   try {
@@ -87,18 +73,6 @@ export async function deleteWorkAction(fd: FormData): Promise<void> {
     return;
   }
   revalidatePath("/");
-}
-
-/** Ritorna true se salvata: il pannello client mostra «Salvato» solo in quel caso. */
-export async function saveMoodNoteAction(note: string): Promise<boolean> {
-  try {
-    await saveMoodNote(todayKey(), note.trim().slice(0, 1000));
-  } catch (err) {
-    reportError("actions/saveMoodNote", err);
-    return false;
-  }
-  revalidatePath("/");
-  return true;
 }
 
 const isDay = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
@@ -188,17 +162,6 @@ export async function decideProposalAction(fd: FormData): Promise<void> {
     await decideProposal(id, fd.get("accept") === "1");
   } catch (err) {
     reportError("actions/decideProposal", err);
-    return;
-  }
-  revalidatePath("/");
-}
-
-/** Rigenera a mano il brief «cosa fare domani» (di sera lo fa da solo il job `work_tomorrow`). */
-export async function refreshTomorrowAction(): Promise<void> {
-  try {
-    await refreshTomorrowBrief(addDays(todayKey(), 1));
-  } catch (err) {
-    reportError("actions/refreshTomorrow", err);
     return;
   }
   revalidatePath("/");

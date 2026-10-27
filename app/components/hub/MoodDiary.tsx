@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { saveMoodNoteAction, saveMoodScoreAction } from "../../actions/hub";
+import { saveMoodScoreAction } from "../../actions/hub";
 import type { MoodKey } from "../../../src/lib/mood";
 
 interface Aspect {
@@ -49,44 +49,5 @@ export function MoodDiary({ aspects, scores }: { aspects: Aspect[]; scores: Part
         {status === "saving" ? "Salvo…" : status === "saved" ? "Salvato" : status === "error" ? "Non salvato: riprova." : ""}
       </p>
     </>
-  );
-}
-
-/** Nota del giorno: il pulsante Salva compare solo se il testo è cambiato rispetto a quanto salvato. */
-export function MoodNote({ initial }: { initial: string }) {
-  const [text, setText] = useState(initial);
-  const [saved, setSaved] = useState(initial);
-  const [status, setStatus] = useState<"" | "saving" | "saved" | "error">("");
-  const dirty = text.trim() !== saved.trim();
-
-  useEffect(() => {
-    setText(initial);
-    setSaved(initial);
-  }, [initial]);
-
-  async function save() {
-    setStatus("saving");
-    const ok = await saveMoodNoteAction(text).catch(() => false);
-    if (ok) setSaved(text);
-    setStatus(ok ? "saved" : "error");
-  }
-
-  return (
-    <div className="hub-form col">
-      <textarea
-        rows={3}
-        maxLength={1000}
-        value={text}
-        onChange={(e) => {
-          setText(e.target.value);
-          setStatus("");
-        }}
-        placeholder="Cosa ha pesato sull'umore oggi? (facoltativo)"
-      />
-      <div className="pass-row">
-        {dirty && <button type="button" onClick={() => void save()} disabled={status === "saving"}>{status === "saving" ? "Salvo…" : "Salva"}</button>}
-        <span className="pass-status" role="status" aria-live="polite">{status === "saved" && !dirty ? "Salvato" : status === "error" ? "Non salvato: riprova." : ""}</span>
-      </div>
-    </div>
   );
 }
