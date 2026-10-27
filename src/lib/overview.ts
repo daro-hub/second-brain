@@ -246,6 +246,8 @@ export interface ActivityDay {
   run: number;
   walk: number;
   other: number;
+  /** passi del giorno (Apple Health), se noti */
+  steps?: number;
 }
 
 /** Calendario delle attività reali (Strava: orari veri) per le ultime N settimane. */
@@ -255,7 +257,11 @@ export async function getActivityCalendar(weeks = 20): Promise<{ days: ActivityD
   let startKey = addDays(endKey, -(weeks * 7 - 1));
   while (weekdayOf(startKey) !== 1) startKey = addDays(startKey, -1);
 
-  const activities = await getAllActivities().catch(() => [] as StravaActivityFull[]);
+  const [activities, stepRows] = await Promise.all([
+    getAllActivities().catch(() => [] as StravaActivityFull[]),
+    getHealthDaily("step_count", startKey, endKey).catch(() => []),
+  ]);
+  const stepsByDay = new Map(stepRows.map((r) => [r.day, r.total ?? 0]));
   const days: ActivityDay[] = [];
   for (let k = startKey; k <= endKey; k = addDays(k, 1)) {
     const acts = activities.filter((a) => a.dateKey === k);
@@ -268,6 +274,7 @@ export async function getActivityCalendar(weeks = 20): Promise<{ days: ActivityD
       other: acts
         .filter((a) => !["WeightTraining", "Workout", "Run", "TrailRun", "Walk", "Hike"].includes(a.type))
         .reduce((s, a) => s + a.movingTimeMin, 0),
+      steps: stepsByDay.get(k),
     });
   }
   return { days, startKey, endKey };

@@ -11,6 +11,7 @@ const CAT = {
 } as const;
 
 type CatKey = keyof typeof CAT;
+const MANY_STEPS = 8000;
 
 export function ActivityHeatmap({ days }: { days: ActivityDay[] }) {
   const CELL = 15;
@@ -52,14 +53,17 @@ export function ActivityHeatmap({ days }: { days: ActivityDay[] }) {
         {days.map((d, i) => {
           const col = Math.floor(i / 7);
           const row = i % 7;
-          const mins: Record<CatKey, number> = { weights: d.weights, run: d.run, walk: d.walk, other: d.other };
+          // una giornata di molti passi conta come camminata anche senza uscite registrate (100 passi ≈ 1 minuto)
+          const stepMin = d.steps && d.steps >= MANY_STEPS ? Math.round(d.steps / 100) : 0;
+          const mins: Record<CatKey, number> = { weights: d.weights, run: d.run, walk: Math.max(d.walk, stepMin), other: d.other };
           const present = (Object.keys(mins) as CatKey[]).filter((k) => mins[k] > 0).sort((a, b) => mins[b] - mins[a]);
           const total = present.reduce((s, k) => s + mins[k], 0);
           const cx = LEFT + col * (CELL + GAP);
           const cy = TOP + row * (CELL + GAP);
+          const stepsTip = d.steps ? ` · ${Math.round(d.steps).toLocaleString("it-IT")} passi` : "";
           const tip = present.length
-            ? `${formatDayShort(d.dayKey)} · ${present.map((k) => `${CAT[k].label} ${mins[k]} min`).join(", ")}`
-            : `${formatDayShort(d.dayKey)} · nessuna attività registrata`;
+            ? `${formatDayShort(d.dayKey)} · ${present.map((k) => (k === "walk" && stepMin > d.walk ? "Passi" : `${CAT[k].label} ${mins[k]} min`)).join(", ")}${stepsTip}`
+            : `${formatDayShort(d.dayKey)} · nessuna attività registrata${stepsTip}`;
           if (!present.length) {
             return (
               <g key={d.dayKey}>
@@ -88,7 +92,7 @@ export function ActivityHeatmap({ days }: { days: ActivityDay[] }) {
             {CAT[k].label}
           </span>
         ))}
-        <span className="muted">intensità = minuti · l&apos;angolino indica una seconda attività nello stesso giorno</span>
+        <span className="muted">più il colore è pieno più ti sei mosso · casella vuota = nessun allenamento · azzurro anche per i giorni da oltre 8.000 passi · l&apos;angolino indica una seconda attività</span>
       </div>
     </div>
   );

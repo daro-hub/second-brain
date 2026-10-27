@@ -4,14 +4,14 @@ import { BilancioView } from "../../bilancio/BilancioView";
 import { CostiView } from "../../costi/CostiView";
 import { OggiView } from "../../views/OggiView";
 import { ProgressView } from "../../views/ProgressView";
-import { PalestraView } from "../../palestra/PalestraView";
-import { SaluteView } from "../../salute/SaluteView";
+import { AllenamentoView } from "../../palestra/AllenamentoView";
 import { SpesaView } from "../../spesa/SpesaView";
+import { StudioView } from "../../uni/StudioView";
 import { UniView } from "../../uni/UniView";
 import { InsightsView } from "../../insights/InsightsView";
 import { PassaggiView } from "../../passaggi/PassaggiView";
 import { WidgetBoundary } from "./WidgetBoundary";
-import { AiraPanel, KnowledgePanel, ProfilePanel, MoodPanel, PillsPanel, Skeleton, SocialQuickLog, WorkTracker } from "./widgets";
+import { AiraPanel, ProfilePanel, MoodPanel, Skeleton, SocialQuickLog, WorkTracker } from "./widgets";
 
 const S = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <WidgetBoundary label={label}>
@@ -76,26 +76,12 @@ export function HubContext({ context, params = {} }: { context: string | undefin
   }
   switch (context) {
     case "studio":
-      return (
-        <>
-          <S label="Università"><UniView path={params.path} /></S>
-          <S label="Cultura"><KnowledgePanel /></S>
-          <S label="Pillole"><PillsPanel /></S>
-        </>
-      );
+      // i file dell'università restano raggiungibili da ?path=…, la schermata di base mostra solo CFU ed esami
+      return params.path ? <S label="Università"><UniView path={params.path} /></S> : <S label="Studio"><StudioView /></S>;
     case "salute":
-      return (
-        <>
-          <S label="Salute"><SaluteView date={params.date} /></S>
-          <S label="Bilancio"><BilancioView /></S>
-        </>
-      );
+      return <S label="Salute"><BilancioView /></S>;
     case "allenamento":
-      return (
-        <>
-          <S label="Allenamento"><PalestraView exercise={params.exercise} /></S>
-        </>
-      );
+      return <S label="Allenamento"><AllenamentoView /></S>;
     case "umore":
       return (
         <>

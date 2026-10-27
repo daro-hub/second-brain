@@ -91,11 +91,15 @@ function useCached<T>(url: string, enabled: boolean, ttl = TTL): { data: T | nul
 
 function airaCards(a: AiraStatus): Card[] {
   const down = a.integrations.filter((i) => !i.ok);
-  const cards: Card[] = [
-    { key: "int", label: "Integrazioni", value: `${a.integrations.length - down.length}/${a.integrations.length}`, detail: down.length ? `da controllare: ${down.map((d) => d.label).join(", ")}` : "tutte attive", score: Math.round(((a.integrations.length - down.length) / a.integrations.length) * 100), color: down.length ? "#ff9f0a" : "#30d158" },
+  // le integrazioni compaiono solo se qualcuna è giù: se va tutto bene non serve guardarle
+  const cards: Card[] = [];
+  if (down.length) {
+    cards.push({ key: "int", label: "Integrazioni", value: `${a.integrations.length - down.length}/${a.integrations.length}`, detail: `da controllare: ${down.map((d) => d.label).join(", ")}`, score: Math.round(((a.integrations.length - down.length) / a.integrations.length) * 100), color: "#ff9f0a" });
+  }
+  cards.push(
     { key: "kb", label: "Rete neurale", value: `${a.docs}`, detail: `note nella base di conoscenza · ${a.logs} allenamenti`, color: "#bf5af2" },
     { key: "bot", label: "Bot Telegram", value: a.webhook.active ? "attivo" : "spento", detail: `${a.webhook.pending} aggiornamenti in coda`, color: a.webhook.active ? "#30d158" : "#ff453a" },
-  ];
+  );
   if (a.cost) {
     cards.push({ key: "cost", label: "Costi AI", value: usd(a.cost.d30), detail: `ultimi 30 giorni · oggi ${usd(a.cost.today)} · 7 giorni ${usd(a.cost.d7)}`, color: "#0a84ff" });
     cards.push({ key: "tok", label: "Utilizzo", value: a.cost.tokens30.toLocaleString("it-IT"), detail: "token negli ultimi 30 giorni", color: "#ff375f" });
@@ -183,10 +187,7 @@ function Stage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [console_, router]);
 
-  // i punteggi servono solo dentro un pilastro: la home Progressi li calcola già sul server
-  const hub = useCached<HubData>("/api/hub", PILLAR_KEYS.includes(p ?? ""));
   const aira = useCached<AiraStatus>("/api/hub/aira", p === "aira", 2 * 60_000);
-  const data = hub.data;
 
   const select = (key: string) => router.push(p === key && mode === "pillar" ? "/" : `/?p=${key}`);
   const onOrb = () => {
@@ -200,19 +201,13 @@ function Stage() {
 
   if (pathname.startsWith("/login")) return null;
 
-  const pillars: HubPillar[] = data?.pillars ?? ["studio", "salute", "allenamento", "umore", "lavoro"].map((k) => ({ key: k, label: k[0].toUpperCase() + k.slice(1), color: "#8e8e93", score: null, trend: null }));
+  const pillars: HubPillar[] = PILLAR_KEYS.map((k) => ({ key: k, label: k[0].toUpperCase() + k.slice(1), color: "#8e8e93", score: null, trend: null }));
   const current = pillars.find((x) => x.key === p);
   const title = p === "progressi" ? "Progressi" : p === "aira" ? "Aira" : p === "incroci" ? "Statistiche" : p === "passaggi" ? "Trasferisci" : p === "spesa" ? "Spesa" : current ? current.label : "Oggi";
-  const hasStrip = p === "aira" || Boolean(current);
-  const cards: Card[] | null =
-    p === "aira"
-      ? aira.data
-        ? airaCards(aira.data)
-        : null
-      : current?.measures
-        ? current.measures.map((m) => ({ key: m.key, label: m.label, value: m.value, detail: m.detail, score: m.score, color: current.color }))
-        : null;
-  const loadFailed = p === "aira" ? aira.failed : hub.failed;
+  // sopra i pilastri non ci sono più schede di misure: ogni schermata mostra solo i propri grafici. Restano quelle dello stato di Aira.
+  const cards: Card[] | null = p === "aira" && aira.data ? airaCards(aira.data) : null;
+  const hasStrip = p === "aira";
+  const loadFailed = aira.failed;
 
   return (
     <section className={`hub-stage ${mode}`} aria-label="Aira e pilastri">

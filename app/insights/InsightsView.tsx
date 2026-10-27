@@ -1,22 +1,9 @@
 import type { ReactNode } from "react";
-import {
-  getEnergyWeek,
-  getNightVsLastMeal,
-  getNightVsTraining,
-  getRealGymLogDays,
-  getRunPaceVsRest,
-  getStepsTrainingVsRest,
-  getStrengthLeaderboard,
-  getTrainingHours,
-  getWeekBudget,
-  type Gate,
-  type ScatterInsight,
-} from "../../src/lib/insights";
-import { clock, dec, int, pace, signed } from "../../src/lib/numfmt";
+import { getEnergyWeek, getRealGymLogDays, getStrengthLeaderboard, getWeekBudget, type Gate } from "../../src/lib/insights";
+import { dec, int, signed } from "../../src/lib/numfmt";
 import { getActivityCalendar } from "../../src/lib/overview";
-import { describeCorrelation } from "../../src/lib/stats";
 import { todayKey, weekdayShort } from "../../src/lib/time";
-import { ActivityHeatmap, GroupedBars, HourHistogram, XYScatter } from "../components/viz/charts";
+import { ActivityHeatmap, GroupedBars } from "../components/viz/charts";
 import { CollectProgress, Sparkline } from "../components/viz/small";
 import { Icon, type IconName } from "../components/Icon";
 
@@ -56,24 +43,9 @@ function Insight({
   );
 }
 
-function scatterHeadline(s: ScatterInsight, what: string): ReactNode {
-  if (!s.correlation) return null;
-  return (
-    <p className="headline">
-      Su <b>{s.correlation.n}</b> {s.gate.unit}: <b>{describeCorrelation(s.correlation)}</b> (r = {dec(s.correlation.r, 2)}) tra {what}. Una
-      correlazione non è una causa, ma è un buon punto da cui partire.
-    </p>
-  );
-}
-
 export async function InsightsView() {
-  const [energy, nightTrain, nightMeal, steps, runs, hours, budget, strength, heat, realDays] = await Promise.all([
+  const [energy, budget, strength, heat, realDays] = await Promise.all([
     getEnergyWeek(7),
-    getNightVsTraining(),
-    getNightVsLastMeal(),
-    getStepsTrainingVsRest(),
-    getRunPaceVsRest(),
-    getTrainingHours(),
     getWeekBudget(),
     getStrengthLeaderboard(),
     getActivityCalendar(20),
@@ -85,16 +57,12 @@ export async function InsightsView() {
     ? completeDays.reduce((a, d) => a + (d.kcalIn - d.kcalOut), 0) / completeDays.length
     : null;
   const todayIdx = budget.days.findIndex((d) => d.dayKey === todayKey());
-  const activeDays = heat.days.filter((d) => d.weights + d.run + d.walk + d.other > 0).length;
+  const activeDays = heat.days.filter((d) => d.weights + d.run + d.walk + d.other > 0 || (d.steps ?? 0) >= 8000).length;
 
   return (
     <>
       <div className="eyebrow">Incroci</div>
       <h2>Cosa dicono i tuoi dati, insieme</h2>
-      <p className="page-sub">
-        Ogni analisi dichiara quanti dati servono prima di parlare. Finché non bastano vedi lo stato della raccolta, non numeri che
-        sembrano risposte ma sono rumore: con pochi punti un coefficiente di correlazione non significa nulla.
-      </p>
 
       <div className="card insight">
         <div className="insight-head">
@@ -102,25 +70,12 @@ export async function InsightsView() {
           <span className="pill good">pronto</span>
         </div>
         <p className="headline">
-          <b>{activeDays}</b> giorni con almeno un&apos;attività su {heat.days.length}. Fonte: Strava (orari reali).
+          <b>{activeDays}</b> giorni con almeno un&apos;attività su {heat.days.length}. Fonte: Strava e passi di Apple Health.
         </p>
         <ActivityHeatmap days={heat.days} />
       </div>
 
       <div className="grid grid-2" style={{ marginBottom: 18 }}>
-        <Insight icon="timer" title="Quando ti alleni vs quando sei occupato" status="ready">
-          <p className="headline">
-            {hours.peakHour !== null ? (
-              <>
-                Il picco è alle <b>{clock(hours.peakHour)}</b>. <b>{hours.clash}</b> sessioni su <b>{hours.total}</b> sono iniziate mentre avevi
-                studio o lezioni in programma.
-              </>
-            ) : (
-              "Servono sessioni su Strava."
-            )}
-          </p>
-          <HourHistogram counts={hours.counts} busy={hours.busy} />
-        </Insight>
 
         <Insight icon="book" title="Budget della settimana" status="ready">
           <p className="headline">
@@ -164,84 +119,9 @@ export async function InsightsView() {
           />
         </Insight>
 
-        <Insight
-          icon="steps"
-          title="Passi: giorni di allenamento vs riposo"
-          status={steps.gate.ready ? "ready" : "collecting"}
-          gate={steps.gate}
-          teaser="Cammini meno nei giorni in cui ti alleni? Il confronto parte con 14 giorni completi di passi (almeno 3 di allenamento e 3 di riposo)."
-        >
-          {steps.gate.ready && steps.trainingAvg !== null && steps.restAvg !== null ? (
-            <GroupedBars
-              categories={[
-                { label: `Allenamento (${steps.trainingDays} gg)`, values: [steps.trainingAvg] },
-                { label: `Riposo (${steps.restDays} gg)`, values: [steps.restAvg] },
-              ]}
-              series={[{ name: "Passi medi", color: "#34d399" }]}
-              height={180}
-            />
-          ) : (
-            <p className="muted small" style={{ margin: 0 }}>Nessun confronto possibile ancora.</p>
-          )}
-        </Insight>
 
-        <Insight
-          icon="moon"
-          title="Recupero notturno × allenamento del giorno prima"
-          status={nightTrain.gate.ready ? "ready" : "collecting"}
-          gate={nightTrain.gate}
-          teaser="La FC a riposo della notte sale dopo i giorni più pesanti? Ogni punto è una notte: minuti di allenamento del giorno prima contro battito a riposo. Si sblocca con 8 notti di battito."
-        >
-          {scatterHeadline(nightTrain, "allenamento e battito notturno")}
-          <XYScatter
-            points={nightTrain.points}
-            xLabel="Minuti di allenamento (giorno prima)"
-            yLabel="FC a riposo (bpm)"
-            yFormat={(v) => `${Math.round(v)}`}
-            xFormat={(v) => `${Math.round(v)}`}
-            color="#ff453a"
-            trend={nightTrain.fit}
-          />
-        </Insight>
 
-        <Insight
-          icon="meal"
-          title="Cena tardi → battito notturno"
-          status={nightMeal.gate.ready ? "ready" : "collecting"}
-          gate={nightMeal.gate}
-          teaser="Mangiare più tardi si lega a un battito notturno più alto? Orario dell'ultimo pasto contro FC a riposo della notte seguente. Si sblocca con 8 notti."
-        >
-          {scatterHeadline(nightMeal, "orario dell'ultimo pasto e battito notturno")}
-          <XYScatter
-            points={nightMeal.points}
-            xLabel="Orario ultimo pasto"
-            yLabel="FC a riposo (bpm)"
-            yFormat={(v) => `${Math.round(v)}`}
-            xFormat={clock}
-            color="#ff9f0a"
-            trend={nightMeal.fit}
-          />
-        </Insight>
 
-        <Insight
-          icon="run"
-          title="Corsa: passo × giorni dall'ultimo allenamento coi pesi"
-          status={runs.gate.ready ? "ready" : "collecting"}
-          gate={runs.gate}
-          teaser="Corri più piano dopo una seduta di gambe? Passo di ogni corsa (≥3 km) contro i giorni passati dall'ultimo allenamento coi pesi su Strava. Servono 8 corse con uno storico dei pesi precedente."
-          wide
-        >
-          {scatterHeadline(runs, "riposo dai pesi e passo di corsa")}
-          <XYScatter
-            points={runs.points}
-            xLabel="Giorni dall'ultimo allenamento coi pesi"
-            yLabel="Passo (min/km)"
-            yFormat={pace}
-            xFormat={(v) => `${Math.round(v)}`}
-            color="#bf5af2"
-            trend={runs.fit}
-          />
-        </Insight>
       </div>
 
       <div className="card insight">

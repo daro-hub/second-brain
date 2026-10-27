@@ -1,4 +1,4 @@
-import { KNOWLEDGE_AREAS, getKnowledgeStats } from "../../../src/lib/knowledge";
+import { KNOWLEDGE_AREAS, getKnowledgeStats, getSocialCount } from "../../../src/lib/knowledge";
 import type { Pillar } from "../../../src/lib/pillars";
 import { todayKey } from "../../../src/lib/time";
 import { getBrainSnapshot } from "../../../src/lib/brain";
@@ -6,20 +6,23 @@ import { logKnowledgeAction, logSocialAction } from "../../actions/hub";
 import { BrainPanel } from "./BrainPanel";
 import { LiveModeCard } from "./LiveModeCard";
 import { PushToggle } from "./PushToggle";
-import { MoodDiary, MoodNote } from "./MoodDiary";
+import { MoodDiary } from "./MoodDiary";
 import { WidgetCard } from "./WidgetCard";
 import { AreaLine } from "../viz/charts";
-import { WorkHeatmap } from "../viz/WorkHeatmap";
-import { MOOD_ASPECTS, aspectScore, moodIndex } from "../../../src/lib/mood";
-import { describeFactor, getMoodFactors } from "../../../src/lib/moodInsights";
+import { DayBars } from "../viz/DayBars";
+import { MOOD_ASPECTS, getMoodHistory, moodIndex } from "../../../src/lib/mood";
+import { listRepos } from "../../../src/lib/github";
+import { getMyRecentActivity } from "../../../src/lib/linear";
 import { getProfile } from "../../../src/lib/profile";
 import { getCultureScore } from "../../../src/lib/pills";
 import { supabase } from "../../../src/lib/supabase";
 import { addDays, formatDayShort } from "../../../src/lib/time";
-import { crossWork, fmtHours, commitsError, getHourlyRate, getOrgCommits, getPayments, getWork, minutesByDay, outstanding, workStats } from "../../../src/lib/work";
-import { refreshTomorrowAction, addPaymentAction, addExtraAction, addWorkAction, deletePaymentAction, deleteWorkAction, decideProposalAction, setProfileFactAction, setRateAction, setWorkHoursAction } from "../../actions/hub";
+import { fmtHours, getHourlyRate, getPayments, getWork, minutesByDay, outstanding, workStats } from "../../../src/lib/work";
+import { refreshTomorrowAction, addPaymentAction, addExtraAction, addWorkAction, decideProposalAction, setProfileFactAction, setRateAction } from "../../actions/hub";
 import { getTomorrowBrief } from "../../../src/lib/tomorrow";
 import { Icon } from "../Icon";
+
+const MOOD_DAYS = 14;
 
 export function Skeleton({ label }: { label: string }) {
   return (
@@ -129,149 +132,110 @@ async function TomorrowCard({ today }: { today: string }) {
 export async function WorkTracker() {
   const today = todayKey();
   const from = addDays(today, -(26 * 7));
-  const [entries, commits, payments, rate] = await Promise.all([getWork(from, today).catch(() => null), getOrgCommits(from, today), getPayments().catch(() => []), getHourlyRate().catch(() => null)]);
+  const since = addDays(today, -27);
+  const [entries, payments, rate, linear, repos] = await Promise.all([
+    getWork(from, today).catch(() => null),
+    getPayments().catch(() => []),
+    getHourlyRate().catch(() => null),
+    getMyRecentActivity(7).catch(() => null),
+    listRepos().catch(() => null),
+  ]);
   if (!entries) return <div className="card"><p className="muted small">Registro ore non disponibile: applica la migrazione <code>0016</code> su Supabase.</p></div>;
   const perDay = minutesByDay(entries);
-  const within = (n: number) => entries.filter((e) => e.day > addDays(today, -n));
-  const [w7, w28, w90] = [workStats(within(7)), workStats(within(28)), workStats(within(90))];
-  const commitCounts = commits ? Object.fromEntries(Object.entries(commits.byDay).map(([d, c]) => [d, c.commits])) : undefined;
-  const cross = commits ? crossWork(Object.fromEntries(Object.entries(perDay).filter(([d]) => d > addDays(today, -90))), Object.fromEntries(Object.entries(commits.byDay).filter(([d]) => d > addDays(today, -90)))) : null;
+  const last28 = Array.from({ length: 28 }, (_, i) => addDays(today, i - 27)).map((dayKey) => ({ dayKey, minutes: perDay[dayKey] ?? 0 }));
+  const w28 = workStats(entries.filter((e) => e.day > addDays(today, -28)));
   const due = outstanding(await getWork("2000-01-01", today).catch(() => entries), payments, rate);
+  const activeRepos = repos ? repos.filter((r) => r.updatedAt.slice(0, 10) >= since).length : null;
   return (
     <>
-      <TomorrowCard today={today} />
+      <div className="grid grid-kpi">
+        <div className="card kpi" style={{ ["--kpi" as string]: "#ff9f0a" }}>
+          <div className="kpi-top"><span>Da incassare</span></div>
+          <div className="kpi-value">{due.dueEur === null ? fmtHours(due.minutes) : `≈ ${due.dueEur.toLocaleString("it-IT")} €`}</div>
+          <div className="kpi-sub">{fmtHours(due.minutes)} dopo l&apos;ultimo pagamento{due.paidUntil ? ` (pagato fino al ${formatDayShort(due.paidUntil)})` : ""}</div>
+        </div>
+        <div className="card kpi" style={{ ["--kpi" as string]: "#30d158" }}>
+          <div className="kpi-top"><span>Issue Linear</span></div>
+          <div className="kpi-value">{linear ? linear.completed : "—"}<small>completate</small></div>
+          <div className="kpi-sub">{linear ? `${linear.updated} toccate negli ultimi 7 giorni` : "Linear non raggiungibile"}</div>
+        </div>
+        <div className="card kpi" style={{ ["--kpi" as string]: "#0a84ff" }}>
+          <div className="kpi-top"><span>Progetti GitHub attivi</span></div>
+          <div className="kpi-value">{activeRepos ?? "—"}</div>
+          <div className="kpi-sub">aggiornati negli ultimi 28 giorni</div>
+        </div>
+      </div>
+
       <div className="card">
-        <div className="card-head"><h3>Da incassare</h3><span className="muted small">{due.paidUntil ? `pagato fino al ${formatDayShort(due.paidUntil)}` : "nessun pagamento registrato"}</span></div>
-        <div className="kpi-value" style={{ fontSize: 26 }}>{due.dueEur === null ? fmtHours(due.minutes) : `≈ ${due.dueEur.toLocaleString("it-IT")} €`}</div>
-        <p className="muted small">{fmtHours(due.minutes)} in {due.days} giorni dopo l&apos;ultimo pagamento{due.extraEur ? `, trasferte/extra ${due.extraEur > 0 ? "+" : "−"}${Math.abs(due.extraEur).toLocaleString("it-IT")} €` : ""}{rate ? ` · tariffa ${rate} €/h` : " · imposta la tariffa per vedere gli euro"}{due.received ? ` · incassato finora (registrato): ${due.received.toLocaleString("it-IT")} €` : ""}</p>
-        <form action={addPaymentAction} className="hub-form">
+        <div className="card-head"><h3>Ore lavorate — ultime 4 settimane</h3><span className="muted small">{fmtHours(w28.totalMinutes)} in {w28.daysWorked} giorni</span></div>
+        <DayBars days={last28} />
+      </div>
+
+      <details className="card">
+        <summary className="muted small" style={{ cursor: "pointer" }}>Registra ore, pagamenti o trasferte</summary>
+        <form action={addWorkAction} className="hub-form" style={{ marginTop: 10 }}>
+          <input name="day" type="date" defaultValue={today} max={today} required style={{ width: 150 }} />
+          <input name="hours" type="number" step="0.25" min="0.25" max="24" placeholder="ore" required />
+          <input name="task" placeholder="cosa hai fatto" maxLength={200} required style={{ flex: 1, minWidth: 160 }} />
+          <select name="type" defaultValue=""><option value="">tipo…</option><option>Feature request</option><option>Bug</option><option>Polish</option><option>Call</option><option>Assistenza</option></select>
+          <button type="submit">Aggiungi ore</button>
+        </form>
+        <form action={addPaymentAction} className="hub-form" style={{ marginTop: 10 }}>
           <input name="paidOn" type="date" defaultValue={today} max={today} required style={{ width: 150 }} title="Data in cui è arrivato il pagamento" />
           <input name="amount" type="number" step="0.01" placeholder="quota €" style={{ width: 100 }} />
           <input name="coversUntil" type="date" defaultValue={today} max={today} required style={{ width: 150 }} title="Il pagamento copre le ore fino a questo giorno" />
           <input name="note" placeholder="nota (opzionale)" maxLength={200} />
           <button type="submit">Registra pagamento</button>
         </form>
-        <p className="muted small">Data ricevuto · quota · coperto fino al.</p>
-        {payments.slice(0, 6).map((p) => (
-          <div className="agenda-row" key={p.id}>
-            <span className="time">{formatDayShort(p.paidOn)}</span>
-            <span style={{ flex: 1 }}>{p.amountEur === null ? "importo n/d" : `${p.amountEur.toLocaleString("it-IT")} €`}<span className="muted small"> · coperto fino al {formatDayShort(p.coversUntil)}{p.note ? ` · ${p.note}` : ""}</span></span>
-            <form action={deletePaymentAction}><input type="hidden" name="id" value={p.id} /><button type="submit" className="muted small" aria-label="Elimina"><Icon name="close" size={14} /></button></form>
-          </div>
-        ))}
-        <form action={setRateAction} className="hub-form" style={{ marginTop: 8 }}>
-          <input name="rate" type="number" step="0.5" min="1" defaultValue={rate ?? ""} placeholder="€/h" style={{ width: 90 }} />
-          <button type="submit">Aggiorna tariffa</button>
-        </form>
-      </div>
-      <div className="grid grid-kpi">
-        {[["7 giorni", w7], ["28 giorni", w28], ["90 giorni", w90]].map(([label, st]) => {
-          const x = st as ReturnType<typeof workStats>;
-          return (
-            <div key={label as string} className="card kpi" style={{ ["--kpi" as string]: "#ff9f0a" }}>
-              <div className="kpi-top"><span>{label as string}</span></div>
-              <div className="kpi-value" style={{ fontSize: 22 }}>{fmtHours(x.totalMinutes)}</div>
-              <div className="kpi-sub">{x.daysWorked} giorni lavorati{x.avgMinutesPerWorkedDay ? ` · ${fmtHours(x.avgMinutesPerWorkedDay)} al giorno` : ""}{rate ? ` · ≈ ${Math.round((x.totalMinutes / 60) * rate + x.extraEur).toLocaleString("it-IT")} €` : ""}</div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="card">
-        <div className="card-head"><h3>Registra ore</h3><span className="muted small">come il Tasks Tracker di Notion</span></div>
-        <form action={addWorkAction} className="hub-form">
-          <input name="day" type="date" defaultValue={today} max={today} required style={{ width: 150 }} />
-          <input name="hours" type="number" step="0.25" min="0.25" max="24" placeholder="ore" required />
-          <input name="task" placeholder="cosa hai fatto" maxLength={200} required style={{ flex: 1, minWidth: 160 }} />
-          <select name="type" defaultValue=""><option value="">tipo…</option><option>Feature request</option><option>Bug</option><option>Polish</option><option>Call</option><option>Assistenza</option></select>
-          <button type="submit">Aggiungi</button>
-        </form>
-      </div>
-      <div className="card">
-        <div className="card-head"><h3>Trasferte e detrazioni</h3><span className="muted small">importi senza ore: entrano nel «Da incassare»</span></div>
-        <form action={addExtraAction} className="hub-form">
+        <form action={addExtraAction} className="hub-form" style={{ marginTop: 10 }}>
           <input name="day" type="date" defaultValue={today} max={today} required style={{ width: 150 }} />
           <select name="kind" defaultValue="Trasferta"><option>Trasferta</option><option>Detrazione</option><option>Extra</option></select>
           <input name="amount" type="number" step="0.01" min="0.01" defaultValue={50} required style={{ width: 100 }} title="Importo in € (sempre positivo: la detrazione viene sottratta da sola)" />
           <input name="note" placeholder="nota (es. telefono aziendale)" maxLength={150} style={{ flex: 1, minWidth: 160 }} />
-          <button type="submit">Aggiungi</button>
+          <button type="submit">Aggiungi extra</button>
         </form>
-        <p className="muted small">Trasferta: 50 € al giorno (modificabile). Detrazione: importo da togliere, es. 600 € per il telefono.</p>
-      </div>
-      <div className="card">
-        <div className="card-head"><h3>Giorni lavorati</h3><span className="muted small">ultime 26 settimane</span></div>
-        <WorkHeatmap today={today} minutes={perDay} commits={commitCounts} />
-        {cross ? (
-          <p className="muted small">
-            Incrocio con GitHub ({commits!.org} · {commits!.user}, ultimi 90 giorni): {cross.both} giorni con ore e commit, {cross.hoursOnly} con ore ma senza commit (call, assistenza, analisi…){cross.commitsOnly.length ? `, ${cross.commitsOnly.length} con commit ma senza ore registrate${cross.commitsOnly.length <= 6 ? ` (${cross.commitsOnly.map(formatDayShort).join(", ")})` : ""}` : ""}.
-            {commits!.reposFailed ? ` ${commits!.reposFailed} repo non leggibili.` : ""}
-          </p>
-        ) : (
-          <p className="muted small">Incrocio coi commit non disponibile: {commitsError() ?? "motivo sconosciuto"}.</p>
-        )}
-      </div>
-      <div className="card">
-        <div className="card-head"><h3>Ultime registrazioni</h3>{w28.byType.length > 0 && <span className="muted small">28 gg: {w28.byType.slice(0, 3).map((t) => `${t.type} ${fmtHours(t.minutes)}`).join(" · ")}</span>}</div>
-        {entries.slice(0, 15).map((e) => (
-          <div className="agenda-row" key={e.id}>
-            <span className="time">{formatDayShort(e.day)}</span>
-            <span style={{ flex: 1 }}>{e.task}{e.taskType ? <span className="muted small"> · {e.taskType}</span> : null}{e.source === "auto" ? <span className="muted small"> · riassunto automatico</span> : null}{e.details ? <span className="muted small" style={{ display: "block", whiteSpace: "pre-line" }}>{e.details}</span> : null}</span>
-            {e.minutes === 0 && e.extraEur === null ? (
-              <form action={setWorkHoursAction} className="hub-form"><input type="hidden" name="id" value={e.id} /><input name="hours" type="number" step="0.25" min="0" max="24" placeholder="ore?" style={{ width: 70 }} /><button type="submit">OK</button></form>
-            ) : (
-              <span className="muted small">{e.minutes ? fmtHours(e.minutes) : e.extraEur !== null ? `${e.extraEur > 0 ? "+" : "−"}${Math.abs(e.extraEur).toLocaleString("it-IT")} €` : "—"}</span>
-            )}
-            <form action={deleteWorkAction}><input type="hidden" name="id" value={e.id} /><button type="submit" className="muted small" aria-label="Elimina" title="Elimina"><Icon name="close" size={14} /></button></form>
-          </div>
-        ))}
-      </div>
+        <form action={setRateAction} className="hub-form" style={{ marginTop: 10 }}>
+          <input name="rate" type="number" step="0.5" min="1" defaultValue={rate ?? ""} placeholder="€/h" style={{ width: 90 }} />
+          <button type="submit">Aggiorna tariffa</button>
+        </form>
+      </details>
     </>
   );
 }
 
 export async function MoodPanel() {
-  const { hist, factors } = await getMoodFactors(90).catch(() => ({ hist: null, factors: [] }));
+  const [hist, social] = await Promise.all([getMoodHistory(MOOD_DAYS).catch(() => null), getSocialCount(14).catch(() => null)]);
   if (!hist) return <div className="card"><p className="muted small">Diario non disponibile: applica la migrazione <code>0016</code> su Supabase.</p></div>;
   const today = todayKey();
-  const recent = hist.filter((d) => d.day > addDays(today, -30));
-  const pts = recent.flatMap((d, i) => {
-    const v = moodIndex(d.scores);
-    return v === null ? [] : [{ x: i, y: v, label: d.day }];
+  const days = Array.from({ length: MOOD_DAYS }, (_, i) => addDays(today, i - (MOOD_DAYS - 1)));
+  const byDay = new Map(hist.map((d) => [d.day, d]));
+  const pts = days.flatMap((day, i) => {
+    const v = moodIndex(byDay.get(day)?.scores ?? {});
+    return v === null ? [] : [{ x: i, y: v, label: day }];
   });
-  const last7 = hist.filter((d) => d.day > addDays(today, -7));
-  const todayRow = hist.find((d) => d.day === today);
+  const todayRow = byDay.get(today);
+  const done = days.filter((d) => byDay.get(d)?.completed).length;
   return (
     <>
       <div className="card">
-        <div className="card-head"><h3>Diario di oggi</h3><span className="muted small">{todayRow?.completed ? "completo" : "tocca un numero · 1 male, 5 benissimo (stress: 5 = tantissimo)"}</span></div>
-        <MoodDiary aspects={MOOD_ASPECTS.map((a) => ({ key: a.key, label: a.label, question: a.question }))} scores={todayRow?.scores ?? {}} />
-        <p className="muted small" style={{ marginTop: 6 }}>Stress: 5 = tantissimo. Il promemoria arriva alle 22 come notifica (e su Telegram).</p>
+        <div className="card-head"><h3>Umore · ultime 2 settimane</h3><span className="muted small">{todayRow?.completed ? "check-in di oggi fatto" : "il check-in arriva alle 22"}</span></div>
+        {pts.length >= 2 ? <AreaLine points={pts} color="#bf5af2" height={180} yFormat={(v) => `${Math.round(v)}`} xFormat={(v) => formatDayShort(days[Math.round(v)] ?? today)} /> : <p className="muted small">Servono almeno due sere di diario per disegnare l&apos;andamento.</p>}
       </div>
       <div className="card">
-        <div className="card-head"><h3>Umore · ultimi 30 giorni</h3><span className="muted small">{todayRow?.completed ? "check-in di oggi fatto" : "il check-in arriva alle 22"}</span></div>
-        {pts.length >= 2 ? <AreaLine points={pts} color="#bf5af2" height={180} xFormat={(v) => formatDayShort(recent[Math.round(v)]?.day ?? today)} /> : <p className="muted small">Servono almeno due sere di diario per disegnare l&apos;andamento.</p>}
+        <div className="card-head"><h3>Costanza</h3><span className="muted small">{done}/{MOOD_DAYS} check-in{social !== null ? ` · ${social} ${social === 1 ? "contatto sociale" : "contatti sociali"} in 14 giorni` : ""}</span></div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {days.map((d) => {
+            const ok = byDay.get(d)?.completed;
+            return <span key={d} title={`${formatDayShort(d)}: ${ok ? "check-in fatto" : "nessun check-in"}`} style={{ width: 18, height: 18, borderRadius: 9, background: ok ? "#bf5af2" : "var(--faint)", opacity: ok ? 1 : 0.5, outline: d === today ? "2px solid var(--muted)" : undefined }} />;
+          })}
+        </div>
       </div>
-      <div className="card">
-        <div className="card-head"><h3>Aspetti</h3><span className="muted small">media ultimi 7 giorni</span></div>
-        {MOOD_ASPECTS.map((a) => {
-          const vals = last7.flatMap((d) => (typeof d.scores[a.key] === "number" ? [aspectScore(a.key, d.scores[a.key] as number)] : []));
-          const avg = vals.length ? Math.round(vals.reduce((x, y) => x + y, 0) / vals.length) : null;
-          return (
-            <div className="agenda-row" key={a.key}>
-              <span className="time">{a.label}</span>
-              <div className="hub-bar" style={{ flex: 1, margin: 0 }}><i style={{ width: `${avg ?? 0}%`, background: "#bf5af2" }} /></div>
-              <span className="muted small">{avg === null ? "—" : avg}</span>
-            </div>
-          );
-        })}
-      </div>
-      <div className="card">
-        <div className="card-head"><h3>Cosa si muove con l&apos;umore</h3><span className="muted small">correlazioni, non cause</span></div>
-        {factors.map((f) => <p key={f.key} className="muted small" style={{ margin: "4px 0" }}>{describeFactor(f)}</p>)}
-      </div>
-      <div className="card">
-        <div className="card-head"><h3>Nota di oggi</h3></div>
-        <MoodNote initial={todayRow?.note ?? ""} />
-      </div>
+      <details className="card" open={!todayRow?.completed}>
+        <summary className="muted small" style={{ cursor: "pointer" }}>Diario di oggi · tocca un numero (1 male, 5 benissimo; stress: 5 = tantissimo)</summary>
+        <div style={{ marginTop: 10 }}>
+          <MoodDiary aspects={MOOD_ASPECTS.map((a) => ({ key: a.key, label: a.label, question: a.question }))} scores={todayRow?.scores ?? {}} />
+        </div>
+      </details>
     </>
   );
 }

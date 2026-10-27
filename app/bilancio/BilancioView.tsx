@@ -1,71 +1,8 @@
-import { getLifeBalance } from "../../src/lib/balance";
-import { getEnergyOverview, PROFILE, type EnergyDay, type EnergyOverview } from "../../src/lib/energy";
-import { addDays, formatDayShort, todayKey, weekdayShort } from "../../src/lib/time";
-import { RadarChart } from "../components/viz/RadarChart";
-import { InsightGlyph } from "../components/Icon";
+import { getEnergyOverview, type EnergyOverview } from "../../src/lib/energy";
+import { addDays, formatDayShort, todayKey } from "../../src/lib/time";
 
 const it = (n: number, d = 0) => n.toLocaleString("it-IT", { maximumFractionDigits: d, minimumFractionDigits: d });
 const sgn = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${it(Math.abs(n))}`;
-
-/** Barre divergenti: sopra la linea il deficit (hai mangiato meno di quanto consumi), sotto il surplus. */
-function DeficitBars({ days }: { days: EnergyDay[] }) {
-  const W = 760;
-  const H = 230;
-  const mid = 120;
-  const bw = W / days.length;
-  const maxAbs = Math.max(800, ...days.map((d) => Math.abs(d.deficit ?? 0)));
-  const scale = 95 / maxAbs;
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="viz" role="img" aria-label="Deficit calorico giornaliero">
-      <line x1="0" x2={W} y1={mid} y2={mid} stroke="rgba(120,170,220,0.4)" />
-      {[500, 1000].filter((v) => v <= maxAbs).map((v) => (
-        <g key={v}>
-          <line x1="0" x2={W} y1={mid - v * scale} y2={mid - v * scale} stroke="rgba(120,170,220,0.1)" strokeDasharray="3 5" />
-          <text x="2" y={mid - v * scale - 3} fontSize="9" fill="var(--muted)" fontFamily="var(--mono)">+{v}</text>
-        </g>
-      ))}
-      {days.map((d, i) => {
-        const x = i * bw + bw * 0.18;
-        const w = bw * 0.64;
-        const def = d.deficit;
-        const h = def === null ? 0 : Math.abs(def) * scale;
-        const up = (def ?? 0) >= 0;
-        const color = up ? "#30d158" : "#ff9f0a";
-        return (
-          <g key={d.dayKey}>
-            <title>
-              {`${formatDayShort(d.dayKey)} — ${def === null ? "pasti non registrati" : `${up ? "deficit" : "surplus"} ${it(Math.abs(def))} kcal`}\nmangiate ${d.intake ? it(d.intake) : "—"} · fabbisogno ${it(d.expenditure)} (passi ${sgn(d.stepsAdj)}, allenamento ${sgn(d.trainingAdj)})`}
-            </title>
-            {def === null ? (
-              <rect x={x} y={mid - 3} width={w} height={6} rx="2" fill="none" stroke="var(--muted)" strokeDasharray="2 2" />
-            ) : (
-              <rect
-                x={x}
-                y={up ? mid - h : mid}
-                width={w}
-                height={Math.max(2, h)}
-                rx="3"
-                fill={color}
-                fillOpacity={d.isToday ? 0.35 : 0.8}
-                stroke={d.isToday ? color : "none"}
-                strokeDasharray={d.isToday ? "3 3" : undefined}
-                style={{ filter: d.isToday ? undefined : `drop-shadow(0 0 5px ${color}88)` }}
-              />
-            )}
-            {def !== null && (
-              <text x={x + w / 2} y={up ? mid - h - 5 : mid + h + 11} textAnchor="middle" fontSize="9.5" fontFamily="var(--mono)" fill="#e6edf3">
-                {sgn(def)}
-              </text>
-            )}
-            <text x={x + w / 2} y={H - 8} textAnchor="middle" fontSize="9" fontFamily="var(--mono)" fill={d.isToday ? "#0a84ff" : "var(--muted)"}>
-              {weekdayShort(d.dayKey).slice(0, 3)} {d.dayKey.slice(8)}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
 
 /** Peso reale (ultimi 60 giorni) e proiezione a 3 settimane con fascia d'incertezza. */
 function WeightChart({ ov }: { ov: EnergyOverview }) {
@@ -142,124 +79,47 @@ function WeightChart({ ov }: { ov: EnergyOverview }) {
 }
 
 export async function BilancioView() {
-  const [ov, balance] = await Promise.all([getEnergyOverview(30), getLifeBalance()]);
-  const t = ov.today;
-  const left = t.logged ? t.expenditure - (t.intake as number) : null;
-  const last14 = ov.days.slice(-14);
-  const rel = { bassa: "var(--c-warn)", media: "var(--accent)", buona: "var(--c-good)" }[ov.reliability];
+  const ov = await getEnergyOverview(30);
+  const today = todayKey();
+
+  const recent = ov.weights.filter((w) => w.dayKey >= addDays(today, -30));
+  const change = recent.length >= 2 ? ov.currentKg - recent[0].kg : null;
+  const complete = ov.days.filter((d) => d.logged && !d.isToday && d.intake !== null);
+  const avg = (f: (d: (typeof complete)[number]) => number) => (complete.length ? complete.reduce((a, d) => a + f(d), 0) / complete.length : null);
+  const eaten = avg((d) => d.intake as number);
+  const burned = avg((d) => d.expenditure);
 
   return (
     <>
-      <div className="eyebrow">Bilancio energetico</div>
-      <h2>Deficit, fabbisogno e proiezione</h2>
-      <p className="page-sub">
-        Fabbisogno = quanto consumi a zero attività ({it(PROFILE.restingKcal)} kcal, giornata in casa a lavorare e studiare) più, ogni giorno, i passi e
-        l&apos;allenamento reali. Confrontato con le calorie registrate da Yazio. È una stima, non una misura.
-      </p>
-
       <div className="hud-tiles">
-        <div className="tile" style={{ ["--t" as string]: "#30d158" }}>
-          <div className="t-lbl">Oggi (finora)</div>
-          <div className="t-val">{left === null ? "—" : sgn(left)}<small>kcal</small></div>
-          <div className="t-sub">{left === null ? "nessun pasto registrato" : left >= 0 ? "margine rimasto prima del fabbisogno" : "oltre il fabbisogno"}</div>
-        </div>
         <div className="tile" style={{ ["--t" as string]: "#0a84ff" }}>
-          <div className="t-lbl">Ultimi 7 giorni</div>
-          <div className="t-val">{ov.week.days ? sgn(ov.week.deficit) : "—"}<small>kcal</small></div>
-          <div className="t-sub">{ov.week.days ? `${ov.week.deficit >= 0 ? "deficit" : "surplus"} su ${ov.week.days} giorni registrati` : "servono giorni completi"}</div>
+          <div className="t-lbl">Peso attuale</div>
+          <div className="t-val">{it(ov.currentKg, 1)}<small>kg</small></div>
+          <div className="t-sub">{change === null ? "servono due pesate nell'ultimo mese" : `${change > 0 ? "+" : change < 0 ? "−" : ""}${it(Math.abs(change), 1)} kg negli ultimi 30 giorni`}</div>
+        </div>
+        <div className="tile" style={{ ["--t" as string]: "#ff9f0a" }}>
+          <div className="t-lbl">Calorie · media 30 gg</div>
+          <div className="t-val">{eaten === null ? "—" : it(eaten)}<small>mangiate</small></div>
+          <div className="t-sub">{burned === null ? "nessun giorno completo" : `${it(burned)} bruciate (basale + passi + allenamento) su ${complete.length} giorni`}</div>
         </div>
         <div className="tile" style={{ ["--t" as string]: "#bf5af2" }}>
-          <div className="t-lbl">Media giornaliera · 30 gg</div>
+          <div className="t-lbl">Bilancio medio</div>
           <div className="t-val">{ov.month.avgDeficit === null ? "—" : sgn(ov.month.avgDeficit)}<small>kcal/giorno</small></div>
-          <div className="t-sub">su {ov.month.days} giorni completi</div>
+          <div className="t-sub">{ov.month.avgDeficit === null ? "senza dati" : ov.month.avgDeficit >= 0 ? "deficit: consumi più di quanto mangi" : "surplus: mangi più di quanto consumi"}</div>
         </div>
         <div className="tile" style={{ ["--t" as string]: "#ff375f" }}>
           <div className="t-lbl">Tra 3 settimane</div>
           <div className="t-val">{ov.projection ? it(ov.projection.endKg, 1) : "—"}<small>kg</small></div>
-          <div className="t-sub">{ov.projection ? `${ov.projection.lossKg >= 0 ? "−" : "+"}${it(Math.abs(ov.projection.lossKg), 1)} kg dai ${it(ov.currentKg, 1)} attuali` : "senza dati sufficienti"}</div>
-        </div>
-        <div className="tile" style={{ ["--t" as string]: rel }}>
-          <div className="t-lbl">Affidabilità stima</div>
-          <div className="t-val" style={{ fontSize: 20, textTransform: "uppercase" }}>{ov.reliability}</div>
-          <div className="t-sub">{ov.month.days} giorni di dati</div>
+          <div className="t-sub">{ov.projection ? `${ov.projection.lossKg >= 0 ? "−" : "+"}${it(Math.abs(ov.projection.lossKg), 1)} kg se continui così` : "senza dati sufficienti"}</div>
         </div>
       </div>
 
-      <div className="grid grid-12" style={{ marginBottom: 18 }}>
-        <div className="card">
-          <div className="card-head">
-            <h3>Deficit giornaliero · 14 giorni</h3>
-            <span className="muted small">verde = deficit · arancio = surplus · tratteggio = pasti non registrati</span>
-          </div>
-          <DeficitBars days={last14} />
+      <div className="card">
+        <div className="card-head">
+          <h3>Peso e proiezione</h3>
+          <span className="muted small">blu = pesate · rosa tratteggiato = proiezione con la media calorica dell&apos;ultimo mese (fascia ±25%)</span>
         </div>
-
-        <div className="card">
-          <div className="card-head"><h3>Come ho calcolato oggi</h3></div>
-          <table>
-            <tbody>
-              <tr><td>A zero attività</td><td style={{ textAlign: "right" }}><b>{it(PROFILE.restingKcal)}</b></td></tr>
-              <tr><td>Passi ({it(t.steps)}, oltre {it(PROFILE.baselineSteps)} di base)</td><td style={{ textAlign: "right" }}><b>{sgn(t.stepsAdj)}</b></td></tr>
-              <tr><td>Allenamento ({t.trainingMin} min)</td><td style={{ textAlign: "right" }}><b>{sgn(t.trainingAdj)}</b></td></tr>
-              <tr><td><b>Fabbisogno stimato</b></td><td style={{ textAlign: "right" }}><b className="hud-num">{it(t.expenditure)}</b></td></tr>
-              <tr><td>Calorie mangiate (Yazio)</td><td style={{ textAlign: "right" }}><b>{t.intake ? it(t.intake) : "—"}</b></td></tr>
-              <tr><td><b>{t.deficit !== null && t.deficit < 0 ? "Surplus" : "Deficit"} se la giornata finisse ora</b></td><td style={{ textAlign: "right" }}><b className="hud-num" style={{ color: (t.deficit ?? 0) >= 0 ? "var(--c-good)" : "var(--c-warn)" }}>{t.deficit === null ? "—" : sgn(Math.abs(t.deficit))}</b></td></tr>
-            </tbody>
-          </table>
-          <div className="note">Oggi non è finito: cena e spuntini non ancora registrati abbassano il deficit finale.</div>
-        </div>
-      </div>
-
-      <div className="grid grid-12" style={{ marginBottom: 18 }}>
-        <div className="card">
-          <div className="card-head">
-            <h3>Peso e proiezione</h3>
-            <span className="muted small">stessa media dell&apos;ultimo mese per 3 settimane · fascia = ±25% di incertezza</span>
-          </div>
-          <WeightChart ov={ov} />
-        </div>
-        <div className="card">
-          <div className="card-head"><h3>Insight</h3></div>
-          <ul className="insight-list">
-            {ov.insights.map((i, k) => (
-              <li key={k} className={i.tone}><span className="ic"><InsightGlyph glyph={i.icon} /></span><span>{i.text}</span></li>
-            ))}
-          </ul>
-        </div>
-      </div>
-
-      <div className="grid grid-12">
-        <div className="card">
-          <div className="card-head">
-            <h3>Equilibrio della settimana</h3>
-            <span className="muted small">{balance.index !== null ? `indice ${balance.index}/100` : "dati insufficienti"} · tratteggio = 70</span>
-          </div>
-          <RadarChart axes={balance.axes.map((a) => ({ label: a.label, value: a.score }))} />
-          <ul className="insight-list" style={{ marginTop: 12 }}>
-            {balance.insights.map((i, k) => (
-              <li key={k} className={i.tone}><span className="ic"><InsightGlyph glyph={i.icon} /></span><span>{i.text}</span></li>
-            ))}
-          </ul>
-        </div>
-        <div className="card">
-          <div className="card-head"><h3>Da dove vengono i punteggi</h3></div>
-          <table>
-            <thead><tr><th>Asse</th><th>Punti</th><th>Dettaglio</th></tr></thead>
-            <tbody>
-              {balance.axes.map((a) => (
-                <tr key={a.key}>
-                  <td>{a.label}</td>
-                  <td><b className="hud-num">{a.score ?? "n/d"}</b></td>
-                  <td className="muted small">{a.detail}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="note">
-            Ipotesi del modello (modificabili in <code>src/lib/energy.ts</code> e <code>src/lib/balance.ts</code>): {it(PROFILE.kcalPerStep, 3)} kcal per passo, {it(PROFILE.kcalPerKgFat)} kcal per kg di grasso,
-            giorni con meno di {it(PROFILE.minLoggedKcal)} kcal registrate esclusi dal calcolo, camminate Strava non contate due volte.
-          </div>
-        </div>
+        <WeightChart ov={ov} />
       </div>
     </>
   );

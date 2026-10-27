@@ -70,19 +70,8 @@ export async function CostiView() {
     <>
       <div className="eyebrow">Costi e token</div>
       <h2>Quanto consuma il bot</h2>
-      <p className="page-sub">Spesa e token delle chiamate OpenAI (chat, trascrizione, voce, embeddings) negli ultimi 30 giorni.</p>
-
+      
       <div className="hud-tiles">
-        <div className="tile" style={{ ["--t" as string]: "#0a84ff" }}>
-          <div className="t-lbl">Oggi</div>
-          <div className="t-val">{usd(u.totalCostUsdToday)}</div>
-          <div className="t-sub">spesa di oggi</div>
-        </div>
-        <div className="tile" style={{ ["--t" as string]: "#30d158" }}>
-          <div className="t-lbl">Ultimi 7 giorni</div>
-          <div className="t-val">{usd(u.totalCostUsd7d)}</div>
-          <div className="t-sub">media {usd(u.totalCostUsd7d / 7)}/giorno</div>
-        </div>
         <div className="tile" style={{ ["--t" as string]: "#bf5af2" }}>
           <div className="t-lbl">Ultimi 30 giorni</div>
           <div className="t-val">{usd(u.totalCostUsd30d)}</div>
@@ -96,7 +85,7 @@ export async function CostiView() {
         </div>
       </div>
 
-      <div className="grid grid-12" style={{ marginBottom: 18 }}>
+      <div style={{ marginBottom: 18 }}>
         <div className="card">
           <div className="card-head">
             <h3>Spesa giornaliera · 14 giorni</h3>
@@ -104,41 +93,8 @@ export async function CostiView() {
           {last14.length ? <DailyCostBars days={last14} /> : <p className="muted small">Nessun dato ancora per questo periodo.</p>}
         </div>
 
-        <div className="card">
-          <div className="card-head">
-            <h3>Per modello · 30 giorni</h3>
-          </div>
-          {u.byModel.length ? (
-            <table>
-              <thead>
-                <tr>
-                  <th>Modello</th>
-                  <th>Richieste</th>
-                  <th>Token in</th>
-                  <th>Token out</th>
-                </tr>
-              </thead>
-              <tbody>
-                {u.byModel.map((m) => (
-                  <tr key={m.model}>
-                    <td>{m.model}</td>
-                    <td>{tok(m.requests)}</td>
-                    <td>{tok(m.inputTokens)}</td>
-                    <td>{tok(m.outputTokens)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <p className="muted small">Nessun dato per modello in questo periodo.</p>
-          )}
-        </div>
       </div>
 
-      <div className="note">
-        Il credito residuo è una stima (ricarica dichiarata meno spesa degli ultimi 30 giorni), non un saldo live: OpenAI
-        non espone il saldo prepagato tramite API pubblica, solo tramite la dashboard.
-      </div>
     </>
   );
 }
