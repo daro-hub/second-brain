@@ -1,5 +1,5 @@
 import { addMinutes, describeOverlap, findOverlaps, formatWhen, matchEvents, minutesBetween, POINT_MAX_MIN, type CalendarOp } from "./agenda";
-import { createEvent, deleteEvent, getEventsInRange, isStudySyncEvent, renameEvent, updateEventTime } from "./calendar";
+import { createEvent, deleteEvent, getEventsInRange, isStudySyncEvent, renameEvent, updateEventDetails, updateEventTime } from "./calendar";
 import { bold, escapeHtml } from "./format";
 import { GoogleAuthError } from "./googleAuth";
 import { reportError } from "./report";
@@ -28,7 +28,7 @@ export async function applyCalendarOps(ops: CalendarOp[]): Promise<{ text: strin
 
       const { from, to } = dayRangeUtc(op.date);
       // rinomina e cancella valgono anche per gli eventi 📚/🎓 (spesso sono proprio quelli sbagliati); lo spostamento no
-      const editsAny = op.op === "rename" || op.op === "delete";
+      const editsAny = op.op === "rename" || op.op === "delete" || op.op === "details";
       const found = matchEvents((await getEventsInRange(from, to)).filter((e) => !e.allDay && (editsAny || !isStudySyncEvent(e.summary))), op.match);
       if (found.length === 0) {
         lines.push(`⚠️ Non ho trovato nessun evento "${escapeHtml(op.match)}" il ${formatDayLong(op.date)}: non ho cambiato nulla.`);
@@ -43,11 +43,19 @@ export async function applyCalendarOps(ops: CalendarOp[]): Promise<{ text: strin
         lines.push(`⚠️ Non riesco a modificare "${escapeHtml(ev.summary)}".`);
         continue;
       }
-      if (op.op === "rename" || op.op === "delete") {
+      if (op.op === "rename" || op.op === "delete" || op.op === "details") {
         try {
           if (op.op === "delete") {
             await deleteEvent({ id: ev.id, calendarId: ev.calendarId, account: ev.account });
             lines.push(`🗑️ Cancellato: ${bold(escapeHtml(ev.summary))} — ${formatDayLong(op.date)}, ${formatWhen(ev)}`);
+          } else if (op.op === "details") {
+            if (op.location === undefined && op.description === undefined) {
+              lines.push(`⚠️ Non mi hai detto cosa cambiare di "${escapeHtml(ev.summary)}" (luogo o descrizione): non ho cambiato nulla.`);
+              continue;
+            }
+            await updateEventDetails({ id: ev.id, calendarId: ev.calendarId, account: ev.account }, { location: op.location, description: op.description });
+            const what = [op.location !== undefined ? `luogo: ${op.location ? escapeHtml(op.location) : "rimosso"}` : "", op.description !== undefined ? (op.description ? "descrizione aggiornata" : "descrizione rimossa") : ""].filter(Boolean).join(", ");
+            lines.push(`✏️ ${bold(escapeHtml(ev.summary))} (${formatWhen(ev)}): ${what}`);
           } else {
             const renamed = await renameEvent({ id: ev.id, calendarId: ev.calendarId, account: ev.account }, op.summary);
             lines.push(`✏️ Rinominato: ${bold(escapeHtml(ev.summary))} → ${bold(escapeHtml(renamed.summary))} (${formatWhen(ev)})`);

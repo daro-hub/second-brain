@@ -203,3 +203,32 @@ export async function commentOnIssue(identifier: string, body: string): Promise<
   if (!data.commentCreate.success || !data.commentCreate.comment) throw new Error("Linear non ha salvato il commento");
   return { url: data.commentCreate.comment.url };
 }
+
+/** Cambia titolo, descrizione e/o stato (per nome, es. "In Progress", "Done") di un'issue. Solo su richiesta chiara. */
+export async function updateIssue(identifier: string, patch: { title?: string; description?: string; stateName?: string }): Promise<LinearIssue> {
+  const found = await query<{ issue: { id: string; team: { states: { nodes: Array<{ id: string; name: string }> } } } | null }>(
+    `query($id: String!) { issue(id: $id) { id team { states { nodes { id name } } } } }`,
+    { id: identifier },
+  );
+  if (!found.issue) throw new Error(`Issue ${identifier} non trovata`);
+  const input: Record<string, unknown> = {};
+  if (patch.title !== undefined) input.title = patch.title;
+  if (patch.description !== undefined) input.description = patch.description;
+  if (patch.stateName !== undefined) {
+    const states = found.issue.team.states.nodes;
+    const want = patch.stateName.trim().toLowerCase();
+    const state = states.find((s) => s.name.toLowerCase() === want) ?? states.find((s) => s.name.toLowerCase().includes(want));
+    if (!state) throw new Error(`Stato "${patch.stateName}" non trovato (disponibili: ${states.map((s) => s.name).join(", ")})`);
+    input.stateId = state.id;
+  }
+  if (!Object.keys(input).length) throw new Error("Niente da cambiare");
+  const data = await query<{ issueUpdate: { success: boolean; issue: { identifier: string; title: string; url: string; state: { name: string }; assignee: { name: string } | null } | null } }>(
+    `mutation($id: String!, $input: IssueUpdateInput!) {
+      issueUpdate(id: $id, input: $input) { success issue { identifier title url state { name } assignee { name } } }
+    }`,
+    { id: found.issue.id, input },
+  );
+  const issue = data.issueUpdate.issue;
+  if (!data.issueUpdate.success || !issue) throw new Error("Linear non ha aggiornato l'issue");
+  return { identifier: issue.identifier, title: issue.title, url: issue.url, state: issue.state.name, assignee: issue.assignee?.name ?? null };
+}

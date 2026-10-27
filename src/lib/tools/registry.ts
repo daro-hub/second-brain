@@ -2,11 +2,11 @@ import { z } from "zod";
 import { applyCalendarOps, deleteEventsInRange } from "../calendarEdit";
 import { getEventsInRange, getUpcomingEvents } from "../calendar";
 import { createEmailDraft, searchEmails } from "../gmail";
-import { commentRepoIssue, createRepoIssue, getRepoInfo, listRepos } from "../github";
+import { commentRepoIssue, createRepoIssue, getRepoInfo, listRepos, updateRepoIssue } from "../github";
 import { getMetricSummary } from "../health";
 import { deleteDocument, ingest, updateDocument } from "../ingest";
 import { KNOWLEDGE_AREAS, logKnowledge, logSocial, saveReflection } from "../knowledge";
-import { commentOnIssue, createIssue, getIssueDetail, getMyOpenIssues, searchIssues } from "../linear";
+import { commentOnIssue, createIssue, getIssueDetail, getMyOpenIssues, searchIssues, updateIssue } from "../linear";
 import { getMood, getMoodHistory, MOOD_ASPECTS, saveMoodAnswer, saveMoodNote } from "../mood";
 import { getOpenAiUsageSummary } from "../openaiUsage";
 import { formatProfile, getProfile, setProfileFact } from "../profile";
@@ -140,6 +140,9 @@ export const TOOLS: ToolDef[] = [
     return { ok: true };
   }),
   tool("uni_exam_delete", true, "Toglie un esame pianificato (id da university).", z.object({ id: z.number().int().positive() }), async (a) => ({ deleted: await deleteExam(a.id) })),
+  tool("calendar_edit_details", true, "Cambia luogo e/o descrizione di un evento esistente (cercato per titolo nel giorno indicato). Stringa vuota = svuota il campo.", z.object({ match: z.string().describe("parte del titolo"), date, location: z.string().optional(), description: z.string().optional() }), async (a) => (await applyCalendarOps([{ op: "details", match: a.match, date: a.date, location: a.location, description: a.description }])).text),
+  tool("linear_update_issue", true, "Cambia stato (per nome, es. 'In Progress', 'Done'), titolo e/o descrizione di un'issue Linear. Solo su richiesta esplicita di Francesco.", z.object({ identifier: z.string(), stateName: z.string().optional(), title: z.string().optional(), description: z.string().optional() }), (a) => updateIssue(a.identifier, a)),
+  tool("github_update_issue", true, "Chiude o riapre un'issue di un repository di Francesco, o ne cambia titolo/testo. Solo su richiesta esplicita.", z.object({ repo: z.string(), number: z.number().int(), state: z.enum(["open", "closed"]).optional(), title: z.string().optional(), body: z.string().optional() }), (a) => updateRepoIssue(a.repo, a.number, { state: a.state, title: a.title, body: a.body })),
   tool("gym_log_set", true, "Registra una serie in palestra. Il nome può essere in italiano o alternativo (viene riconosciuto sullo storico). Restituisce se è un PR e il prossimo esercizio della scheda con il peso dell'ultima volta.", z.object({ exercise: z.string(), weightKg: z.number().min(0), reps: z.number().int().min(1), sets: z.number().int().min(1).default(1), muscleGroup: z.string().optional() }), async (a) => {
     const res = await resolveExercise(a.exercise, a.muscleGroup);
     if (!res.match && res.options.length) return { needsClarification: true, options: res.options.slice(0, 4) };

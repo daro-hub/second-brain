@@ -118,6 +118,12 @@ async function githubPost(path: string, body: Record<string, unknown>): Promise<
   return res.json();
 }
 
+async function githubPatch(path: string, body: Record<string, unknown>): Promise<{ html_url: string; number?: number; state?: string }> {
+  const res = await fetch(`${GITHUB_API}${path}`, { method: "PATCH", headers: { ...headers(), "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(`GitHub API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return res.json();
+}
+
 /** Apre un'issue su un repo di Daro (richiede un token con permesso issues:write). */
 export async function createRepoIssue(repoQuery: string, title: string, body?: string): Promise<{ url: string; number: number }> {
   const { owner, name } = await resolveOwnRepo(repoQuery);
@@ -129,4 +135,11 @@ export async function commentRepoIssue(repoQuery: string, number: number, body: 
   const { owner, name } = await resolveOwnRepo(repoQuery);
   const r = await githubPost(`/repos/${owner}/${name}/issues/${number}/comments`, { body });
   return { url: r.html_url };
+}
+
+/** Chiude/riapre un'issue o ne cambia titolo e testo (richiede issues:write). */
+export async function updateRepoIssue(repoQuery: string, number: number, patch: { state?: "open" | "closed"; title?: string; body?: string }): Promise<{ url: string; state: string }> {
+  const { owner, name } = await resolveOwnRepo(repoQuery);
+  const r = await githubPatch(`/repos/${owner}/${name}/issues/${number}`, patch);
+  return { url: r.html_url, state: r.state ?? patch.state ?? "" };
 }

@@ -195,6 +195,16 @@ export async function updateEventTime(ev: { id: string; calendarId: string; acco
 type EventRef = { id: string; calendarId: string; account: GoogleAccount };
 const eventUrl = (ev: EventRef) => `${API}/calendars/${encodeURIComponent(ev.calendarId)}/events/${encodeURIComponent(ev.id)}`;
 
+/** Cambia luogo e/o descrizione (PATCH; stringa vuota = svuota il campo). "read_only" come sopra. */
+export async function updateEventDetails(ev: EventRef, patch: { location?: string; description?: string }): Promise<CalendarEvent> {
+  const token = await getGoogleAccessToken(ev.account);
+  const res = await fetch(eventUrl(ev), { method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+  if (res.status === 403 || res.status === 404) throw new Error("read_only");
+  if (!res.ok) throw new Error(`Google Calendar API error: ${res.status}`);
+  const e = await res.json();
+  return { summary: e.summary ?? "(senza titolo)", start: e.start?.dateTime ?? e.start?.date ?? "", end: e.end?.dateTime ?? e.end?.date ?? "", location: e.location };
+}
+
 /** Cambia solo il titolo (PATCH). Lancia "read_only" se il calendario non è modificabile da questo account. */
 export async function renameEvent(ev: EventRef, summary: string): Promise<CalendarEvent> {
   const token = await getGoogleAccessToken(ev.account);

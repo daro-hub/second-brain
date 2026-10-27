@@ -6,6 +6,7 @@ const created: unknown[] = [];
 const patched: { id: string; start: string; end: string }[] = [];
 const deleted: string[] = [];
 const renamed: { id: string; summary: string }[] = [];
+const detailed: { id: string; location?: string; description?: string }[] = [];
 let readOnly = false;
 let authBroken = false;
 
@@ -30,6 +31,12 @@ vi.mock("../src/lib/calendar", () => ({
     const e = store.find((x) => x.id === ev.id)!;
     return { summary: e.summary, start: e.start, end: e.end };
   },
+  updateEventDetails: async (ev: { id: string }, patch: { location?: string; description?: string }) => {
+    if (readOnly) throw new Error("read_only");
+    detailed.push({ id: ev.id, ...patch });
+    const e = store.find((x) => x.id === ev.id)!;
+    return { summary: e.summary, start: e.start, end: e.end };
+  },
   updateEventTime: async (ev: { id: string }, start: string, end: string) => {
     if (readOnly) throw new Error("read_only");
     patched.push({ id: ev.id, start, end });
@@ -50,6 +57,7 @@ beforeEach(() => {
   patched.length = 0;
   deleted.length = 0;
   renamed.length = 0;
+  detailed.length = 0;
   readOnly = false;
   authBroken = false;
 });
@@ -224,6 +232,32 @@ describe("deleteEventsInRange — «toglimi le lezioni dei giorni della Pedrera�
   it("calendario in sola lettura: lo dice e non conta come cancellato", async () => {
     readOnly = true;
     const r = await deleteEventsInRange({ from: "2026-11-03", to: "2026-11-05", studyOnly: true });
+    expect(r.changed).toBe(0);
+    expect(r.text).toContain("non posso modificare");
+  });
+});
+
+describe("applyCalendarOps — luogo e descrizione", () => {
+  const details = (over: Record<string, unknown>) => ({ op: "details" as const, match: "assemblea", date: "2026-10-05", ...over });
+
+  it("cambia il luogo senza toccare orario e titolo", async () => {
+    const r = await applyCalendarOps([details({ location: "Sede ESN" })]);
+    expect(detailed).toEqual([{ id: "a1", location: "Sede ESN", description: undefined }]);
+    expect(patched).toEqual([]);
+    expect(r.changed).toBe(1);
+    expect(r.text).toContain("luogo: Sede ESN");
+  });
+
+  it("senza né luogo né descrizione non cambia nulla e lo dice", async () => {
+    const r = await applyCalendarOps([details({})]);
+    expect(detailed).toEqual([]);
+    expect(r.changed).toBe(0);
+    expect(r.text).toContain("non ho cambiato nulla");
+  });
+
+  it("calendario in sola lettura: resta com'è", async () => {
+    readOnly = true;
+    const r = await applyCalendarOps([details({ description: "Ordine del giorno" })]);
     expect(r.changed).toBe(0);
     expect(r.text).toContain("non posso modificare");
   });
