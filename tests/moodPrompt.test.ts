@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("../src/lib/supabase", () => ({ supabase: {} }));
+
 import { MOOD_ASPECTS, moodPrompt } from "../src/lib/mood";
 
 describe("moodPrompt — la legenda non contraddice la domanda", () => {
