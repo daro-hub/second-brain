@@ -39,7 +39,7 @@ vi.mock("../src/lib/calendar", () => ({
   },
 }));
 
-import { applyCalendarOps } from "../src/lib/calendarEdit";
+import { applyCalendarOps, deleteEventsInRange } from "../src/lib/calendarEdit";
 import { GoogleAuthError } from "../src/lib/googleAuth";
 
 const assemblea = (): Ev => ({ summary: "Assemblea di ESN", start: "2026-10-05T19:30:00+02:00", end: "2026-10-05T20:30:00+02:00", allDay: false, id: "a1", calendarId: "primary", account: "default" });
@@ -187,5 +187,44 @@ describe("applyCalendarOps — cancella e rinomina", () => {
     const r = await applyCalendarOps([del("pedrera")]);
     expect(r.changed).toBe(0);
     expect(r.text).toContain("Cambialo a mano");
+  });
+});
+
+describe("deleteEventsInRange — «toglimi le lezioni dei giorni della Pedrera» / «via gli impegni del pomeriggio»", () => {
+  const ev = (id: string, summary: string, start: string, end: string, allDay = false): Ev => ({ summary, start, end, allDay, id, calendarId: "primary", account: "default" });
+  beforeEach(() => {
+    store = [
+      ev("l1", "🎓 Algoritmi", "2026-11-03T10:30:00+01:00", "2026-11-03T12:30:00+01:00"),
+      ev("l2", "📚 Studio: Statistica", "2026-11-04T16:00:00+01:00", "2026-11-04T18:00:00+01:00"),
+      ev("p1", "Pedrera", "2026-11-03", "2026-11-06", true), // viaggio di più giorni: mai toccato
+      ev("p2", "Dentista", "2026-11-04T09:00:00+01:00", "2026-11-04T10:00:00+01:00"),
+    ];
+  });
+
+  it("studyOnly cancella solo 📚/🎓 e lascia il viaggio e gli altri impegni", async () => {
+    const r = await deleteEventsInRange({ from: "2026-11-03", to: "2026-11-05", studyOnly: true });
+    expect(deleted.sort()).toEqual(["l1", "l2"]);
+    expect(r.changed).toBe(2);
+    expect(store.map((e) => e.id).sort()).toEqual(["p1", "p2"]);
+  });
+
+  it("la fascia oraria cancella solo ciò che inizia dopo l'ora indicata, eventi di tutto il giorno esclusi", async () => {
+    const r = await deleteEventsInRange({ from: "2026-11-03", to: "2026-11-05", startFrom: "12:00" });
+    expect(deleted).toEqual(["l2"]);
+    expect(r.changed).toBe(1);
+  });
+
+  it("senza filtri non cancella niente", async () => {
+    const r = await deleteEventsInRange({ from: "2026-11-03", to: "2026-11-05" });
+    expect(deleted).toHaveLength(0);
+    expect(r.changed).toBe(0);
+    expect(r.text).toContain("Serve almeno un filtro");
+  });
+
+  it("calendario in sola lettura: lo dice e non conta come cancellato", async () => {
+    readOnly = true;
+    const r = await deleteEventsInRange({ from: "2026-11-03", to: "2026-11-05", studyOnly: true });
+    expect(r.changed).toBe(0);
+    expect(r.text).toContain("non posso modificare");
   });
 });

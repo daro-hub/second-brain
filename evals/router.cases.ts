@@ -49,6 +49,8 @@ export const ROUTER_CASES: RouterCase[] = [
   { id: "cal-link-meet", text: "Dammi il link del meet di lavoro in cui devo entrare", expect: { type: "calendar_query" } },
   { id: "cal-correzione-e-nuovo", text: "L'assemblea è alle 20, ma devo passare da Nicole alle 19:45", expect: { type: "calendar_change" } },
   { id: "cal-senza-durata", text: "No passare a prendere Nicole non ha una durata, va fatto a quell'ora", history: [{ role: "assistant", content: "📅 Questa sera: Passare da Nicole — 19:45–20:45; si sovrappone all'assemblea per 45 minuti." }], topic: { intent: "calendar_query", text: "Che impegni ho questa sera?", minutesAgo: 1 }, expect: { type: "calendar_change" } },
+  { id: "cal-riorganizza", text: "Toglimi gli impegni del pomeriggio, mettimi ogni giorno dalle 8 alle 13 università col nome della prima lezione, e dalle 14:30 alle 16:30 palestra. Cancella anche tutti i promemoria", expect: { type: "unsupported" } },
+  { id: "cal-cancella-lezioni", text: "Ho un viaggio dal 3 al 5 novembre, toglimi le lezioni di quei giorni", expect: { type: "unsupported" } },
   { id: "cal-aggiungi", text: "domani alle 18 ho il dentista", expect: { type: ["calendar_change", "calendar_add"] } },
 
   // ── spesa ──

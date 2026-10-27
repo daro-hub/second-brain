@@ -100,3 +100,54 @@ export async function applyCalendarOps(ops: CalendarOp[]): Promise<{ text: strin
   }
   return { text: lines.join("\n"), changed };
 }
+
+export interface RangeDeleteFilter {
+  from: string;
+  to: string;
+  /** parole del titolo (tutte devono comparire) */
+  match?: string;
+  /** solo gli eventi 📚/🎓 dell'orario di studio e delle lezioni */
+  studyOnly?: boolean;
+  /** solo eventi che iniziano a quest'ora o dopo / prima di quest'ora ("HH:MM") */
+  startFrom?: string;
+  startBefore?: string;
+}
+
+/**
+ * Cancella in una volta tutti gli eventi con orario che rispondono al filtro in un intervallo di giorni (estremi inclusi).
+ * Gli eventi di tutto il giorno non si toccano mai. Senza almeno un filtro non cancella nulla: non è "svuota il calendario".
+ */
+export async function deleteEventsInRange(f: RangeDeleteFilter): Promise<{ text: string; changed: number }> {
+  if (!f.match && !f.studyOnly && !f.startFrom && !f.startBefore) return { text: "⚠️ Serve almeno un filtro (titolo, solo studio, fascia oraria): non cancello tutto il calendario.", changed: 0 };
+  const { from } = dayRangeUtc(f.from);
+  const { to } = dayRangeUtc(f.to);
+  let events = (await getEventsInRange(from, to)).filter((e) => !e.allDay);
+  if (f.studyOnly) events = events.filter((e) => isStudySyncEvent(e.summary));
+  if (f.match) events = matchEvents(events, f.match);
+  if (f.startFrom) events = events.filter((e) => localHHMM(e.start) >= f.startFrom!);
+  if (f.startBefore) events = events.filter((e) => localHHMM(e.start) < f.startBefore!);
+  if (events.length === 0) return { text: `ℹ️ Nessun evento corrisponde tra il ${formatDayLong(f.from)} e il ${formatDayLong(f.to)}: non ho cambiato nulla.`, changed: 0 };
+
+  const lines: string[] = [];
+  let changed = 0;
+  for (const ev of events) {
+    const label = `${bold(escapeHtml(ev.summary))} — ${formatDayLong(dateKey(ev.start))}, ${formatWhen(ev)}`;
+    if (!ev.id || !ev.calendarId || !ev.account) {
+      lines.push(`⚠️ Non riesco a modificare ${label}`);
+      continue;
+    }
+    try {
+      await deleteEvent({ id: ev.id, calendarId: ev.calendarId, account: ev.account });
+      lines.push(`🗑️ Cancellato: ${label}`);
+      changed++;
+    } catch (err) {
+      if ((err as Error).message === "read_only") {
+        lines.push(`⚠️ ${label} sta in un calendario che non posso modificare${ev.calendar ? ` (${escapeHtml(ev.calendar)})` : ""}: resta com'è.`);
+        continue;
+      }
+      reportError("calendarEdit/range", err);
+      lines.push(`⚠️ Errore su ${label}: non l'ho cancellato.`);
+    }
+  }
+  return { text: lines.join("\n"), changed };
+}

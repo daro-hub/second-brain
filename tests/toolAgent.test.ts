@@ -48,6 +48,6 @@ describe("agente a strumenti del bot", () => {
   it("si ferma dopo il massimo di passaggi", async () => {
     for (let i = 0; i < 20; i++) say({ role: "assistant", content: null, tool_calls: [{ id: `c${i}`, type: "function", function: { name: "shopping_add", arguments: "{}" } }] });
     expect(await runToolAgent("x")).toContain("limite di passaggi");
-    expect(create.mock.calls.length).toBe(8);
+    expect(create.mock.calls.length).toBe(12);
   });
 });
