@@ -235,7 +235,7 @@ async function loadTrends(now: Record<string, number | null>): Promise<Record<st
   return Object.fromEntries(Object.entries(now).map(([k, v]) => [k, trendOf(v, before[k])]));
 }
 
-async function recordSnapshot(scores: Record<string, number | null>): Promise<void> {
+export async function recordSnapshot(scores: Record<string, number | null>): Promise<void> {
   const { error } = await supabase.from("daily_stats").upsert({ day: todayKey(), scores, updated_at: new Date().toISOString() });
   if (error) reportError("pillars/snapshot", error, { expected: true });
 }

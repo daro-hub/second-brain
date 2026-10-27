@@ -46,6 +46,7 @@ interface Card {
 }
 
 const TTL = 5 * 60_000;
+const PILLAR_KEYS = ["studio", "salute", "allenamento", "umore", "lavoro"];
 const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** Fetch con cache di sessione: tornare alla panoramica non rifà i calcoli. */
@@ -182,7 +183,8 @@ function Stage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [console_, router]);
 
-  const hub = useCached<HubData>("/api/hub", true);
+  // i punteggi servono solo dentro un pilastro: la home Progressi li calcola già sul server
+  const hub = useCached<HubData>("/api/hub", PILLAR_KEYS.includes(p ?? ""));
   const aira = useCached<AiraStatus>("/api/hub/aira", p === "aira", 2 * 60_000);
   const data = hub.data;
 
@@ -200,7 +202,7 @@ function Stage() {
 
   const pillars: HubPillar[] = data?.pillars ?? ["studio", "salute", "allenamento", "umore", "lavoro"].map((k) => ({ key: k, label: k[0].toUpperCase() + k.slice(1), color: "#8e8e93", score: null, trend: null }));
   const current = pillars.find((x) => x.key === p);
-  const title = p === "aira" ? "Aira" : p === "incroci" ? "Statistiche" : p === "passaggi" ? "Trasferisci" : p === "spesa" ? "Spesa" : current ? current.label : "Oggi";
+  const title = p === "progressi" ? "Progressi" : p === "aira" ? "Aira" : p === "incroci" ? "Statistiche" : p === "passaggi" ? "Trasferisci" : p === "spesa" ? "Spesa" : current ? current.label : "Oggi";
   const hasStrip = p === "aira" || Boolean(current);
   const cards: Card[] | null =
     p === "aira"

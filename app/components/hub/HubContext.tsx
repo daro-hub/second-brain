@@ -3,6 +3,7 @@ import { isPillarKey } from "../../../src/lib/pillars";
 import { BilancioView } from "../../bilancio/BilancioView";
 import { CostiView } from "../../costi/CostiView";
 import { OggiView } from "../../views/OggiView";
+import { ProgressView } from "../../views/ProgressView";
 import { PalestraView } from "../../palestra/PalestraView";
 import { SaluteView } from "../../salute/SaluteView";
 import { SpesaView } from "../../spesa/SpesaView";
@@ -29,6 +30,13 @@ export interface HubParams {
 }
 
 export function HubContext({ context, params = {} }: { context: string | undefined; params?: HubParams }) {
+  if (context === "progressi") {
+    return (
+      <S label="Progressi">
+        <ProgressView />
+      </S>
+    );
+  }
   if (context === "incroci") {
     return (
       <S label="Incroci">

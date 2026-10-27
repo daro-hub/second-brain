@@ -7,15 +7,13 @@ import { ICONS } from "./navIcons";
 
 type NavItem = { key: string; label: string; color: string };
 
-/** In alto, sempre: gli strumenti (la panoramica si raggiunge toccando l'orb; lo stato di Aira dalla chat con Aira). */
+/** In alto, sempre: le due schermate principali (gli altri strumenti stanno in "Altro" nella home; la chat si apre dall'orb). */
 const TOOLS: NavItem[] = [
+  { key: "progressi", label: "Progressi", color: "#30d158" },
   { key: "oggi", label: "Oggi", color: "#8b98a8" },
-  { key: "incroci", label: "Statistiche", color: "#ff375f" },
-  { key: "spesa", label: "Spesa", color: "#f2a07b" },
-  { key: "passaggi", label: "Trasferisci", color: "#0a84ff" },
 ];
 
-/** I cinque pilastri: sotto l'header, centrati, solo quando non si è nella schermata iniziale. Colori come nel radar. */
+/** I cinque pilastri: sotto l'header, centrati, solo quando si è dentro uno di essi. Colori come nel radar. */
 const PILLARS: NavItem[] = [
   { key: "studio", label: "Studio", color: "#64d2ff" },
   { key: "salute", label: "Salute", color: "#30d158" },
@@ -46,7 +44,7 @@ export function Topbar() {
   if (pathname.startsWith("/login")) return null;
 
   const p = sp.get("p") ?? "";
-  const showPillars = !(pathname === "/" && !p && sp.get("console") !== "1");
+  const showPillars = pathname === "/" && PILLARS.some((n) => n.key === p);
   const renderTab = (n: NavItem) => {
     const active = pathname === "/" && p === n.key;
     return (
