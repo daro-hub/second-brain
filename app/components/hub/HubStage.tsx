@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { AiraConsole } from "../../aira/AiraConsole";
@@ -22,12 +21,6 @@ interface HubPillar {
   score: number | null;
   trend: number | null;
   measures?: Measure[];
-}
-interface HubData {
-  pillars: HubPillar[];
-  index: number | null;
-  weakest: HubPillar | null;
-  nextExam: { name: string; daysLeft: number } | null;
 }
 interface AiraStatus {
   integrations: { id: string; label: string; ok: boolean; detail: string }[];
