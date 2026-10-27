@@ -5,13 +5,14 @@ import { createEmailDraft, searchEmails } from "../gmail";
 import { commentRepoIssue, createRepoIssue, getRepoInfo, listRepos, updateRepoIssue } from "../github";
 import { getMetricSummary } from "../health";
 import { deleteDocument, ingest, updateDocument } from "../ingest";
+import { isEnabled, type Module } from "../modules";
 import { KNOWLEDGE_AREAS, logKnowledge, logSocial, saveReflection } from "../knowledge";
 import { commentOnIssue, createIssue, getIssueDetail, getMyOpenIssues, searchIssues, updateIssue } from "../linear";
 import { getMood, getMoodHistory, MOOD_ASPECTS, saveMoodAnswer, saveMoodNote } from "../mood";
 import { getOpenAiUsageSummary } from "../openaiUsage";
 import { formatProfile, getProfile, setProfileFact } from "../profile";
 import { searchByFilter, searchSemantic } from "../search";
-import { gatherSiteData, SITE_TOPICS } from "../siteData";
+import { activeSiteTopics, gatherSiteData, SITE_TOPICS } from "../siteData";
 import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList, removeShoppingItemsByName } from "../shoppingList";
 import { searchMessages, slackConfigured } from "../slack";
 import { getStepsStats } from "../steps";
@@ -44,9 +45,9 @@ const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "formato YYYY-MM-DD");
 const time = z.string().regex(/^\d{1,2}:\d{2}$/, "formato HH:MM");
 const today = () => todayKey();
 
-export const TOOLS: ToolDef[] = [
+const ALL_TOOLS: ToolDef[] = [
   // ───────── lettura ─────────
-  tool("site_data", false, `Dati delle pagine del sito (le stesse cifre che vede Francesco). Argomenti: ${SITE_TOPICS.join(", ")}. Massimo 4 per chiamata.`, z.object({ topics: z.array(z.enum(SITE_TOPICS)).min(1).max(4), date: date.optional().describe("giorno di riferimento, default oggi") }), (a) => gatherSiteData(a.topics, a.date ?? null)),
+  tool("site_data", false, `Dati delle pagine del sito (le stesse cifre che vede Francesco). Argomenti: ${activeSiteTopics(SITE_TOPICS).join(", ")}. Massimo 4 per chiamata.`, z.object({ topics: z.array(z.enum(SITE_TOPICS)).min(1).max(4), date: date.optional().describe("giorno di riferimento, default oggi") }), (a) => gatherSiteData(a.topics, a.date ?? null)),
   tool("kb_search", false, "Ricerca semantica nella knowledge base personale (persone, fatti, preferenze, appunti).", z.object({ query: z.string(), limit: z.number().int().min(1).max(15).optional() }), async (a) => (await searchSemantic(a.query, a.limit ?? 5)).map((d) => ({ id: d.id, content: d.content, source: d.source, created_at: d.created_at }))),
   tool("kb_search_filter", false, "Ricerca nella knowledge base per fonte, intervallo di date o testo esatto.", z.object({ source: z.string().optional(), dateFrom: date.optional(), dateTo: date.optional(), textQuery: z.string().optional() }), async (a) => (await searchByFilter(a)).map((d) => ({ id: d.id, content: d.content, source: d.source, created_at: d.created_at }))),
   tool("calendar_events", false, "Eventi del calendario (Google, anche quello di lavoro) tra due giorni inclusi.", z.object({ from: date, to: date }), async (a) => (await getEventsInRange(dayRangeUtc(a.from).from, dayRangeUtc(a.to).to)).map((e) => ({ summary: e.summary, start: e.start, end: e.end, allDay: e.allDay, location: e.location, calendar: e.calendar }))),
@@ -184,6 +185,22 @@ export const TOOLS: ToolDef[] = [
   tool("github_create_issue", true, "Apre un'issue su un repository di Francesco.", z.object({ repo: z.string(), title: z.string(), body: z.string().optional() }), (a) => createRepoIssue(a.repo, a.title, a.body)),
   tool("github_comment", true, "Commenta un'issue o una PR di un repository di Francesco.", z.object({ repo: z.string(), number: z.number().int(), body: z.string() }), (a) => commentRepoIssue(a.repo, a.number, a.body)),
 ];
+
+/** Modulo da cui dipende ogni strumento (dal nome): spento il modulo, lo strumento sparisce da bot e MCP. */
+const TOOL_MODULE: [RegExp, Module][] = [
+  [/^calendar_/, "calendar"],
+  [/^email_/, "email"],
+  [/^github_/, "github"],
+  [/^linear_/, "linear"],
+  [/^slack_/, "slack"],
+  [/^work_/, "work"],
+  [/^(uni_|university$)/, "uni"],
+];
+
+export const TOOLS: ToolDef[] = ALL_TOOLS.filter((t) => {
+  const mod = TOOL_MODULE.find(([re]) => re.test(t.name))?.[1];
+  return !mod || isEnabled(mod);
+});
 
 const MAX_RESULT_CHARS = 12_000;
 

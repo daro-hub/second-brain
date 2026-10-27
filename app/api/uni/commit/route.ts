@@ -1,3 +1,4 @@
+import { moduleGate } from "../../../../src/lib/modules";
 import { airaGate } from "../../../../src/lib/airaAuth";
 import { supabase } from "../../../../src/lib/supabase";
 import { putFile, slugify } from "../../../../src/lib/university";
@@ -10,6 +11,8 @@ const BUCKET = "uni-inbox";
 
 /** Sposta un file caricato in Storage nella cartella raw/ della materia, con un commit su GitHub. */
 export async function POST(req: Request) {
+  const off = moduleGate("uni");
+  if (off) return off;
   const denied = airaGate(req);
   if (denied) return denied;
 

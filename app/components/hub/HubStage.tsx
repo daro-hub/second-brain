@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import { AiraConsole } from "../../aira/AiraConsole";
 import { Orb } from "../../aira/Orb";
 import { useAiraVoice } from "../../aira/useAiraVoice";
+import { isEnabled, pillarEnabled } from "../../../src/lib/modules";
 import { PillarRadar } from "./PillarRadar";
 
 interface Measure {
@@ -39,7 +40,8 @@ interface Card {
 }
 
 const TTL = 5 * 60_000;
-const PILLAR_KEYS = ["studio", "salute", "allenamento", "umore", "lavoro"];
+const PILLAR_KEYS = ["studio", "salute", "allenamento", "umore", "lavoro"].filter(pillarEnabled);
+const WEBCHAT = isEnabled("webchat");
 const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** Fetch con cache di sessione: tornare alla panoramica non rifà i calcoli. */
@@ -135,7 +137,7 @@ function Stage() {
   const { ensureAudio } = voice;
   const [consoleOpened, setConsoleOpened] = useState(false);
 
-  const console_ = pathname === "/" && params.get("console") === "1";
+  const console_ = WEBCHAT && pathname === "/" && params.get("console") === "1";
   const p = pathname === "/" && !console_ ? params.get("p") : null;
   // Entrare in un pilastro mostra subito tutto: non c'è più un passaggio "Dettagli" (?detail=1 resta valido per i vecchi link)
   const inside = pathname === "/" && !console_ && (Boolean(p) || params.get("detail") === "1");
@@ -184,6 +186,7 @@ function Stage() {
 
   const select = (key: string) => router.push(p === key && mode === "pillar" ? "/" : `/?p=${key}`);
   const onOrb = () => {
+    if (!WEBCHAT) return;
     if (mode === "home") router.push("/?console=1"); // dalla panoramica l'orb apre la console
     else if (mode === "console") {
       ensureAudio();
@@ -212,11 +215,13 @@ function Stage() {
         </div>
       </div>
 
-      {consoleOpened && <AiraConsole voice={voice} active={mode === "console"} onClose={() => router.push("/")} />}
+      {WEBCHAT && consoleOpened && <AiraConsole voice={voice} active={mode === "console"} onClose={() => router.push("/")} />}
 
-      <div className="hub-orbwrap">
-        <Orb phase={voice.phase} getLevel={() => voice.levelRef.current} onClick={onOrb} />
-      </div>
+      {WEBCHAT && (
+        <div className="hub-orbwrap">
+          <Orb phase={voice.phase} getLevel={() => voice.levelRef.current} onClick={onOrb} />
+        </div>
+      )}
 
       <div className="hub-bar-top">
         <span className="hub-title">{title}</span>

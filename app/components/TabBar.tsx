@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { isEnabled } from "../../src/lib/modules";
 import { ICONS } from "./navIcons";
 
 type Tab = { key: string; label: string; href: string };
@@ -11,7 +12,7 @@ const TABS: Tab[] = [
   { key: "panoramica", label: "Progressi", href: "/?p=progressi" },
   { key: "oggi", label: "Oggi", href: "/?p=oggi" },
   { key: "aira", label: "Aira", href: "/?console=1" },
-];
+].filter((t) => t.key !== "aira" || isEnabled("webchat"));
 
 /** Oggi e la chat hanno la loro voce; ogni altra schermata (Progressi, i pilastri, gli strumenti) appartiene a Progressi. */
 function activeKey(p: string, console_: boolean): string {

@@ -8,17 +8,16 @@ export interface RadarPillar {
   trend: number | null;
 }
 
-const N = 5;
 const C = 200;
 const R = 120;
-const pt = (i: number, f: number): [number, number] => {
+const pt = (i: number, f: number, N: number): [number, number] => {
   const a = (i / N) * Math.PI * 2 - Math.PI / 2;
   return [C + Math.cos(a) * R * f, C + Math.sin(a) * R * f];
 };
-const poly = (fracs: number[]) => fracs.map((f, i) => pt(i, f).join(",")).join(" ");
+const poly = (fracs: number[]) => fracs.map((f, i) => pt(i, f, fracs.length).join(",")).join(" ");
 
 /**
- * Radar dei cinque pilastri: i vertici sono la navigazione (al centro vive l'orb, posizionato dallo stage).
+ * Radar dei pilastri: i vertici sono la navigazione (al centro vive l'orb, posizionato dallo stage).
  * Passando sopra un pilastro si anima: il suo settore si illumina, l'asse si accende, il punto pulsa e
  * l'etichetta si ingrandisce; gli altri pilastri si attenuano (stili `.hub-vertex` in globals.css).
  */
@@ -31,21 +30,22 @@ export function PillarRadar({
   active: string | null;
   onSelect: (key: string) => void;
 }) {
+  const N = pillars.length;
   const real = pillars.map((p) => Math.min(1.08, (p.score ?? 0) / 100));
   return (
     <div className="hub-radar">
-      <svg viewBox="-10 24 420 352" role="img" aria-label="Radar dei cinque pilastri">
+      <svg viewBox="-10 24 420 352" role="img" aria-label="Radar dei pilastri">
         {[1 / 3, 2 / 3, 1].map((f) => (
           <polygon key={f} points={poly(pillars.map(() => f))} fill="none" stroke="rgb(var(--ov) / 0.12)" strokeLinejoin="round" />
         ))}
         <polygon points={poly(real)} fill="rgba(10,132,255,0.18)" stroke="#0a84ff" strokeWidth="2" strokeLinejoin="round" />
         {pillars.map((p, i) => {
-          const [x, y] = pt(i, real[i]);
-          const [hx, hy] = pt(i, 1);
-          const [lx, ly] = pt(i, 1.3);
-          const [ax, ay] = pt(i - 0.5, 1);
-          const [bx, by] = pt(i + 0.5, 1);
-          const [mx, my] = pt(i, 1.15);
+          const [x, y] = pt(i, real[i], N);
+          const [hx, hy] = pt(i, 1, N);
+          const [lx, ly] = pt(i, 1.3, N);
+          const [ax, ay] = pt(i - 0.5, 1, N);
+          const [bx, by] = pt(i + 0.5, 1, N);
+          const [mx, my] = pt(i, 1.15, N);
           const anchor = lx < C - 8 ? "end" : lx > C + 8 ? "start" : "middle";
           // larghezza stimata dell'etichetta già ingrandita (×1.25): l'area sensibile la copre tutta anche da animata
           const labelW = p.label.length * 8.6 * 1.25;

@@ -1,3 +1,4 @@
+import { moduleGate } from "../../../../src/lib/modules";
 import { airaGate } from "../../../../src/lib/airaAuth";
 import { clearHistory, turnsSince } from "../../../../src/lib/chatHistory";
 import { clearTopic } from "../../../../src/lib/topic";
@@ -7,6 +8,8 @@ export const dynamic = "force-dynamic";
 
 /** I messaggi delle ultime 24 ore della conversazione, condivisa tra sito e Telegram. */
 export async function GET(req: Request) {
+  const off = moduleGate("webchat");
+  if (off) return off;
   const denied = airaGate(req);
   if (denied) return denied;
   try {
@@ -19,6 +22,8 @@ export async function GET(req: Request) {
 
 /** «Svuota chat»: Aira dimentica la conversazione recente (anche per Telegram); i messaggi già inviati lì restano. */
 export async function DELETE(req: Request) {
+  const off = moduleGate("webchat");
+  if (off) return off;
   const denied = airaGate(req);
   if (denied) return denied;
   try {

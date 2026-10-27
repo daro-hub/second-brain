@@ -1,3 +1,4 @@
+import { moduleGate } from "../../../src/lib/modules";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { isAccessTokenValid } from "../../../src/lib/mcpOAuth";
@@ -17,6 +18,8 @@ function unauthorized(req: Request) {
 
 /** Server MCP remoto (Streamable HTTP, senza sessione): gli stessi strumenti del bot, per Claude da telefono e web. */
 async function handle(req: Request): Promise<Response> {
+  const off = moduleGate("mcp");
+  if (off) return off;
   const auth = req.headers.get("authorization") ?? "";
   if (!isAccessTokenValid(auth.startsWith("Bearer ") ? auth.slice(7) : null)) return unauthorized(req);
 

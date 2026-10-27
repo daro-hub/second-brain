@@ -1,3 +1,4 @@
+import { moduleGate } from "../../../../src/lib/modules";
 import { airaGate } from "../../../../src/lib/airaAuth";
 import { getFileBytes, putFile, safePath, slugify } from "../../../../src/lib/university";
 import { parsingEnabled, pdfsToMarkdown } from "../../../../src/lib/uniParse";
@@ -11,6 +12,8 @@ export const maxDuration = 300;
  * Senza ANTHROPIC_API_KEY risponde 501: il parsing resta manuale (Claude Code).
  */
 export async function POST(req: Request) {
+  const off = moduleGate("uni");
+  if (off) return off;
   const denied = airaGate(req);
   if (denied) return denied;
   if (!parsingEnabled()) {

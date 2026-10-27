@@ -1,3 +1,4 @@
+import { pillarEnabled } from "./modules";
 import { getEnergyOverview, PROFILE } from "./energy";
 import { getHealthDaily, getLatestWeightKg, getSleepNights } from "./health";
 import { getStrengthLeaderboard, getWeekBudget } from "./insights";
@@ -24,7 +25,7 @@ export const PILLAR_META: Record<PillarKey, { label: string; color: string }> = 
   umore: { label: "Umore", color: "#bf5af2" },
   lavoro: { label: "Lavoro", color: "#ff9f0a" },
 };
-export const PILLAR_ORDER: PillarKey[] = ["studio", "salute", "allenamento", "umore", "lavoro"];
+export const PILLAR_ORDER: PillarKey[] = (["studio", "salute", "allenamento", "umore", "lavoro"] as PillarKey[]).filter(pillarEnabled);
 
 /** Obiettivi: fasce per salute/allenamento, soglie per il resto. Modificabili qui. */
 export const GOALS = {
@@ -241,15 +242,21 @@ export async function recordSnapshot(scores: Record<string, number | null>): Pro
 }
 
 export async function getHubData(opts: { snapshot?: boolean } = {}): Promise<HubData> {
-  const [st, sa, al, um, la] = await Promise.all([studio(), salute(), allenamento(), umore(), lavoro()]);
-  const pillars = [st.p, sa, al, um, la];
+  const [st, sa, al, um, la] = await Promise.all([
+    pillarEnabled("studio") ? studio() : null,
+    salute(),
+    allenamento(),
+    umore(),
+    pillarEnabled("lavoro") ? lavoro() : null,
+  ]);
+  const pillars = [st?.p, sa, al, um, la].filter((p): p is Pillar => Boolean(p));
   const scores = Object.fromEntries(pillars.map((p) => [p.key, p.score]));
   const trends = await loadTrends(scores);
   for (const p of pillars) p.trend = trends[p.key] ?? null;
   if (opts.snapshot) void recordSnapshot(scores);
   const scored = pillars.filter((p) => p.score !== null);
   const weakest = scored.length ? scored.reduce((a, b) => ((a.score as number) <= (b.score as number) ? a : b)) : null;
-  return { pillars, index: balanceIndex(pillars.map((p) => p.score)), weakest, nextExam: st.nextExam };
+  return { pillars, index: balanceIndex(pillars.map((p) => p.score)), weakest, nextExam: st?.nextExam ?? null };
 }
 
 /** Un solo pilastro (per le pagine di contesto, senza ricalcolare gli altri quattro). */

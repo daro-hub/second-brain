@@ -1,3 +1,4 @@
+import { moduleGate } from "../../../../src/lib/modules";
 import { airaGate } from "../../../../src/lib/airaAuth";
 import { getFileBytes, safePath } from "../../../../src/lib/university";
 
@@ -14,6 +15,8 @@ const TYPES: Record<string, string> = {
 
 /** Serve un file del repo università (il repo è privato: il token resta lato server). */
 export async function GET(req: Request) {
+  const off = moduleGate("uni");
+  if (off) return off;
   const denied = airaGate(req);
   if (denied) return denied;
 

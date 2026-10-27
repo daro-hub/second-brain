@@ -1,3 +1,4 @@
+import { isEnabled } from "../../src/lib/modules";
 import { getLatestWeightKg } from "../../src/lib/health";
 import { clock, dec, int } from "../../src/lib/numfmt";
 import { getDayBundle } from "../../src/lib/overview";
@@ -86,6 +87,7 @@ export async function OggiView() {
         </div>
       </div>
 
+      {(isEnabled("calendar") || isEnabled("uni")) && (
       <div className="card">
         <div className="card-head">
           <h3><Icon name="calendar" /> Agenda di oggi</h3>
@@ -112,6 +114,7 @@ export async function OggiView() {
           </div>
         ))}
       </div>
+      )}
     </>
   );
 }

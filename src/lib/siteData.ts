@@ -1,3 +1,4 @@
+import { isEnabled, type Module } from "./modules";
 import { getLifeBalance } from "./balance";
 import { getBrainSnapshot } from "./brain";
 import { getKnowledgeStats, getReflection, getSocialCount } from "./knowledge";
@@ -172,8 +173,14 @@ export const SITE_TOPIC_LABELS: Record<SiteTopic, string> = {
 };
 
 /** Raccoglie gli argomenti chiesti (al massimo 4, in parallelo) in un unico testo da dare al modello. */
+/** Argomenti del sito che dipendono da un modulo: spento il modulo, l'argomento non esiste (né per il bot né per MCP). */
+export const SITE_TOPIC_MODULE: Partial<Record<SiteTopic, Module>> = { studio: "uni", universita: "uni", lavoro: "work" };
+
+export const activeSiteTopics = (topics: readonly SiteTopic[]): SiteTopic[] => topics.filter((t) => !SITE_TOPIC_MODULE[t] || isEnabled(SITE_TOPIC_MODULE[t]!));
+
 export async function gatherSiteData(topics: SiteTopic[], date: string | null): Promise<string> {
-  const unique = [...new Set(topics)].slice(0, 4);
+  const unique = [...new Set(activeSiteTopics(topics))].slice(0, 4);
+  if (!unique.length) return "Argomento non disponibile in questa installazione.";
   const parts = await Promise.all(unique.map((t) => section(SITE_TOPIC_LABELS[t], () => PROVIDERS[t](date))));
   return parts.join("\n\n");
 }

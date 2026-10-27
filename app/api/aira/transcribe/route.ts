@@ -1,3 +1,4 @@
+import { moduleGate } from "../../../../src/lib/modules";
 import { airaGate } from "../../../../src/lib/airaAuth";
 import { transcribe } from "../../../../src/lib/voice";
 
@@ -19,6 +20,8 @@ function extensionFor(contentType: string): string {
 const PHANTOM = /^(sottotitoli|grazie (a tutti )?per (la visione|l'attenzione)|iscriviti|amara\.org)/i;
 
 export async function POST(req: Request) {
+  const off = moduleGate("webchat");
+  if (off) return off;
   const denied = airaGate(req);
   if (denied) return denied;
 

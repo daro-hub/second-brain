@@ -1,3 +1,4 @@
+import { moduleGate } from "../../../../src/lib/modules";
 import { after } from "next/server";
 import { airaGate } from "../../../../src/lib/airaAuth";
 import { sendPush } from "../../../../src/lib/push";
@@ -13,6 +14,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Fa partire il timer di recupero (120 o 180 s). A scadenza arriva una notifica push, se il timer non è stato fermato. */
 export async function POST(req: Request) {
+  const off = moduleGate("webchat");
+  if (off) return off;
   const denied = airaGate(req);
   if (denied) return denied;
   const body = await req.json().catch(() => null);
@@ -39,6 +42,8 @@ export async function POST(req: Request) {
 
 /** Ferma il timer. */
 export async function DELETE(req: Request) {
+  const off = moduleGate("webchat");
+  if (off) return off;
   const denied = airaGate(req);
   if (denied) return denied;
   try {

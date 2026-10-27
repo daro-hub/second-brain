@@ -1,3 +1,4 @@
+import { moduleGate } from "../../../../src/lib/modules";
 import { randomUUID } from "node:crypto";
 import { airaGate } from "../../../../src/lib/airaAuth";
 import { supabase } from "../../../../src/lib/supabase";
@@ -12,6 +13,8 @@ const UNI_BUCKET = "uni-inbox";
  * un URL firmato, poi /api/uni/commit li porta su GitHub. Il bucket è privato e si crea da solo.
  */
 export async function POST(req: Request) {
+  const off = moduleGate("uni");
+  if (off) return off;
   const denied = airaGate(req);
   if (denied) return denied;
 

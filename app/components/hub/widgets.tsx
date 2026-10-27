@@ -1,3 +1,4 @@
+import { isEnabled } from "../../../src/lib/modules";
 import { getSocialCount } from "../../../src/lib/knowledge";
 import type { Pillar } from "../../../src/lib/pillars";
 import { todayKey } from "../../../src/lib/time";
@@ -185,9 +186,9 @@ export async function AiraPanel() {
   const brain = await getBrainSnapshot();
   return (
     <>
-      <LiveModeCard />
+      {isEnabled("webchat") && <LiveModeCard />}
       <PushToggle />
-      <WidgetCard />
+      {isEnabled("widget") && <WidgetCard />}
       <ProposalsPanel />
       <BrainPanel brain={brain} />
     </>

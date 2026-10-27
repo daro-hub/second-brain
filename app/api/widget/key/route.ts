@@ -1,3 +1,4 @@
+import { moduleGate } from "../../../../src/lib/modules";
 import { airaGate } from "../../../../src/lib/airaAuth";
 
 export const runtime = "nodejs";
@@ -5,6 +6,8 @@ export const dynamic = "force-dynamic";
 
 /** Dà la chiave del widget solo a una sessione col PIN: serve per incollarla in Scriptable senza passare dalla chat. */
 export async function GET(req: Request) {
+  const off = moduleGate("widget");
+  if (off) return off;
   const denied = airaGate(req);
   if (denied) return denied;
   const key = process.env.WIDGET_KEY;

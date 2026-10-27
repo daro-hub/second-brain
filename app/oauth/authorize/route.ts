@@ -1,3 +1,4 @@
+import { moduleGate } from "../../../src/lib/modules";
 import { clearFailures, clientRedirects, isLockedOut, makeCode, mcpPassword, recordFailure } from "../../../src/lib/mcpOAuth";
 import { constantTimeEqual } from "../../../src/lib/session";
 
@@ -26,6 +27,8 @@ function validate(p: URLSearchParams): { error: string } | { clientId: string; r
 }
 
 export async function GET(req: Request) {
+  const off = moduleGate("mcp");
+  if (off) return off;
   if (!mcpPassword() || !process.env.CRON_SECRET) return new Response("MCP non configurato", { status: 503 });
   const v = validate(new URL(req.url).searchParams);
   if ("error" in v) return new Response(v.error, { status: 400 });
@@ -33,6 +36,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const off = moduleGate("mcp");
+  if (off) return off;
   const pwd = mcpPassword();
   if (!pwd || !process.env.CRON_SECRET) return new Response("MCP non configurato", { status: 503 });
   const form = await req.formData();

@@ -28,6 +28,8 @@ import { textToSpeech, transcribe } from "../lib/voice";
 import { describePhoto, MAX_PHOTO_BYTES, photoToMessage } from "../lib/vision";
 import { addFileFromBytes, addTextTransfer, downloadFile, listTransfers, MAX_TRANSFER_BYTES, parsePassaCaption } from "../lib/transfers";
 
+import { isEnabled, type Module } from "../lib/modules";
+
 const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN!);
 const allowedUserId = Number(process.env.TELEGRAM_ALLOWED_USER_ID);
 
@@ -38,6 +40,20 @@ bot.use(async (ctx, next) => {
 
 bot.use(async (ctx, next) => {
   if (await isDuplicateUpdate(ctx.update.update_id)) return;
+  await next();
+});
+
+// Moduli spenti in questa installazione (vedi lib/modules.ts): i loro comandi e bottoni non fanno nulla.
+const COMMAND_MODULE: Record<string, Module> = { pw: "bitwarden", job: "worker", fix: "worker", jobs: "worker", workers: "worker", stop: "worker" };
+bot.use(async (ctx, next) => {
+  const cmd = ctx.message?.text?.match(/^\/(\w+)/)?.[1]?.toLowerCase();
+  const data = ctx.callbackQuery?.data;
+  const mod: Module | undefined = cmd ? COMMAND_MODULE[cmd] : data?.startsWith("wk:") ? "work" : data && parseCallback(data) ? "worker" : undefined;
+  if (mod && !isEnabled(mod)) {
+    if (ctx.callbackQuery) await ctx.answerCallbackQuery({ text: "Non disponibile" }).catch(() => undefined);
+    else await ctx.reply("Questa funzione non è attiva qui.");
+    return;
+  }
   await next();
 });
 
@@ -413,7 +429,7 @@ bot.command("passaggi", async (ctx) => {
 
 bot.on("message:text", async (ctx) => {
   // risposta secca con le ore («3», «2,5h», «90 min») al riassunto di mezzanotte
-  const hours = await tryApplyHoursReply(ctx.message.text).catch(() => null);
+  const hours = isEnabled("work") ? await tryApplyHoursReply(ctx.message.text).catch(() => null) : null;
   if (hours) {
     await ctx.reply(hours);
     return;
@@ -422,7 +438,7 @@ bot.on("message:text", async (ctx) => {
   try {
     const text = ctx.message.text;
     const history = await recentTurns().catch(() => []);
-    const notes = await tryNotesRequest(resolveNotesFollowUp(text, history));
+    const notes = isEnabled("uni") ? await tryNotesRequest(resolveNotesFollowUp(text, history)) : null;
     // la risposta entra nella cronologia: senza, «riprova a darmela» non sapeva a cosa si riferisse
     const remember = (reply: string) => addTurns("telegram", [{ role: "user", content: text }, { role: "assistant", content: toPlain(reply) }]).catch(() => {});
     if (notes?.kind === "text") {
@@ -455,6 +471,10 @@ bot.on("message:document", async (ctx) => {
   }
   if (doc.mime_type?.startsWith("image/")) {
     await replyToPhoto(ctx, doc.file_id, doc.mime_type, doc.file_size ?? 0, ctx.message.caption);
+    return;
+  }
+  if (!isEnabled("uni")) {
+    await ctx.reply("Non so cosa farne di questo file: posso leggere le foto, e con la didascalia «passa» tenerlo per trasferirlo.");
     return;
   }
   if (doc.mime_type !== "application/pdf" && !doc.file_name?.toLowerCase().endsWith(".pdf")) {

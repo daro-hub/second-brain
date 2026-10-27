@@ -1,3 +1,4 @@
+import { isEnabled } from "./modules";
 import { getEventsInRange } from "./calendar";
 import { getHealthDaily, getHealthSeries, getLatestWeightKg, getMeals, type Meal } from "./health";
 import { supabase } from "./supabase";
@@ -127,8 +128,8 @@ export async function getDayBundle(dayKey: string): Promise<DayBundle> {
     getNightRecovery(dayKey),
     getAllActivities().catch(() => [] as StravaActivityFull[]),
     getGymLogsForDay(dayKey),
-    getScheduleForDay(dayKey),
-    getEventsInRange(from, to).catch(() => []),
+    isEnabled("uni") ? getScheduleForDay(dayKey) : Promise.resolve([]),
+    isEnabled("calendar") ? getEventsInRange(from, to).catch(() => []) : Promise.resolve([]),
   ]);
 
   const d = Object.fromEntries(daily) as Record<string, { total: number | null }[]>;

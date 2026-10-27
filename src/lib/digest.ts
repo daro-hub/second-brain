@@ -1,4 +1,5 @@
 import { getEventsInRange, isStudySyncEvent } from "./calendar";
+import { isEnabled } from "./modules";
 import { bold, BULLET, escapeHtml } from "./format";
 import { addDays, dayRangeUtc, formatDayLong, localHHMM, startOfDayUtc, todayKey } from "./time";
 import { formatReminderLine, listOpenReminders } from "./todoReminders";
@@ -11,8 +12,8 @@ export async function buildEveningDigest(): Promise<string> {
   const { from, to } = dayRangeUtc(tomorrowKey);
 
   const [schedule, allEvents, nextRoutine] = await Promise.all([
-    getScheduleForDay(tomorrowKey),
-    getEventsInRange(from, to),
+    isEnabled("uni") ? getScheduleForDay(tomorrowKey) : Promise.resolve([]),
+    isEnabled("calendar") ? getEventsInRange(from, to) : Promise.resolve([]),
     getNextRoutineToTrain(),
   ]);
 
@@ -43,13 +44,10 @@ export async function buildEveningDigest(): Promise<string> {
   const open = await listOpenReminders().catch(() => []);
   const remindersText = open.length ? `\n\n📝 ${bold("Promemoria aperti")}\n${open.map((r) => formatReminderLine(r)).join("\n")}` : "";
 
+  const studySection = isEnabled("uni") ? `📚 ${bold("Studio")}\n${scheduleText}\n\n` : "";
+  const eventsSection = isEnabled("calendar") ? `📅 ${bold("Impegni")}\n${eventsText}\n\n` : "";
+
   return `🌙 ${bold(`Programma di domani (${formatDayLong(tomorrowKey)})`)}
 
-📚 ${bold("Studio")}
-${scheduleText}
-
-📅 ${bold("Impegni")}
-${eventsText}
-
-🏋️ Allenamento: ${trainingText}${remindersText}`;
+${studySection}${eventsSection}🏋️ Allenamento: ${trainingText}${remindersText}`;
 }

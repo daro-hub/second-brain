@@ -1,3 +1,4 @@
+import { isEnabled } from "./modules";
 import { getDocumentPoints, getWebhookStatus, getWorkoutStats } from "./dashboard";
 import { pca2d } from "./pca";
 import { listDir } from "./university";
@@ -74,12 +75,12 @@ export async function getBrainSnapshot(): Promise<BrainSnapshot> {
     { id: "openai", label: "OpenAI", ok: env("OPENAI_API_KEY"), detail: "classificazione, voce, notizie" },
     { id: "supabase", label: "Supabase", ok: env("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"), detail: "KB, allenamenti, salute" },
     { id: "health", label: "Apple Health", ok: healthAgeH !== null && healthAgeH < 48, detail: healthAgeH === null ? "nessun dato" : `ultimo dato ${healthAgeH < 1 ? "meno di un'ora" : `${Math.round(healthAgeH)} h`} fa` },
-    { id: "calendar", label: "Google Calendar", ok: env("GOOGLE_CLIENT_ID", "GOOGLE_REFRESH_TOKEN"), detail: "agenda e Gmail" },
+    ...(isEnabled("calendar") || isEnabled("email") ? [{ id: "calendar", label: "Google Calendar", ok: env("GOOGLE_CLIENT_ID", "GOOGLE_REFRESH_TOKEN"), detail: "agenda e Gmail" }] : []),
     { id: "strava", label: "Strava", ok: env("STRAVA_CLIENT_ID", "STRAVA_REFRESH_TOKEN"), detail: "corse e sessioni" },
-    { id: "github", label: "GitHub", ok: env("GITHUB_TOKEN"), detail: "repository" },
-    { id: "university", label: "Appunti (GitHub)", ok: uni.ok, detail: uni.detail },
-    { id: "linear", label: "Linear", ok: env("LINEAR_API_KEY"), detail: "issue di lavoro" },
-    { id: "bitwarden", label: "Bitwarden", ok: env("BW_CLIENTID", "BW_MASTER_PASSWORD"), detail: "password (mai via OpenAI)" },
+    ...(isEnabled("github") ? [{ id: "github", label: "GitHub", ok: env("GITHUB_TOKEN"), detail: "repository" }] : []),
+    ...(isEnabled("uni") ? [{ id: "university", label: "Appunti (GitHub)", ok: uni.ok, detail: uni.detail }] : []),
+    ...(isEnabled("linear") ? [{ id: "linear", label: "Linear", ok: env("LINEAR_API_KEY"), detail: "issue di lavoro" }] : []),
+    ...(isEnabled("bitwarden") ? [{ id: "bitwarden", label: "Bitwarden", ok: env("BW_CLIENTID", "BW_MASTER_PASSWORD"), detail: "password (mai via OpenAI)" }] : []),
   ];
 
   return {

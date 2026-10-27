@@ -1,3 +1,4 @@
+import { moduleGate } from "../../../../src/lib/modules";
 import { airaGate } from "../../../../src/lib/airaAuth";
 import { textToSpeech } from "../../../../src/lib/voice";
 
@@ -6,6 +7,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
+  const off = moduleGate("webchat");
+  if (off) return off;
   const denied = airaGate(req);
   if (denied) return denied;
 

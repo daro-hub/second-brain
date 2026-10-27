@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { isEnabled } from "../src/lib/modules";
 import { HubContext } from "./components/hub/HubContext";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,7 @@ export default async function HubPage({ searchParams }: { searchParams: Promise<
   const { p, console: chat, detail, date, path, exercise } = await searchParams;
   // il pilastro Conoscenza è confluito in Studio: i vecchi link continuano a funzionare
   if (p === "conoscenza") redirect("/?p=studio");
+  if (chat && !isEnabled("webchat")) redirect("/"); // chat sul sito spenta: si usa Telegram
   // la home è la schermata Progressi; la chat (?console=1) vive nel layout e qui non rende nulla
   if (!p && !chat && detail !== "1") redirect("/?p=progressi");
   if (!p && detail !== "1") return null;

@@ -1,3 +1,4 @@
+import { moduleGate } from "../../../src/lib/modules";
 import { clientRedirects, makeTokens, pkceMatches, verify } from "../../../src/lib/mcpOAuth";
 
 export const dynamic = "force-dynamic";
@@ -5,6 +6,8 @@ export const dynamic = "force-dynamic";
 const err = (error: string, status = 400) => Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
 
 export async function POST(req: Request) {
+  const off = moduleGate("mcp");
+  if (off) return off;
   const form = new URLSearchParams(await req.text());
   const grant = form.get("grant_type");
 

@@ -1,3 +1,4 @@
+import { moduleGate } from "../../../../src/lib/modules";
 import { airaGate } from "../../../../src/lib/airaAuth";
 import { stripForSpeech } from "../../../../src/lib/format";
 import { handleMessageTraced } from "../../../../src/lib/respond";
@@ -14,6 +15,8 @@ const MAX_CHARS = 2000;
  * L'interfaccia le mostra in tempo reale.
  */
 export async function POST(req: Request) {
+  const off = moduleGate("webchat");
+  if (off) return off;
   const denied = airaGate(req);
   if (denied) return denied;
 

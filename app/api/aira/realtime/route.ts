@@ -1,3 +1,4 @@
+import { moduleGate } from "../../../../src/lib/modules";
 import { airaGate } from "../../../../src/lib/airaAuth";
 import { buildSessionConfig } from "../../../../src/lib/realtimeSession";
 import { reportError } from "../../../../src/lib/report";
@@ -14,6 +15,8 @@ const MAX_SDP = 20_000;
  * Da lì in poi l'audio va direttamente tra browser e OpenAI.
  */
 export async function POST(req: Request) {
+  const off = moduleGate("webchat");
+  if (off) return off;
   const denied = airaGate(req);
   if (denied) return denied;
   if (!process.env.OPENAI_API_KEY) return Response.json({ error: "openai_not_configured" }, { status: 503 });

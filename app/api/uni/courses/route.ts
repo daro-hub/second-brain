@@ -1,3 +1,4 @@
+import { moduleGate } from "../../../../src/lib/modules";
 import { NextRequest, NextResponse } from "next/server";
 import { airaGate } from "../../../../src/lib/airaAuth";
 import { supabase } from "../../../../src/lib/supabase";
@@ -10,6 +11,8 @@ const GRADE = /^(1[89]|2\d|30)L?$|^APP$/;
 
 /** Aggiorna lo stato di un insegnamento: superato (voto + data), frequentato o da fare. */
 export async function POST(req: NextRequest) {
+  const off = moduleGate("uni");
+  if (off) return off;
   const denied = airaGate(req);
   if (denied) return denied;
 

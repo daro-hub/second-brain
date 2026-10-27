@@ -22,6 +22,7 @@ import { searchEmails } from "./gmail";
 import { ingest } from "./ingest";
 import { parseBareItems } from "./bareItems";
 import { classifyMessage, type MessageIntent } from "./intent";
+import { isEnabled } from "./modules";
 import { searchIssues } from "./linear";
 import { searchMessages, slackConfigured } from "./slack";
 import { reportError } from "./report";
@@ -427,7 +428,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
   }
 
   // PDF appena mandato + "mettilo su github": caricamento e parsing degli appunti
-  const uniReply = await maybeHandleUniUpload(text);
+  const uniReply = isEnabled("uni") ? await maybeHandleUniUpload(text) : null;
   if (uniReply) return uniReply;
 
   const intent = (await bareShoppingIntent(text, history)) ?? (await classifyMessage(text, history, topic));
@@ -445,7 +446,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
     // prima di arrendersi: l'agente a strumenti prova a leggere/scrivere sulle integrazioni
     const agent = await tryToolAgent(text, trace, history);
     if (agent) return agent;
-    return `🤷 ${escapeHtml(intent.what.charAt(0).toUpperCase() + intent.what.slice(1))}: questo non riesco a leggerlo o farlo da qui.\n\nPosso aiutarti con agenda e calendario, spesa, allenamenti e scheda, salute e alimentazione, studio ed esami, progetti e link, costi OpenAI, email, password e appunti in PDF.`;
+    return `🤷 ${escapeHtml(intent.what.charAt(0).toUpperCase() + intent.what.slice(1))}: questo non riesco a leggerlo o farlo da qui.\n\n${capabilitiesLine()}`;
   }
 
   if (intent.type === "clarify") {
@@ -1086,4 +1087,22 @@ Per chiuderli: /promemoria.` : formatOpenReminders(items);
   }
 
   return rememberAndReply(text, history, trace);
+}
+
+/** Cosa sa fare questa installazione, per il messaggio «non riesco»: segue i moduli accesi. */
+function capabilitiesLine(): string {
+  const items = [
+    isEnabled("calendar") && "agenda e calendario",
+    "spesa",
+    "allenamenti e scheda",
+    "salute e alimentazione",
+    "promemoria",
+    isEnabled("uni") && "studio ed esami",
+    isEnabled("github") && "progetti e link",
+    "costi OpenAI",
+    isEnabled("email") && "email",
+    isEnabled("bitwarden") && "password",
+    isEnabled("uni") && "appunti in PDF",
+  ].filter(Boolean);
+  return `Posso aiutarti con ${items.join(", ")}.`;
 }

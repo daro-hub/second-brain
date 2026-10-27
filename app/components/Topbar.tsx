@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
+import { isEnabled, pillarEnabled } from "../../src/lib/modules";
 import { ICONS } from "./navIcons";
 
 type NavItem = { key: string; label: string; color: string };
@@ -20,7 +21,7 @@ const PILLARS: NavItem[] = [
   { key: "allenamento", label: "Allenamento", color: "#0a84ff" },
   { key: "umore", label: "Umore", color: "#bf5af2" },
   { key: "lavoro", label: "Lavoro", color: "#ff9f0a" },
-];
+].filter((n) => pillarEnabled(n.key));
 
 export function Topbar() {
   const pathname = usePathname();
@@ -32,7 +33,7 @@ export function Topbar() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      if (isEnabled("webchat") && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         router.push("/?console=1");
       }

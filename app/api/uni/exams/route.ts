@@ -1,3 +1,4 @@
+import { moduleGate } from "../../../../src/lib/modules";
 import { NextRequest, NextResponse } from "next/server";
 import { airaGate } from "../../../../src/lib/airaAuth";
 import { supabase } from "../../../../src/lib/supabase";
@@ -9,6 +10,8 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Crea (senza id) o modifica (con id) un esame pianificato per la sessione. */
 export async function POST(req: NextRequest) {
+  const off = moduleGate("uni");
+  if (off) return off;
   const denied = airaGate(req);
   if (denied) return denied;
 
@@ -31,6 +34,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const off = moduleGate("uni");
+  if (off) return off;
   const denied = airaGate(req);
   if (denied) return denied;
 

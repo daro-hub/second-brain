@@ -1,3 +1,4 @@
+import { moduleGate } from "../../../src/lib/modules";
 import { NextRequest, NextResponse } from "next/server";
 import { getUpcomingEvents } from "../../../src/lib/calendar";
 import { getHubData } from "../../../src/lib/pillars";
@@ -14,6 +15,8 @@ export const maxDuration = 30;
  * (il widget non apre il sito): si autentica con la chiave WIDGET_KEY in `Authorization: Bearer`. Sola lettura.
  */
 export async function GET(req: NextRequest) {
+  const off = moduleGate("widget");
+  if (off) return off;
   const key = process.env.WIDGET_KEY;
   const given = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
   if (!key || key.length < 24 || !constantTimeEqual(given, key)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });

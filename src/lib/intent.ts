@@ -4,6 +4,8 @@ import { parseCalendarOps, type CalendarOp } from "./agenda";
 import { SITE_TOPICS, type SiteTopic } from "./siteData";
 import { describeTopic, type ActiveTopic } from "./topicFormat";
 import { MUSCLE_GROUPS } from "./gym";
+import { isEnabled, type Module } from "./modules";
+import { activeSiteTopics } from "./siteData";
 import { perceivedTodayKey } from "./time";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -67,7 +69,39 @@ export type MessageIntent =
 /** Sotto questa sicurezza il bot non indovina: chiede. */
 export const MIN_CONFIDENCE = 0.55;
 
+/** Modulo da cui dipende ogni intento (null = sempre disponibile). */
+const INTENT_MODULE: Partial<Record<MessageIntent["type"], Module>> = {
+  password_request: "bitwarden",
+  github_query: "github",
+  linear_query: "linear",
+  slack_query: "slack",
+  calendar_query: "calendar",
+  calendar_add: "calendar",
+  calendar_change: "calendar",
+  study_schedule_query: "uni",
+  email_query: "email",
+};
+
+/**
+ * Un intento di un modulo spento diventa «unsupported»: il modello li propone comunque perché il prompt li elenca,
+ * ma in questa installazione l'integrazione non c'è e il codice sotto non deve nemmeno tentare di chiamarla.
+ */
+export function gateIntent(intent: MessageIntent): MessageIntent {
+  const mod = INTENT_MODULE[intent.type] ?? (intent.type === "life_log" && intent.kind === "work" ? "work" : undefined);
+  if (mod && !isEnabled(mod)) return { type: "unsupported", what: "questa funzione" };
+  if (intent.type === "site_query") {
+    const topics = activeSiteTopics(intent.topics);
+    return topics.length ? { ...intent, topics } : { type: "unsupported", what: "questo dato" };
+  }
+  if (intent.type === "reminder_add" && intent.calendar && !isEnabled("calendar")) return { ...intent, calendar: false };
+  return intent;
+}
+
 export async function classifyMessage(text: string, history: Turn[] = [], topic: ActiveTopic | null = null): Promise<MessageIntent> {
+  return gateIntent(await classifyMessageRaw(text, history, topic));
+}
+
+async function classifyMessageRaw(text: string, history: Turn[] = [], topic: ActiveTopic | null = null): Promise<MessageIntent> {
   const today = perceivedTodayKey(); // YYYY-MM-DD in ora italiana (il server gira in UTC), di notte ancora il giorno che finisce
   const res = await openai.chat.completions.create({
     model: "gpt-6-luna",

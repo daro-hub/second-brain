@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { getMood, moodKeyboard, moodPrompt, nextAspectIndex } from "./mood";
 import { createPill, formatPill, nextArea } from "./pills";
 import { gymPlanOfToday } from "./respond";
+import { isEnabled } from "./modules";
 import { reportError } from "./report";
 import { claimJob, jobsInWindow, releaseJob, type JobName } from "./scheduler";
 import { sendTelegramMessage } from "./telegramSend";
@@ -70,6 +71,8 @@ export interface JobResult {
 export async function runDueJobs(now: Date, dry = false): Promise<JobResult[]> {
   const out: JobResult[] = [];
   for (const job of jobsInWindow(now)) {
+    // il riepilogo ore e il brief «domani» appartengono al lavoro: spenti, nemmeno si prenotano
+    if ((job === "work_summary" || job === "work_tomorrow") && !isEnabled("work")) continue;
     if (dry) {
       out.push({ job, status: "due" });
       continue;
