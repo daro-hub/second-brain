@@ -479,6 +479,24 @@ export async function getLastLogToday(dayKey: string): Promise<LoggedSet | null>
   return data ? { id: String(data.id), exercise: String(data.exercise), weight_kg: Number(data.weight_kg), reps: Number(data.reps) } : null;
 }
 
+/** Ultime serie registrate (con id, per correggerle o cancellarle). */
+export async function getRecentLogs(limit = 15) {
+  const { data, error } = await supabase.from("workout_logs").select("id, exercise, weight_kg, reps, sets, performed_at").neq("exercise", "riposo").order("performed_at", { ascending: false }).limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ id: String(r.id), exercise: String(r.exercise), weightKg: Number(r.weight_kg), reps: Number(r.reps), sets: Number(r.sets), performedAt: String(r.performed_at) }));
+}
+
+export async function updateLog(id: string, patch: { weightKg?: number; reps?: number; sets?: number }): Promise<boolean> {
+  const row: Record<string, number> = {};
+  if (patch.weightKg !== undefined) row.weight_kg = patch.weightKg;
+  if (patch.reps !== undefined) row.reps = patch.reps;
+  if (patch.sets !== undefined) row.sets = patch.sets;
+  if (!Object.keys(row).length) return false;
+  const { data, error } = await supabase.from("workout_logs").update(row).eq("id", id).select("id");
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
 export async function deleteLog(id: string): Promise<void> {
   const { error } = await supabase.from("workout_logs").delete().eq("id", id);
   if (error) throw error;

@@ -50,11 +50,11 @@ export async function checkOffShoppingItem(id: string): Promise<void> {
 }
 
 /**
- * Segna come comprati gli articoli attivi il cui testo contiene (o è contenuto in) uno dei
- * nomi passati — confronto case-insensitive non esatto perché l'utente può dire "latte" per
- * un articolo salvato come "latte parzialmente scremato".
+ * Articoli attivi il cui testo contiene (o è contenuto in) uno dei nomi passati — confronto
+ * case-insensitive non esatto perché l'utente può dire "latte" per un articolo salvato come
+ * "latte parzialmente scremato".
  */
-export async function checkOffShoppingItemsByName(names: string[]): Promise<string[]> {
+async function matchActiveByName(names: string[]): Promise<ShoppingListItem[]> {
   const active = await getActiveShoppingList();
   const matched: ShoppingListItem[] = [];
   for (const name of names) {
@@ -66,6 +66,22 @@ export async function checkOffShoppingItemsByName(names: string[]): Promise<stri
     const found = exact.length ? exact : free.filter((a) => looseKey(a.item).includes(normalized) || normalized.includes(looseKey(a.item))).slice(0, 1);
     matched.push(...found);
   }
+  return matched;
+}
+
+/** Toglie dalla lista (senza segnarli comprati) gli articoli indicati per nome. */
+export async function removeShoppingItemsByName(names: string[]): Promise<string[]> {
+  const matched = await matchActiveByName(names);
+  if (matched.length) {
+    const { error } = await supabase.from("shopping_list").delete().in("id", matched.map((m) => m.id));
+    if (error) throw error;
+  }
+  return matched.map((m) => m.item);
+}
+
+/** Segna come comprati gli articoli indicati per nome. */
+export async function checkOffShoppingItemsByName(names: string[]): Promise<string[]> {
+  const matched = await matchActiveByName(names);
   if (matched.length) {
     const { error } = await supabase
       .from("shopping_list")

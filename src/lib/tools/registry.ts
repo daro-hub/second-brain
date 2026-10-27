@@ -4,7 +4,7 @@ import { getEventsInRange, getUpcomingEvents } from "../calendar";
 import { createEmailDraft, searchEmails } from "../gmail";
 import { commentRepoIssue, createRepoIssue, getRepoInfo, listRepos } from "../github";
 import { getMetricSummary } from "../health";
-import { ingest } from "../ingest";
+import { deleteDocument, ingest, updateDocument } from "../ingest";
 import { KNOWLEDGE_AREAS, logKnowledge, logSocial, saveReflection } from "../knowledge";
 import { commentOnIssue, createIssue, getIssueDetail, getMyOpenIssues, searchIssues } from "../linear";
 import { getMood, getMoodHistory, MOOD_ASPECTS, saveMoodAnswer, saveMoodNote } from "../mood";
@@ -12,15 +12,15 @@ import { getOpenAiUsageSummary } from "../openaiUsage";
 import { formatProfile, getProfile, setProfileFact } from "../profile";
 import { searchByFilter, searchSemantic } from "../search";
 import { gatherSiteData, SITE_TOPICS } from "../siteData";
-import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList } from "../shoppingList";
+import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList, removeShoppingItemsByName } from "../shoppingList";
 import { searchMessages, slackConfigured } from "../slack";
 import { getStepsStats } from "../steps";
 import { getAllActivities } from "../strava";
-import { addTodoReminder, completeReminder, createReminderEvent, formatDue, listOpenReminders, resolveDue } from "../todoReminders";
+import { addTodoReminder, completeReminder, createReminderEvent, deleteReminder, formatDue, listOpenReminders, resolveDue, updateReminder } from "../todoReminders";
 import { addDays, dayRangeUtc, perceivedTodayKey, todayKey } from "../time";
-import { getCourses, getPlannedExams } from "../uniExams";
-import { addPayment, addWork, getHourlyRate, getPayments, getWork, outstanding } from "../work";
-import { getExerciseHistory, getLastSession, getPR, getRoutinePreview, logWorkout, nextInRoutine, resolveExercise } from "../workouts";
+import { deleteExam, getCourses, getPlannedExams, saveExam, setCourseResult } from "../uniExams";
+import { addPayment, addWork, deletePayment, deleteWork, getHourlyRate, getPayments, getWork, outstanding, setHourlyRate, updateWork } from "../work";
+import { deleteLog, getExerciseHistory, getLastSession, getPR, getRecentLogs, getRoutinePreview, logWorkout, nextInRoutine, resolveExercise, updateLog } from "../workouts";
 
 /**
  * Tutte le capacità di second-brain come strumenti con schema. Un'unica definizione serve due canali:
@@ -47,8 +47,8 @@ const today = () => todayKey();
 export const TOOLS: ToolDef[] = [
   // ───────── lettura ─────────
   tool("site_data", false, `Dati delle pagine del sito (le stesse cifre che vede Francesco). Argomenti: ${SITE_TOPICS.join(", ")}. Massimo 4 per chiamata.`, z.object({ topics: z.array(z.enum(SITE_TOPICS)).min(1).max(4), date: date.optional().describe("giorno di riferimento, default oggi") }), (a) => gatherSiteData(a.topics, a.date ?? null)),
-  tool("kb_search", false, "Ricerca semantica nella knowledge base personale (persone, fatti, preferenze, appunti).", z.object({ query: z.string(), limit: z.number().int().min(1).max(15).optional() }), async (a) => (await searchSemantic(a.query, a.limit ?? 5)).map((d) => ({ content: d.content, source: d.source, created_at: d.created_at }))),
-  tool("kb_search_filter", false, "Ricerca nella knowledge base per fonte, intervallo di date o testo esatto.", z.object({ source: z.string().optional(), dateFrom: date.optional(), dateTo: date.optional(), textQuery: z.string().optional() }), async (a) => (await searchByFilter(a)).map((d) => ({ content: d.content, source: d.source, created_at: d.created_at }))),
+  tool("kb_search", false, "Ricerca semantica nella knowledge base personale (persone, fatti, preferenze, appunti).", z.object({ query: z.string(), limit: z.number().int().min(1).max(15).optional() }), async (a) => (await searchSemantic(a.query, a.limit ?? 5)).map((d) => ({ id: d.id, content: d.content, source: d.source, created_at: d.created_at }))),
+  tool("kb_search_filter", false, "Ricerca nella knowledge base per fonte, intervallo di date o testo esatto.", z.object({ source: z.string().optional(), dateFrom: date.optional(), dateTo: date.optional(), textQuery: z.string().optional() }), async (a) => (await searchByFilter(a)).map((d) => ({ id: d.id, content: d.content, source: d.source, created_at: d.created_at }))),
   tool("calendar_events", false, "Eventi del calendario (Google, anche quello di lavoro) tra due giorni inclusi.", z.object({ from: date, to: date }), async (a) => (await getEventsInRange(dayRangeUtc(a.from).from, dayRangeUtc(a.to).to)).map((e) => ({ summary: e.summary, start: e.start, end: e.end, allDay: e.allDay, location: e.location, calendar: e.calendar }))),
   tool("calendar_upcoming", false, "Prossimi eventi del calendario.", z.object({ days: z.number().int().min(1).max(60).optional(), max: z.number().int().min(1).max(60).optional() }), (a) => getUpcomingEvents(a.max ?? 20, a.days ?? 14)),
   tool("strava_activities", false, "Attività Strava (corse, pesi...) degli ultimi N giorni, con distanza, durata, dislivello e passo delle corse.", z.object({ days: z.number().int().min(1).max(365).optional() }), async (a) => {
@@ -63,11 +63,12 @@ export const TOOLS: ToolDef[] = [
   tool("shopping_list", false, "Lista della spesa attiva.", z.object({}), async () => (await getActiveShoppingList()).map((i) => i.item)),
   tool("gym_last_session", false, "Ultima sessione per gruppo muscolare (petto, schiena, spalle, bicipiti, tricipiti, gambe, addome).", z.object({ muscleGroup: z.string() }), (a) => getLastSession(a.muscleGroup)),
   tool("gym_exercise_history", false, "Storico di un esercizio (peso, ripetizioni, serie).", z.object({ exercise: z.string(), limit: z.number().int().min(1).max(50).optional() }), (a) => getExerciseHistory(a.exercise, a.limit ?? 20)),
+  tool("gym_recent_logs", false, "Ultime serie registrate in palestra, con id (per correggerle o cancellarle).", z.object({ limit: z.number().int().min(1).max(40).optional() }), (a) => getRecentLogs(a.limit ?? 15)),
   tool("gym_pr", false, "Record personale di un esercizio (1RM stimato).", z.object({ exercise: z.string() }), (a) => getPR(a.exercise)),
   tool("gym_routine_preview", false, "Anteprima di una routine (es. 'schiena e bicipiti') con gli ultimi pesi usati.", z.object({ routine: z.string() }), (a) => getRoutinePreview(a.routine)),
   tool("work_hours", false, "Ore di lavoro registrate tra due giorni, tariffa oraria e importo da incassare.", z.object({ from: date, to: date }), async (a) => {
     const [entries, payments, rate] = await Promise.all([getWork(a.from, a.to), getPayments(), getHourlyRate()]);
-    return { entries, hourlyRate: rate, outstanding: outstanding(entries, payments, rate) };
+    return { entries, payments, hourlyRate: rate, outstanding: outstanding(entries, payments, rate) };
   }),
   tool("mood_history", false, "Diario dell'umore (sette aspetti 1-5) degli ultimi N giorni.", z.object({ days: z.number().int().min(1).max(180).optional() }), (a) => getMoodHistory(a.days ?? 30)),
   tool("university", false, "Esami e corsi universitari: stato, voti, esami pianificati.", z.object({}), async () => ({ courses: await getCourses(), plannedExams: await getPlannedExams() })),
@@ -107,6 +108,38 @@ export const TOOLS: ToolDef[] = [
   tool("calendar_rename", true, "Rinomina un evento esistente (cercato per titolo nel giorno indicato, anche gli eventi 📚/🎓 dell'orario di studio).", z.object({ match: z.string().describe("parte del titolo attuale"), date, summary: z.string().describe("nuovo titolo") }), async (a) => (await applyCalendarOps([{ op: "rename", match: a.match, date: a.date, summary: a.summary }])).text),
   tool("calendar_delete", true, "Cancella un evento (cercato per titolo nel giorno indicato, anche gli eventi 📚/🎓 dell'orario di studio). Se più eventi corrispondono non cancella nulla e li elenca.", z.object({ match: z.string().describe("parte del titolo"), date }), async (a) => (await applyCalendarOps([{ op: "delete", match: a.match, date: a.date }])).text),
   tool("calendar_delete_range", true, "Cancella in una volta tutti gli eventi con orario in un intervallo di giorni (estremi inclusi) che rispondono ai filtri; gli eventi di tutto il giorno non si toccano. Serve almeno un filtro. Es. togliere le lezioni 📚/🎓 di 3 giorni (studyOnly) o tutto ciò che inizia dopo le 12:00 (startFrom).", z.object({ from: date, to: date, match: z.string().optional().describe("parole del titolo"), studyOnly: z.boolean().optional().describe("solo eventi 📚/🎓"), startFrom: time.optional().describe("inizia a quest'ora o dopo"), startBefore: time.optional().describe("inizia prima di quest'ora") }), async (a) => (await deleteEventsInRange(a)).text),
+  tool("reminder_update", true, "Modifica un promemoria aperto: testo e/o scadenza (date/time o inMinutes; clearDue toglie la scadenza). Gli id vengono da reminders_list.", z.object({ id: z.string(), text: z.string().optional(), date: date.optional(), time: time.optional(), inMinutes: z.number().positive().optional(), clearDue: z.boolean().optional() }), async (a) => {
+    const due = a.date || a.time || a.inMinutes ? resolveDue({ date: a.date ?? null, time: a.time ?? null, inMinutes: a.inMinutes ?? null }).dueAt : undefined;
+    return { updated: await updateReminder(a.id, { text: a.text, dueAt: a.clearDue ? null : due }) };
+  }),
+  tool("reminder_delete", true, "Elimina del tutto un promemoria (per segnarlo come fatto usa reminder_done). Gli id vengono da reminders_list.", z.object({ ids: z.array(z.string()).min(1) }), async (a) => ({ deleted: (await Promise.all(a.ids.map(deleteReminder))).filter(Boolean).length })),
+  tool("shopping_remove", true, "Toglie articoli dalla lista della spesa senza segnarli comprati (per nome, anche parziale).", z.object({ items: z.array(z.string()).min(1) }), async (a) => ({ removed: await removeShoppingItemsByName(a.items) })),
+  tool("gym_log_update", true, "Corregge una serie già registrata (peso, ripetizioni, serie). Gli id vengono da gym_recent_logs.", z.object({ id: z.string(), weightKg: z.number().min(0).optional(), reps: z.number().int().min(1).optional(), sets: z.number().int().min(1).optional() }), async (a) => ({ updated: await updateLog(a.id, a) })),
+  tool("gym_log_delete", true, "Cancella una serie registrata per errore. Gli id vengono da gym_recent_logs.", z.object({ id: z.string() }), async (a) => {
+    await deleteLog(a.id);
+    return { deleted: true };
+  }),
+  tool("work_log_update", true, "Corregge una voce delle ore di lavoro (minuti, titolo, dettagli, giorno). Gli id vengono da work_hours.", z.object({ id: z.string(), minutes: z.number().int().min(0).optional(), task: z.string().optional(), details: z.string().optional(), day: date.optional() }), async (a) => ({ updated: await updateWork(a.id, a) })),
+  tool("work_log_delete", true, "Cancella una voce delle ore di lavoro. Gli id vengono da work_hours.", z.object({ id: z.string() }), async (a) => {
+    await deleteWork(a.id);
+    return { deleted: true };
+  }),
+  tool("work_payment_delete", true, "Cancella un pagamento registrato. Gli id vengono da work_hours (payments).", z.object({ id: z.string() }), async (a) => {
+    await deletePayment(a.id);
+    return { deleted: true };
+  }),
+  tool("work_rate_set", true, "Imposta la tariffa oraria del lavoro (euro).", z.object({ eur: z.number().positive() }), async (a) => {
+    await setHourlyRate(a.eur);
+    return { ok: true };
+  }),
+  tool("kb_update", true, "Riscrive una nota della knowledge base (id da kb_search): terza persona, autosufficiente, niente segreti.", z.object({ id: z.string(), content: z.string().min(5) }), async (a) => ({ updated: await updateDocument(a.id, a.content) })),
+  tool("kb_delete", true, "Cancella una nota della knowledge base (id da kb_search). Solo su richiesta esplicita.", z.object({ id: z.string() }), async (a) => ({ deleted: await deleteDocument(a.id) })),
+  tool("uni_course_set", true, "Aggiorna lo stato di un insegnamento (codice da university). Per 'passed' servono voto (18-30, 30L, APP) e data dell'esame.", z.object({ code: z.string(), status: z.enum(["passed", "attending", "todo"]), grade: z.string().regex(/^((1[89]|2\d|30)L?|APP)$/i).optional(), passedOn: date.optional() }).refine((a) => a.status !== "passed" || (a.grade && a.passedOn), "per 'passed' servono grade e passedOn"), async (a) => ({ updated: await setCourseResult(a.code, a.status, a.grade, a.passedOn) })),
+  tool("uni_exam_save", true, "Pianifica un esame (senza id) o ne modifica uno (con id da university).", z.object({ id: z.number().int().positive().optional(), courseCode: z.string(), examDate: date, topics: z.string().optional() }), async (a) => {
+    await saveExam(a);
+    return { ok: true };
+  }),
+  tool("uni_exam_delete", true, "Toglie un esame pianificato (id da university).", z.object({ id: z.number().int().positive() }), async (a) => ({ deleted: await deleteExam(a.id) })),
   tool("gym_log_set", true, "Registra una serie in palestra. Il nome può essere in italiano o alternativo (viene riconosciuto sullo storico). Restituisce se è un PR e il prossimo esercizio della scheda con il peso dell'ultima volta.", z.object({ exercise: z.string(), weightKg: z.number().min(0), reps: z.number().int().min(1), sets: z.number().int().min(1).default(1), muscleGroup: z.string().optional() }), async (a) => {
     const res = await resolveExercise(a.exercise, a.muscleGroup);
     if (!res.match && res.options.length) return { needsClarification: true, options: res.options.slice(0, 4) };

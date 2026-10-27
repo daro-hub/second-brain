@@ -38,6 +38,7 @@ export class Q {
   eq(c: string, v: unknown) { this.filters.push((r) => r[c] === v); return this; }
   neq(c: string, v: unknown) { this.filters.push((r) => r[c] !== v); return this; }
   is(c: string, v: unknown) { this.filters.push((r) => (r[c] ?? null) === v); return this; }
+  in(c: string, v: unknown[]) { this.filters.push((r) => v.includes(r[c])); return this; }
   gte(c: string, v: string) { this.filters.push((r) => String(r[c]) >= v); return this; }
   lte(c: string, v: string) { this.filters.push((r) => String(r[c]) <= v); return this; }
   gt(c: string, v: string) { this.filters.push((r) => String(r[c]) > v); return this; }
@@ -49,12 +50,12 @@ export class Q {
     if (this.deleting) {
       const gone = db[this.table].filter((x) => this.filters.every((f) => f(x)));
       db[this.table] = db[this.table].filter((x) => !gone.includes(x));
-      return [];
+      return gone;
     }
     if (this.patch) {
       const hit = db[this.table].filter((x) => this.filters.every((f) => f(x)));
       for (const r of hit) Object.assign(r, this.patch);
-      return [];
+      return hit;
     }
     if (this.inserted) return this.inserted;
     let r = db[this.table].filter((x) => this.filters.every((f) => f(x)));

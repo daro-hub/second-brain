@@ -110,6 +110,27 @@ export async function completeReminder(id: string): Promise<boolean> {
   return (data ?? []).length > 0;
 }
 
+/** Cambia testo e/o scadenza (dueAt null = nessuna scadenza). Con una scadenza nuova `notified_at` si azzera, così il cron riavvisa. */
+export async function updateReminder(id: string, patch: { text?: string; dueAt?: Date | null }): Promise<boolean> {
+  const row: Record<string, unknown> = {};
+  if (patch.text !== undefined) row.text = patch.text.trim();
+  if (patch.dueAt !== undefined) {
+    row.due_at = patch.dueAt ? patch.dueAt.toISOString() : null;
+    row.notified_at = null;
+  }
+  if (!Object.keys(row).length) return false;
+  const { data, error } = await supabase.from("todo_reminders").update(row).eq("id", id).is("done_at", null).select("id");
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
+/** Elimina del tutto un promemoria (chiuderlo come fatto è `completeReminder`). */
+export async function deleteReminder(id: string): Promise<boolean> {
+  const { data, error } = await supabase.from("todo_reminders").delete().eq("id", id).select("id");
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
 export type SnoozeKind = "1h" | "tom";
 
 export function snoozeTarget(kind: SnoozeKind, now: Date = new Date()): Date {

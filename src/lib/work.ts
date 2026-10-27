@@ -39,6 +39,19 @@ export async function setWorkMinutes(id: string, minutes: number): Promise<void>
   if (error) throw error;
 }
 
+/** Corregge una voce delle ore: minuti, titolo, dettagli o giorno. */
+export async function updateWork(id: string, patch: { minutes?: number; task?: string; details?: string; day?: string }): Promise<boolean> {
+  const row: Record<string, unknown> = {};
+  if (patch.minutes !== undefined) row.minutes = Math.max(0, Math.round(patch.minutes));
+  if (patch.task !== undefined) row.task = patch.task.trim().slice(0, 200);
+  if (patch.details !== undefined) row.details = patch.details;
+  if (patch.day !== undefined) row.day = patch.day;
+  if (!Object.keys(row).length) return false;
+  const { data, error } = await supabase.from("work_log").update(row).eq("id", id).select("id");
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
 export async function deleteWork(id: string): Promise<void> {
   const { error } = await supabase.from("work_log").delete().eq("id", id);
   if (error) throw error;

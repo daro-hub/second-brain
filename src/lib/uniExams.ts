@@ -69,3 +69,24 @@ export function summarize(courses: Course[]) {
     arithmeticAvg: graded.length ? graded.reduce((s, c) => s + numericGrade(c.grade)!, 0) / graded.length : null,
   };
 }
+
+/** Stato di un insegnamento: per "passed" servono voto (18-30, 30L, APP) e data; per gli altri stati si azzerano. */
+export async function setCourseResult(code: string, status: CourseStatus, grade?: string, passedOn?: string): Promise<boolean> {
+  const row = status === "passed" ? { status, grade: (grade ?? "").trim().toUpperCase(), passed_on: passedOn ?? null } : { status, grade: null, passed_on: null };
+  const { data, error } = await supabase.from("uni_courses").update(row).eq("code", code).select("code");
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
+/** Crea (senza id) o modifica (con id) un esame pianificato. */
+export async function saveExam(e: { id?: number; courseCode: string; examDate: string; topics?: string }): Promise<void> {
+  const row = { course_code: e.courseCode, exam_date: e.examDate, topics: (e.topics ?? "").trim().slice(0, 2000) };
+  const { error } = e.id ? await supabase.from("uni_exams").update(row).eq("id", e.id) : await supabase.from("uni_exams").insert(row);
+  if (error) throw error;
+}
+
+export async function deleteExam(id: number): Promise<boolean> {
+  const { data, error } = await supabase.from("uni_exams").delete().eq("id", id).select("id");
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
