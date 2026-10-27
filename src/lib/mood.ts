@@ -5,7 +5,7 @@ import { addDays, todayKey } from "./time";
 export const MOOD_ASPECTS = [
   { key: "umore", label: "Umore", question: "Com'è stato il tuo umore oggi?", inverse: false },
   { key: "energia", label: "Energia", question: "Quanta energia hai avuto?", inverse: false },
-  { key: "stress", label: "Stress", question: "Quanto sei stato stressato? (5 = tantissimo)", inverse: true },
+  { key: "stress", label: "Stress", question: "Quanto sei stato stressato?", inverse: true },
   { key: "concentrazione", label: "Concentrazione", question: "Quanto sei riuscito a concentrarti?", inverse: false },
   { key: "motivazione", label: "Motivazione", question: "Quanta voglia di fare hai avuto?", inverse: false },
   { key: "socialita", label: "Socialità", question: "Quanto ti sono piaciuti i rapporti con le persone oggi?", inverse: false },
@@ -44,9 +44,12 @@ export function moodKeyboard(day: string, idx: number) {
   return { inline_keyboard: [[1, 2, 3, 4, 5].map((v) => ({ text: String(v), callback_data: moodCallback(day, idx, v) }))] };
 }
 
+/** Legenda della scala: per gli aspetti inversi (stress) 5 = tantissimo, per gli altri 5 = benissimo. */
+export const moodLegend = (inverse: boolean): string => (inverse ? "1 = per niente · 5 = tantissimo" : "1 = male · 5 = benissimo");
+
 export function moodPrompt(idx: number): string {
   const a = MOOD_ASPECTS[idx];
-  return `🌙 <b>${a.label}</b> (${idx + 1}/${MOOD_ASPECTS.length})\n${a.question}\n<i>1 = male · 5 = benissimo</i>`;
+  return `🌙 <b>${a.label}</b> (${idx + 1}/${MOOD_ASPECTS.length})\n${a.question}\n<i>${moodLegend(a.inverse)}</i>`;
 }
 
 export interface MoodDay {

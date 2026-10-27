@@ -242,7 +242,7 @@ export async function MoodPanel() {
   return (
     <>
       <div className="card">
-        <div className="card-head"><h3>Diario di oggi</h3><span className="muted small">{todayRow?.completed ? "completo" : "tocca un numero · 1 male, 5 benissimo"}</span></div>
+        <div className="card-head"><h3>Diario di oggi</h3><span className="muted small">{todayRow?.completed ? "completo" : "tocca un numero · 1 male, 5 benissimo (stress: 5 = tantissimo)"}</span></div>
         <MoodDiary aspects={MOOD_ASPECTS.map((a) => ({ key: a.key, label: a.label, question: a.question }))} scores={todayRow?.scores ?? {}} />
         <p className="muted small" style={{ marginTop: 6 }}>Stress: 5 = tantissimo. Il promemoria arriva alle 22 come notifica (e su Telegram).</p>
       </div>
