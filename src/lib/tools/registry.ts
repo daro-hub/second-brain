@@ -47,7 +47,7 @@ const today = () => todayKey();
 
 const ALL_TOOLS: ToolDef[] = [
   // ───────── lettura ─────────
-  tool("site_data", false, `Dati delle pagine del sito (le stesse cifre che vede Francesco). Argomenti: ${activeSiteTopics(SITE_TOPICS).join(", ")}. Massimo 4 per chiamata.`, z.object({ topics: z.array(z.enum(SITE_TOPICS)).min(1).max(4), date: date.optional().describe("giorno di riferimento, default oggi") }), (a) => gatherSiteData(a.topics, a.date ?? null)),
+  tool("site_data", false, `Dati delle pagine del sito (le stesse cifre che vede l'utente). Argomenti: ${activeSiteTopics(SITE_TOPICS).join(", ")}. Massimo 4 per chiamata.`, z.object({ topics: z.array(z.enum(SITE_TOPICS)).min(1).max(4), date: date.optional().describe("giorno di riferimento, default oggi") }), (a) => gatherSiteData(a.topics, a.date ?? null)),
   tool("kb_search", false, "Ricerca semantica nella knowledge base personale (persone, fatti, preferenze, appunti).", z.object({ query: z.string(), limit: z.number().int().min(1).max(15).optional() }), async (a) => (await searchSemantic(a.query, a.limit ?? 5)).map((d) => ({ id: d.id, content: d.content, source: d.source, created_at: d.created_at }))),
   tool("kb_search_filter", false, "Ricerca nella knowledge base per fonte, intervallo di date o testo esatto.", z.object({ source: z.string().optional(), dateFrom: date.optional(), dateTo: date.optional(), textQuery: z.string().optional() }), async (a) => (await searchByFilter(a)).map((d) => ({ id: d.id, content: d.content, source: d.source, created_at: d.created_at }))),
   tool("calendar_events", false, "Eventi del calendario (Google, anche quello di lavoro) tra due giorni inclusi.", z.object({ from: date, to: date }), async (a) => (await getEventsInRange(dayRangeUtc(a.from).from, dayRangeUtc(a.to).to)).map((e) => ({ summary: e.summary, start: e.start, end: e.end, allDay: e.allDay, location: e.location, calendar: e.calendar }))),
@@ -73,7 +73,7 @@ const ALL_TOOLS: ToolDef[] = [
   }),
   tool("mood_history", false, "Diario dell'umore (sette aspetti 1-5) degli ultimi N giorni.", z.object({ days: z.number().int().min(1).max(180).optional() }), (a) => getMoodHistory(a.days ?? 30)),
   tool("university", false, "Esami e corsi universitari: stato, voti, esami pianificati.", z.object({}), async () => ({ courses: await getCourses(), plannedExams: await getPlannedExams() })),
-  tool("profile_get", false, "Dati formali su Francesco (anagrafica, contatti, studi, lavoro).", z.object({}), async () => formatProfile(await getProfile())),
+  tool("profile_get", false, "Dati formali sull'utente (anagrafica, contatti, studi, lavoro).", z.object({}), async () => formatProfile(await getProfile())),
   tool("email_search", false, "Cerca nelle mail (sintassi Gmail, es. 'from:marco newer_than:7d').", z.object({ query: z.string(), max: z.number().int().min(1).max(15).optional() }), (a) => searchEmails(a.query, a.max ?? 5)),
   tool("github_repos", false, "Elenco dei repository GitHub di Francesco.", z.object({}), async () => (await listRepos()).map((r) => ({ name: r.name, description: r.description, url: r.url, updatedAt: r.updatedAt, private: r.private }))),
   tool("github_repo_info", false, "Dettagli e README di un repository (anche nome parziale).", z.object({ repo: z.string() }), (a) => getRepoInfo(a.repo)),

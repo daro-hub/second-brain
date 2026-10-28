@@ -4,6 +4,7 @@ import { getLocation } from "./location";
 import { reportError } from "./report";
 import { supabase } from "./supabase";
 import { todayKey } from "./time";
+import { OWNER, OWNER_PROFILE } from "./owner";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -28,7 +29,7 @@ const AREA_HINT: Record<KnowledgeArea, string> = {
 };
 
 export function pillPrompt(area: KnowledgeArea, past: string[], city: string | null): string {
-  return `Scrivi UNA pillola di cultura generale in italiano sull'area «${area}» (${AREA_HINT[area]}) per Daro, studente e sviluppatore di 21 anni.
+  return `Scrivi UNA pillola di cultura generale in italiano sull'area «${area}» (${AREA_HINT[area]}) per ${OWNER}${OWNER_PROFILE ? `, ${OWNER_PROFILE}` : ""}.
 Regole: argomento utile e di cultura generale, NON di nicchia; spiegazione chiara in 3-5 frasi, concreta, senza giri di parole; niente opinioni politiche di parte; niente cose inventate o dubbie — se non sei sicuro di un dato, scegli un altro argomento.${city ? `\nSe è naturale e davvero pertinente puoi legare l'esempio a ${city} (dove si trova ora), altrimenti ignoralo.` : ""}
 ${past.length ? `Argomenti già trattati (NON ripeterli): ${past.join("; ")}.\n` : ""}Rispondi SOLO con JSON: {"title": "titolo breve", "body": "la pillola", "key_fact": "la singola cosa da sapere, in una frase, verificabile con una domanda"}.`;
 }

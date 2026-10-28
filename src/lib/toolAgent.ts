@@ -4,6 +4,8 @@ import { formatHistory, type Turn } from "./chatHistory";
 import { formatDayLong, localHHMM, perceivedTodayKey } from "./time";
 import { reportError } from "./report";
 import { runTool, TOOLS } from "./tools/registry";
+import { OWNER_GENDER_NOTE, OWNER_LABEL } from "./owner";
+import { isEnabled } from "./modules";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -14,9 +16,26 @@ const OPENAI_TOOLS = TOOLS.map((t) => ({
   function: { name: t.name, description: t.description, parameters: z.toJSONSchema(t.schema) as Record<string, unknown> },
 }));
 
+/** Le integrazioni che questa installazione ha davvero (seguono i moduli accesi). */
+function integrations(): string {
+  return [
+    isEnabled("calendar") && "calendario",
+    isEnabled("email") && "mail",
+    "promemoria, spesa, palestra, Strava, Apple Health, umore",
+    isEnabled("work") && "lavoro",
+    isEnabled("uni") && "università",
+    "knowledge base",
+    isEnabled("github") && "GitHub",
+    isEnabled("linear") && "Linear",
+    isEnabled("slack") && "Slack (solo lettura)",
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
 /**
  * Agente a strumenti per ciò che gli intent fissi non coprono: legge e scrive su tutte le integrazioni tramite
- * lo stesso registro dell'MCP remoto. Le scritture solo se Daro le chiede esplicitamente nel messaggio.
+ * lo stesso registro dell'MCP remoto. Le scritture solo se l'utente le chiede esplicitamente nel messaggio.
  * Restituisce null se il modello non usa nessuno strumento (nessuna integrazione c'entra): il chiamante rifiuta con garbo.
  */
 export async function runToolAgent(text: string, history: Turn[] = [], onTool?: (name: string, write: boolean) => void): Promise<string | null> {
@@ -25,7 +44,7 @@ export async function runToolAgent(text: string, history: Turn[] = [], onTool?: 
       role: "system",
       content: `Adesso è ${formatDayLong(perceivedTodayKey())}, ore ${localHHMM(new Date())} (Europe/Rome).
 
-Sei Aira, l'assistente personale di Francesco ("Daro"). Hai strumenti per leggere e scrivere sulle sue integrazioni: calendario, mail, promemoria, spesa, palestra, Strava, Apple Health, umore, lavoro, università, knowledge base, GitHub, Linear, Slack (solo lettura).
+Sei Aira, l'assistente personale di ${OWNER_LABEL}. Hai strumenti per leggere e scrivere sulle sue integrazioni: ${integrations()}.${OWNER_GENDER_NOTE}
 - Per domande sui suoi dati chiama gli strumenti di lettura che servono (anche più di uno) e rispondi SOLO con ciò che restituiscono; se un dato manca dillo, non stimarlo.
 - Usa uno strumento di scrittura SOLO se il messaggio chiede chiaramente quell'azione. Mai inventare valori mancanti: se serve un'informazione, chiedila.
 - Per riorganizzare il calendario su più giorni: leggi prima gli eventi (calendar_events, con allDay), poi usa calendar_delete_range per cancellare in blocco e chiama calendar_add per i giorni nuovi, anche più chiamate insieme. Gli eventi 📚/🎓 sono le lezioni e lo studio: se ne crei uno di quel tipo, tieni l'emoji nel titolo. Se un evento di più giorni (viaggio, trasferta) si sovrappone alle lezioni, cancella le lezioni di quei giorni, mai l'evento di viaggio.

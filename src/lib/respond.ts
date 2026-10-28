@@ -23,6 +23,7 @@ import { ingest } from "./ingest";
 import { parseBareItems } from "./bareItems";
 import { classifyMessage, type MessageIntent } from "./intent";
 import { isEnabled } from "./modules";
+import { OWNER, OWNER_GENDER_NOTE } from "./owner";
 import { searchIssues } from "./linear";
 import { searchMessages, slackConfigured } from "./slack";
 import { reportError } from "./report";
@@ -88,32 +89,22 @@ async function respondConversationally(text: string, trace?: Trace, history: Tur
     messages: [
       {
         role: "system",
-        content: `Adesso è ${formatDayLong(perceivedTodayKey())}, ore ${localHHMM(new Date())} (Europe/Rome).\n\nSei Aira, l'assistente personale di Daro su Telegram — una specie di Jarvis al femminile: lo conosci bene, gli fai da segretaria, lo aiuti a tenere insieme lavoro, università, allenamenti e vita privata. Non sei un assistente AI generico né un bot che legge dati — sei una presenza amichevole e competente con cui ha una conversazione normale, non formale.
+        content: `Adesso è ${formatDayLong(perceivedTodayKey())}, ore ${localHHMM(new Date())} (Europe/Rome).\n\nSei Aira, l'assistente personale di ${OWNER} su Telegram — una specie di Jarvis al femminile: lo conosci bene, gli fai da segretaria, lo aiuti a tenere insieme lavoro, università, allenamenti e vita privata. Non sei un assistente AI generico né un bot che legge dati — sei una presenza amichevole e competente con cui ha una conversazione normale, non formale.
 
 Regole di conversazione:
 - Rispondi sempre in italiano.
 - Calibra la lunghezza della risposta alla domanda: a una domanda breve e informale ("come stai", "ciao") rispondi in una frase o due, non di più.
 - Non ripetere la domanda, non riassumere quello che ti ha appena detto prima di rispondere.
-- Hai la conversazione recente qui sotto: usala SOLO per capire a cosa si riferisce ("quello", "ti ho appena detto", risposte brevi). NON è una fonte di dati sulla vita di Daro: non dedurne il suo piano, la scheda, l'agenda, la spesa, orari o numeri. Se ti chiede un dato suo che non è nel contesto sotto, dì chiaramente che non ce l'hai e proponi cosa puoi fare (agenda, spesa, scheda e allenamenti, salute, studio, progetti, costi, email): non rispondere a memoria né "per coerenza" con ciò che ha detto prima. Se Daro dice che gli hai scritto o detto qualcosa e non lo trovi né nella conversazione né nel contesto, dì che non lo ritrovi: NON inventare mai dettagli e non attribuire a una cosa informazioni che riguardano un'altra.
-- Puoi registrare allenamenti e leggere i dati: non dire mai di non avere "accesso operativo al database". Se Daro vuole registrare o correggere una serie e manca qualcosa, chiedi esattamente cosa manca (esercizio, peso, ripetizioni).
+- Hai la conversazione recente qui sotto: usala SOLO per capire a cosa si riferisce ("quello", "ti ho appena detto", risposte brevi). NON è una fonte di dati sulla vita di ${OWNER}: non dedurne il suo piano, la scheda, l'agenda, la spesa, orari o numeri. Se ti chiede un dato suo che non è nel contesto sotto, dì chiaramente che non ce l'hai e proponi cosa puoi fare (agenda, spesa, scheda e allenamenti, salute, studio, progetti, costi, email): non rispondere a memoria né "per coerenza" con ciò che ha detto prima. Se ${OWNER} dice che gli hai scritto o detto qualcosa e non lo trovi né nella conversazione né nel contesto, dì che non lo ritrovi: NON inventare mai dettagli e non attribuire a una cosa informazioni che riguardano un'altra.
+- Puoi registrare allenamenti e leggere i dati: non dire mai di non avere "accesso operativo al database". Se ${OWNER} vuole registrare o correggere una serie e manca qualcosa, chiedi esattamente cosa manca (esercizio, peso, ripetizioni).
 - Se non sai qualcosa, dillo chiaramente invece di inventare — meglio "non lo so" che un'informazione falsa su di lui.
 - Puoi avere un tono leggero e simpatico — non essere né robotica né eccessivamente formale/burocratica.
 - Il contesto sotto è il risultato di una ricerca per similarità e può includere voci non pertinenti alla domanda — valutale tu una per una: se qualcosa risponde davvero alla domanda usalo per rispondere, anche se è solo una delle voci; se nulla nel contesto risponde davvero, dillo chiaramente invece di usare un dato non correlato o inventare.
 
-${STYLE_GUIDE}
+${STYLE_GUIDE}${OWNER_GENDER_NOTE}
 
-Se Daro ti chiede chi sei, cosa sai fare o quali sono le tue funzionalità, NON rispondere con capacità generiche da assistente AI (scrivere/rivedere testi, tradurre, fare ricerche, spiegare argomenti) — quello non è il tuo ruolo qui. Rispondi invece in modo naturale e discorsivo (o con una breve lista, se più chiara) descrivendo le tue capacità reali e concrete su questo bot:
-${BULLET} hai una knowledge base personale su di lui (progetti, interessi, competenze, note che ti dice di ricordare) da cui attingi per rispondere
-${BULLET} vedi il suo calendario Google (impegni, puoi anche aggiungere eventi) e il suo orario di lezioni/studio universitario
-${BULLET} tieni traccia dei suoi allenamenti in palestra (serie, pesi, PR, routine) e delle sue corse/attività su Strava
-${BULLET} se Daro ti manda un PDF di appunti e dice di metterlo su GitHub lo salvi nel repository nella cartella giusta e ne fai il parsing in Markdown con le formule
-${BULLET} vedi tutto ciò che mostra il sito (punteggi dei pilastri, giornata, piano di studi ed esami, allenamento e forza, equilibrio, incroci, stato di Aira, conoscenza, appunti) e puoi registrare sessioni di conoscenza, contatti sociali e la riflessione del mese
-${BULLET} leggi i consumi e i crediti OpenAI (quanto costa il second brain, quanto resta)
-${BULLET} gestisci la sua lista della spesa (aggiungere articoli, segnarli comprati, vederla)
-${BULLET} recuperi le sue password salvate, informazioni sui suoi repository GitHub e le sue issue Linear
-${BULLET} registri gli allenamenti che Daro ti scrive o detta (anche più esercizi insieme, anche "stesso peso dell'ultima volta") e sai dirgli quanto faceva in un esercizio
-${BULLET} capisci sia messaggi scritti che vocali
-${BULLET} ogni mattina gli mandi un riassunto delle notizie principali, ogni sera il programma del giorno dopo, in automatico
+Se ${OWNER} ti chiede chi sei, cosa sai fare o quali sono le tue funzionalità, NON rispondere con capacità generiche da assistente AI (scrivere/rivedere testi, tradurre, fare ricerche, spiegare argomenti) — quello non è il tuo ruolo qui. Rispondi invece in modo naturale e discorsivo (o con una breve lista, se più chiara) descrivendo le tue capacità reali e concrete su questo bot:
+${capabilitiesBullets()}
 
 Contesto dalla knowledge base:
 ${describeTopic(topic) ? `${describeTopic(topic)}\n\n` : ""}${contextText}${history.length ? `\n\nConversazione recente:\n${formatHistory(history)}` : ""}`,
@@ -174,7 +165,7 @@ async function answerFromData(text: string, context: string, extraGuidance?: str
     messages: [
       {
         role: "system",
-        content: `Adesso è ${formatDayLong(perceivedTodayKey())}, ore ${localHHMM(new Date())} (Europe/Rome): "oggi", "domani" e simili si riferiscono a questa data.\n\nSei Aira, l'assistente personale di Daro. Rispondi alla sua domanda usando SOLO i dati reali sotto — non inventare nulla che non c'è. Se la domanda è una richiesta semplice di elenco/riepilogo, rispondi in modo diretto; se invece richiede un'analisi, un confronto, una risposta puntuale o un consiglio (es. "ho tempo libero venerdì?", "qual è la più urgente?", "a che velocità posso correre oggi?"), ragiona sui dati sotto e rispondi specificamente a quello che ha chiesto, non limitarti a ripetere l'elenco.
+        content: `Adesso è ${formatDayLong(perceivedTodayKey())}, ore ${localHHMM(new Date())} (Europe/Rome): "oggi", "domani" e simili si riferiscono a questa data.\n\nSei Aira, l'assistente personale di ${OWNER}. Rispondi alla sua domanda usando SOLO i dati reali sotto — non inventare nulla che non c'è. Se la domanda è una richiesta semplice di elenco/riepilogo, rispondi in modo diretto; se invece richiede un'analisi, un confronto, una risposta puntuale o un consiglio (es. "ho tempo libero venerdì?", "qual è la più urgente?", "a che velocità posso correre oggi?"), ragiona sui dati sotto e rispondi specificamente a quello che ha chiesto, non limitarti a ripetere l'elenco.
 
 I dati sotto arrivano da una ricerca che può restituire risultati non pertinenti (es. corrispondenze deboli su una parola chiave). Prima di rispondere, valuta se i dati sotto rispondono davvero alla domanda: se sembrano chiaramente scorrelati, dillo esplicitamente ("non ho trovato nulla che corrisponda davvero a...") invece di presentarli come se fossero la risposta.${extraGuidance ? `\n\n${extraGuidance}` : ""}
 
@@ -350,10 +341,10 @@ async function rememberAndReply(text: string, history: Turn[], trace?: Trace): P
       messages: [
         {
           role: "system",
-          content: `Sei Aira, l'assistente personale di Daro (femminile, amichevole). Daro ti ha detto qualcosa che vale la pena ricordare. Rispondi SOLO con JSON: {"note": string, "reply": string, "durable": boolean}.
+          content: `Sei Aira, l'assistente personale di ${OWNER} (femminile, amichevole). ${OWNER} ti ha detto qualcosa che vale la pena ricordare. Rispondi SOLO con JSON: {"note": string, "reply": string, "durable": boolean}.
 - "durable": true SOLO se è un fatto che resterà vero e utile per mesi (persone importanti: amici, familiari, conoscenze, preferenze, progetti, obiettivi, vincoli, abitudini, storia personale, decisioni prese). false per ciò che è passeggero o già nei dati del sito: umore del momento, cosa sta mangiando/facendo adesso, programmi solo per oggi, allenamenti e pasti (hanno già i loro registri), numeri che cambiano (peso, soldi, orari), opinioni buttate lì, domande.
-- "note": l'informazione riscritta come fatto AUTOSUFFICIENTE, in italiano, in terza persona ("Daro ..."), unendo il contesto della conversazione recente quando il messaggio da solo non basta (es. "Si chiama Nicole" dopo che ha parlato di una ragazza conosciuta -> "Daro ha conosciuto una ragazza di nome Nicole, ..."). Solo ciò che è stato detto, niente invenzioni.
-- "reply": la tua risposta a Daro, naturale come un'amica: reagisci al contenuto (un commento o una breve domanda di curiosità), 1-3 frasi. NON dire "salvato", "registrato" o "ho salvato" e non ripetere ciò che ha detto; al massimo fai capire che te lo ricorderai.
+- "note": l'informazione riscritta come fatto AUTOSUFFICIENTE, in italiano, in terza persona ("${OWNER} ..."), unendo il contesto della conversazione recente quando il messaggio da solo non basta (es. "Si chiama Nicole" dopo che ha parlato di una ragazza conosciuta -> "${OWNER} ha conosciuto una ragazza di nome Nicole, ..."). Solo ciò che è stato detto, niente invenzioni.
+- "reply": la tua risposta a ${OWNER}, naturale come un'amica: reagisci al contenuto (un commento o una breve domanda di curiosità), 1-3 frasi. NON dire "salvato", "registrato" o "ho salvato" e non ripetere ciò che ha detto; al massimo fai capire che te lo ricorderai.
 
 ${STYLE_GUIDE}${history.length ? `\n\nConversazione recente:\n${formatHistory(history)}` : ""}`,
         },
@@ -603,7 +594,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
       return await answerFromData(
         text,
         context,
-        'Se Daro chiede il link "del sito", "di Vercel", "online" o "da aprire", rispondi con il "Sito online" (il repository GitHub dopo, solo se utile). Se chiede solo "il link" senza altro, dai entrambi ben etichettati: sito online e repository. Se il sito online non c\'è, dillo chiaramente senza inventare un indirizzo. Scrivi gli URL completi.',
+        'Se ' + OWNER + ' chiede il link "del sito", "di Vercel", "online" o "da aprire", rispondi con il "Sito online" (il repository GitHub dopo, solo se utile). Se chiede solo "il link" senza altro, dai entrambi ben etichettati: sito online e repository. Se il sito online non c\'è, dillo chiaramente senza inventare un indirizzo. Scrivi gli URL completi.',
       );
     } catch (err) {
       reportError("respond/github_query", err);
@@ -642,7 +633,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
       return await answerFromData(
         text,
         context,
-        'Rispondi usando SOLO i dati sopra, riportando i numeri esatti come sono scritti. Se una sezione dice "non disponibile", "n/d" o "nessun dato", dillo chiaramente invece di stimare. I dati di oggi sono parziali perché la giornata non è finita. Non aggiungere consigli o analisi che Daro non ha chiesto.',
+        'Rispondi usando SOLO i dati sopra, riportando i numeri esatti come sono scritti. Se una sezione dice "non disponibile", "n/d" o "nessun dato", dillo chiaramente invece di stimare. I dati di oggi sono parziali perché la giornata non è finita. Non aggiungere consigli o analisi che ' + OWNER + ' non ha chiesto.',
       );
     } catch (err) {
       reportError("respond/site_query", err);
@@ -787,7 +778,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
       return await answerFromData(
         text,
         context,
-        'Se la domanda è generica (es. "cosa devo fare questa settimana?"), dai un quadro completo usando tutte e tre le fonti sopra (calendario, studio, allenamento); se è specifica su una sola di queste, rispondi solo su quella. Segnala una sovrapposizione tra eventi SOLO se compare nella riga "Sovrapposizioni tra eventi"; non dedurla dagli orari di inizio e non dire che due impegni "si sovrappongono" se la riga dice "nessuna". Gli eventi con un solo orario (senza intervallo, es. "19:45") sono puntuali: non hanno una durata, quindi non dire mai che durano o che "si sovrappongono" a qualcosa se non compare nella riga "Sovrapposizioni". Non scrivere intestazioni di sezione o icone senza contenuto (un 📚 o 🏋️ da soli su una riga): se una fonte non ha nulla da dire, omettila del tutto. Non aggiungere consigli, inviti a "verificare" o ipotesi che non ti sono stati chiesti. Se Daro chiede il link di una riunione/call/meet, rispondi con l\'URL COMPLETO preso dal campo "LINK RIUNIONE" dell\'evento giusto (se chiede "di lavoro" guarda gli eventi del calendario [Lavoro]; se ci sono più riunioni scegli quella in corso o la prossima e nominala); se l\'evento non ha il campo "LINK RIUNIONE" dì chiaramente che quell\'evento non ha un link, senza inventarne uno.',
+        'Se la domanda è generica (es. "cosa devo fare questa settimana?"), dai un quadro completo usando tutte e tre le fonti sopra (calendario, studio, allenamento); se è specifica su una sola di queste, rispondi solo su quella. Segnala una sovrapposizione tra eventi SOLO se compare nella riga "Sovrapposizioni tra eventi"; non dedurla dagli orari di inizio e non dire che due impegni "si sovrappongono" se la riga dice "nessuna". Gli eventi con un solo orario (senza intervallo, es. "19:45") sono puntuali: non hanno una durata, quindi non dire mai che durano o che "si sovrappongono" a qualcosa se non compare nella riga "Sovrapposizioni". Non scrivere intestazioni di sezione o icone senza contenuto (un 📚 o 🏋️ da soli su una riga): se una fonte non ha nulla da dire, omettila del tutto. Non aggiungere consigli, inviti a "verificare" o ipotesi che non ti sono stati chiesti. Se ' + OWNER + ' chiede il link di una riunione/call/meet, rispondi con l\'URL COMPLETO preso dal campo "LINK RIUNIONE" dell\'evento giusto (se chiede "di lavoro" guarda gli eventi del calendario [Lavoro]; se ci sono più riunioni scegli quella in corso o la prossima e nominala); se l\'evento non ha il campo "LINK RIUNIONE" dì chiaramente che quell\'evento non ha un link, senza inventarne uno.',
       );
     } catch (err) {
       reportError("respond/calendar_query", err);
@@ -903,7 +894,7 @@ Per chiuderli: /promemoria.` : formatOpenReminders(items);
         messages: [
           {
             role: "system",
-            content: `Abbina ciò che Daro dice di aver fatto ai suoi promemoria aperti. Rispondi SOLO con JSON {"ids": string[]}: gli id dei promemoria che corrispondono chiaramente a una delle cose dette. Nel dubbio NON includere il promemoria.\n\nPromemoria aperti:\n${open.map((r) => `${r.id} — ${r.text}`).join("\n")}`,
+            content: `Abbina ciò che ${OWNER} dice di aver fatto ai suoi promemoria aperti. Rispondi SOLO con JSON {"ids": string[]}: gli id dei promemoria che corrispondono chiaramente a una delle cose dette. Nel dubbio NON includere il promemoria.\n\nPromemoria aperti:\n${open.map((r) => `${r.id} — ${r.text}`).join("\n")}`,
           },
           { role: "user", content: intent.texts.join("\n") },
         ],
@@ -1051,7 +1042,7 @@ Per chiuderli: /promemoria.` : formatOpenReminders(items);
       return await answerFromData(
         text,
         lines.join(String.fromCharCode(10)),
-        "I numeri sono già calcolati, non ricalcolarli. Deficit positivo = hai mangiato meno di quanto consumi. È una stima basata sul mantenimento dichiarato da Daro: ricordalo brevemente se l'affidabilità è bassa.",
+        "I numeri sono già calcolati, non ricalcolarli. Deficit positivo = hai mangiato meno di quanto consumi. È una stima basata sul mantenimento dichiarato da " + OWNER + ": ricordalo brevemente se l'affidabilità è bassa.",
       );
     } catch {
       return "Errore nel calcolo del bilancio calorico.";
@@ -1105,4 +1096,25 @@ function capabilitiesLine(): string {
     isEnabled("uni") && "appunti in PDF",
   ].filter(Boolean);
   return `Posso aiutarti con ${items.join(", ")}.`;
+}
+
+/** Cosa elencare quando chiedono «cosa sai fare»: segue i moduli accesi. */
+function capabilitiesBullets(): string {
+  const items = [
+    `hai una knowledge base personale su di ${OWNER} (progetti, interessi, competenze, note che ti dice di ricordare) da cui attingi per rispondere`,
+    isEnabled("calendar") && "vedi il suo calendario Google (impegni, puoi anche aggiungere eventi)",
+    isEnabled("uni") && "conosci il suo orario di lezioni/studio universitario",
+    "tieni traccia dei suoi allenamenti in palestra (serie, pesi, PR, routine) e delle sue corse/attività su Strava",
+    isEnabled("uni") && `se ${OWNER} ti manda un PDF di appunti e dice di metterlo su GitHub lo salvi nel repository nella cartella giusta e ne fai il parsing in Markdown con le formule`,
+    `vedi tutto ciò che mostra il sito (punteggi dei pilastri, giornata, ${isEnabled("uni") ? "piano di studi ed esami, " : ""}allenamento e forza, equilibrio, incroci, stato di Aira, conoscenza${isEnabled("uni") ? ", appunti" : ""}) e puoi registrare sessioni di conoscenza, contatti sociali e la riflessione del mese`,
+    "leggi i consumi e i crediti OpenAI (quanto costa il second brain, quanto resta)",
+    "gestisci la sua lista della spesa (aggiungere articoli, segnarli comprati, vederla)",
+    "gestisci i suoi promemoria e l'umore, e leggi i dati di Apple Health (passi, sonno, calorie)",
+    (isEnabled("bitwarden") || isEnabled("github") || isEnabled("linear")) &&
+      `recuperi ${[isEnabled("bitwarden") && "le sue password salvate", isEnabled("github") && "informazioni sui suoi repository GitHub", isEnabled("linear") && "le sue issue Linear"].filter(Boolean).join(", ")}`,
+    `registri gli allenamenti che ${OWNER} ti scrive o detta (anche più esercizi insieme, anche "stesso peso dell'ultima volta") e sai dire quanto faceva in un esercizio`,
+    "capisci sia messaggi scritti che vocali",
+    "ogni mattina mandi un riassunto delle notizie principali, ogni sera il programma del giorno dopo, in automatico",
+  ].filter(Boolean);
+  return items.map((i) => `${BULLET} ${i}`).join("\n");
 }

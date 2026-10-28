@@ -18,6 +18,9 @@ async function load(disabled: string | undefined) {
 
 const HER = "calendar,email,github,linear,slack,bitwarden,work,uni,worker,mcp,widget,webchat";
 
+// il primo import a freddo (registro strumenti, OpenAI, Supabase) con la suite in parallelo supera i 5 s di default
+vi.setConfig({ testTimeout: 30_000 });
+
 beforeEach(() => vi.unstubAllEnvs());
 afterEach(() => vi.unstubAllEnvs());
 

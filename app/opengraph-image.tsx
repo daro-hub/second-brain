@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { ImageResponse } from "next/og";
+import { OWNER } from "../src/lib/owner";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "Aira, il second brain di Daro";
+export const alt = `Aira, il second brain di ${OWNER}`;
 
 /** Anteprima quando il link viene condiviso: logo + nome. */
 export default function OpengraphImage() {
@@ -17,7 +18,7 @@ export default function OpengraphImage() {
         <img src={src} width={360} height={360} alt="" />
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 150, fontWeight: 600, letterSpacing: -4, color: "#9af0ff" }}>Aira</div>
-          <div style={{ fontSize: 40, color: "#8b98a8", marginTop: 8 }}>Il second brain di Daro</div>
+          <div style={{ fontSize: 40, color: "#8b98a8", marginTop: 8 }}>{`Il second brain di ${OWNER}`}</div>
         </div>
       </div>
     ),

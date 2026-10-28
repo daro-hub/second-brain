@@ -3,6 +3,7 @@ import { exerciseTokens } from "./gym";
 import { supabase } from "./supabase";
 import { getEventsInRange, isStudySyncEvent, type CalendarEventDetailed } from "./calendar";
 import { dateKey, dayRangeUtc, localHHMM } from "./time";
+import { OWNER } from "./owner";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -372,7 +373,7 @@ export async function resolveByModel(wanted: string, known: KnownExercise[], rou
       messages: [
         {
           role: "system",
-          content: `Daro dice il nome di un esercizio di palestra in italiano o con un nome alternativo; nello storico è salvato spesso in inglese. Scegli quale/i tra i nomi salvati sono lo STESSO esercizio. Rispondi SOLO con JSON {"matches": string[]} usando i nomi ESATTI dell'elenco; [] se nessuno è lo stesso esercizio (varianti diverse come manubri vs bilanciere NON sono lo stesso). Più nomi solo se davvero ambiguo.\n\nNomi salvati:\n${names.join("\n")}`,
+          content: `${OWNER} dice il nome di un esercizio di palestra in italiano o con un nome alternativo; nello storico è salvato spesso in inglese. Scegli quale/i tra i nomi salvati sono lo STESSO esercizio. Rispondi SOLO con JSON {"matches": string[]} usando i nomi ESATTI dell'elenco; [] se nessuno è lo stesso esercizio (varianti diverse come manubri vs bilanciere NON sono lo stesso). Più nomi solo se davvero ambiguo.\n\nNomi salvati:\n${names.join("\n")}`,
         },
         { role: "user", content: wanted },
       ],

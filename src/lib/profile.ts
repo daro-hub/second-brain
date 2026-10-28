@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { OWNER } from "./owner";
 
 export interface ProfileFact {
   key: string;
@@ -24,5 +25,5 @@ export function formatProfile(facts: ProfileFact[]): string {
   const hidden = new Set(["codice_fiscale"]);
   const filled = facts.filter((f) => f.value && !hidden.has(f.key)).map((f) => `- ${f.label}: ${f.value}`);
   const missing = facts.filter((f) => !f.value && !hidden.has(f.key)).map((f) => f.label);
-  return `Dati formali di Daro:\n${filled.join("\n") || "nessuno"}${missing.length ? `\nDa compilare: ${missing.join(", ")}` : ""}`;
+  return `Dati formali di ${OWNER}:\n${filled.join("\n") || "nessuno"}${missing.length ? `\nDa compilare: ${missing.join(", ")}` : ""}`;
 }

@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { dateKey, localHHMM } from "./time";
+import { OWNER } from "./owner";
 
 export interface Turn {
   role: "user" | "assistant";
@@ -94,7 +95,7 @@ export function toPlain(html: string): string {
 export function formatHistory(turns: Turn[], now = Date.now()): string {
   return turns
     .map((t) => {
-      const who = t.role === "user" ? "Daro" : "Aira";
+      const who = t.role === "user" ? OWNER : "Aira";
       // un messaggio di ore o giorni fa va letto come passato: il modello vede quando è stato scritto
       const old = t.at && now - Date.parse(t.at) > FRESH_MINUTES * 60_000;
       const when = old ? `[${dateKey(t.at!)} ${localHHMM(t.at!)}] ` : "";

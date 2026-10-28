@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { OWNER } from "./owner";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -6,7 +7,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 export const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
 const MAX_DESCRIPTION = 1500;
 
-const VISION_PROMPT = `Sei gli occhi di Aira, l'assistente personale di Daro. Daro ti ha mandato una foto: descrivila in italiano in modo che chi legge la descrizione (senza vedere la foto) capisca il contesto e possa rispondere a Daro come se la vedesse.
+const VISION_PROMPT = `Sei gli occhi di Aira, l'assistente personale di ${OWNER}. ${OWNER} ti ha mandato una foto: descrivila in italiano in modo che chi legge la descrizione (senza vedere la foto) capisca il contesto e possa rispondere a Daro come se la vedesse.
 - Dì cosa mostra, in 1-4 frasi concrete. Se ci sono testo, numeri, orari, prezzi o righe di un elenco leggibili, trascrivili fedelmente.
 - Cibo/pasto: elenca gli alimenti riconoscibili e stima le quantità (grammi o porzioni). Scontrino/lista della spesa: gli articoli e i prezzi. Palestra: attrezzo, esercizio, pesi visibili sul display. Documento, schermata o appunti: il contenuto utile. Persone: solo ciò che serve al contesto (cosa stanno facendo), senza identificarle.
 - Non inventare ciò che non si vede: se un dettaglio è illeggibile o incerto, dillo.
@@ -21,7 +22,7 @@ export async function describePhoto(bytes: Buffer, mime: string, caption?: strin
       {
         role: "user",
         content: [
-          { type: "text", text: caption ? `Didascalia scritta da Daro: «${caption}»` : "Nessuna didascalia." },
+          { type: "text", text: caption ? `Didascalia scritta da ${OWNER}: «${caption}»` : "Nessuna didascalia." },
           { type: "image_url", image_url: { url: `data:${mime};base64,${bytes.toString("base64")}`, detail: "auto" } },
         ],
       },

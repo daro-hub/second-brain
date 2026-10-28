@@ -2,6 +2,7 @@ import { Suspense, type ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { OWNER } from "../src/lib/owner";
 import { Topbar } from "./components/Topbar";
 import { HubStage } from "./components/hub/HubStage";
 import { TabBar } from "./components/TabBar";
@@ -11,7 +12,7 @@ const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", displ
 
 export const metadata: Metadata = {
   title: { default: "Aira · Second Brain", template: "%s · Aira" },
-  description: "Aira, il second brain di Daro: pilastri, agenda, allenamento, studio e lavoro in un solo posto.",
+  description: `Aira, il second brain di ${OWNER}: pilastri, allenamento, salute e il resto in un solo posto.`,
   applicationName: "Aira",
   appleWebApp: { capable: true, title: "Aira", statusBarStyle: "black-translucent" },
   // icon.svg, apple-icon e opengraph-image in app/ vengono collegati da Next in automatico

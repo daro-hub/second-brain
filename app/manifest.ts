@@ -1,11 +1,12 @@
 import type { MetadataRoute } from "next";
+import { OWNER } from "../src/lib/owner";
 
 /** Serve alle notifiche push su iPhone: la web app sulla home deve avere un manifest con display "standalone". */
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Aira · Second Brain",
     short_name: "Aira",
-    description: "Aira, il second brain di Daro",
+    description: `Aira, il second brain di ${OWNER}`,
     start_url: "/",
     scope: "/",
     display: "standalone",

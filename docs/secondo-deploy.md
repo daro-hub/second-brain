@@ -17,11 +17,17 @@ Cosa fa ciascuno spento: gli strumenti e gli intenti di quel modulo spariscono d
 le route rispondono 404, le schede e i pilastri (Studio con `uni`, Lavoro con `work`) non compaiono, i job notturni del lavoro
 non partono. La chat sul sito (`webchat`) si spegne insieme all'orb: resta solo Telegram.
 
+## Nome e tono
+
+`OWNER_NAME` è il nome che il bot usa per la persona (non impostata = Francesco, «Daro»: il suo deploy non cambia).
+`OWNER_GENDER=f` fa parlare di lei al femminile, `OWNER_PROFILE` (facoltativa, es. `di 24 anni`) è la presentazione per le
+pillole di cultura. Sono variabili del server: dopo averle cambiate serve un nuovo deploy.
+
 ## Cosa creare per lei
 
 1. Progetto Vercel collegato a questo repo (branch `master`), con le sue variabili: `SUPABASE_URL`,
    `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `TELEGRAM_BOT_TOKEN` (un bot nuovo da BotFather),
-   `TELEGRAM_ALLOWED_USER_ID` (il suo), `DASHBOARD_PIN`, `CRON_SECRET`, le chiavi VAPID per le notifiche, `HEALTH_INGEST_SECRET`.
+   `TELEGRAM_ALLOWED_USER_ID` (il suo), `OWNER_NAME`, `OWNER_GENDER`, `DASHBOARD_PIN`, `CRON_SECRET`, le chiavi VAPID per le notifiche, `HEALTH_INGEST_SECRET`.
 2. Progetto Supabase nuovo: applica tutte le migrazioni in `supabase/migrations/`.
 3. **Attenzione alla migrazione `0009_reminders_cron.sql`**: ha l'URL del deploy di Francesco scritto dentro. Prima di
    applicarla nel suo Supabase cambia l'URL con quello del suo deploy, poi `select vault.create_secret('<il suo CRON_SECRET>', 'cron_secret');`.
@@ -31,6 +37,6 @@ non partono. La chat sul sito (`webchat`) si spegne insieme all'orb: resta solo 
 
 ## Limiti noti
 
-- I prompt del bot chiamano ancora l'utente «Daro» e si presentano come assistente di Francesco, e la descrizione di
-  «cosa so fare» elenca anche funzioni dei moduli spenti (`src/lib/respond.ts`, `toolAgent.ts`, `intent.ts`).
+- Restano il nome di Francesco nel prompt della voce live (`realtimeSession.ts`), nella chat del sito e nei moduli spenti
+  (lavoro, studio, GitHub, Linear): per lei sono tutti spenti, quindi non compaiono.
 - Le pillole di cultura giornaliere e `log_knowledge` restano accese: facevano parte del pilastro Studio ma sono un job a parte.
