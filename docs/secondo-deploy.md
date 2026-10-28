@@ -23,11 +23,15 @@ non partono. La chat sul sito (`webchat`) si spegne insieme all'orb: resta solo 
 `OWNER_GENDER=f` fa parlare di lei al femminile, `OWNER_PROFILE` (facoltativa, es. `di 24 anni`) è la presentazione per le
 pillole di cultura. Sono variabili del server: dopo averle cambiate serve un nuovo deploy.
 
+Il profilo fisico per i calcoli di calorie, deficit e proteine è `OWNER_WEIGHT_KG`, `OWNER_HEIGHT_CM` e `OWNER_RESTING_KCAL`
+(fabbisogno a riposo, senza allenarsi). Senza, valgono quelli di Francesco (65 kg, 170 cm, 1750 kcal): per un'altra persona
+i numeri di deficit sarebbero sbagliati.
+
 ## Cosa creare per lei
 
 1. Progetto Vercel collegato a questo repo (branch `master`), con le sue variabili: `SUPABASE_URL`,
    `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `TELEGRAM_BOT_TOKEN` (un bot nuovo da BotFather),
-   `TELEGRAM_ALLOWED_USER_ID` (il suo), `OWNER_NAME`, `OWNER_GENDER`, `DASHBOARD_PIN`, `CRON_SECRET`, le chiavi VAPID per le notifiche, `HEALTH_INGEST_SECRET`.
+   `TELEGRAM_ALLOWED_USER_ID` (il suo), `OWNER_NAME`, `OWNER_GENDER`, `OWNER_WEIGHT_KG`, `OWNER_HEIGHT_CM`, `OWNER_RESTING_KCAL`, `DASHBOARD_PIN`, `CRON_SECRET`, le chiavi VAPID per le notifiche, `HEALTH_INGEST_SECRET`.
 2. Progetto Supabase nuovo: applica tutte le migrazioni in `supabase/migrations/`.
 3. **Attenzione alla migrazione `0009_reminders_cron.sql`**: ha l'URL del deploy di Francesco scritto dentro. Prima di
    applicarla nel suo Supabase cambia l'URL con quello del suo deploy, poi `select vault.create_secret('<il suo CRON_SECRET>', 'cron_secret');`.

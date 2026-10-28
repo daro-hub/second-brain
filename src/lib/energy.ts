@@ -4,19 +4,26 @@ import { getAllActivities, type StravaActivityFull } from "./strava";
 import { supabase } from "./supabase";
 import { addDays, todayKey } from "./time";
 
+/** Numero da una variabile d'ambiente; vuota, assente o non valida = il valore di default (quello di Francesco). */
+function envNum(name: string, fallback: number): number {
+  const n = Number(process.env[name]?.trim());
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 /**
- * Modello del fabbisogno di Daro. Il punto di partenza è il fabbisogno a ZERO attività
- * (giornata in casa a lavorare e studiare, senza allenarsi): 1750 kcal, deciso il 07/10/2026
+ * Modello del fabbisogno. Il punto di partenza è il fabbisogno a ZERO attività
+ * (giornata in casa a lavorare e studiare, senza allenarsi): per Francesco 1750 kcal, deciso il 07/10/2026
  * (formula Mifflin 1610 di metabolismo basale + digestione, controllata sui dati Apple Health).
  * Su quel pavimento si SOMMANO ogni giorno i passi oltre la soglia minima di casa e
  * l'allenamento reale. È una STIMA: i coefficienti sono costanti note e modificabili qui
- * sotto, non misure.
+ * sotto, non misure. Peso, altezza e fabbisogno a riposo sono personali: un altro deploy li imposta con
+ * OWNER_WEIGHT_KG, OWNER_HEIGHT_CM e OWNER_RESTING_KCAL (senza, valgono quelli di Francesco).
  */
 export const PROFILE = {
   /** fabbisogno a zero attività: metabolismo basale + digestione + movimento minimo in casa */
-  restingKcal: 1750,
-  weightKg: 65,
-  heightCm: 170,
+  restingKcal: envNum("OWNER_RESTING_KCAL", 1750),
+  weightKg: envNum("OWNER_WEIGHT_KG", 65),
+  heightCm: envNum("OWNER_HEIGHT_CM", 170),
   /** passi già compresi nel fabbisogno a zero attività (muoversi per casa); solo quelli oltre contano */
   baselineSteps: 1000,
   /** kcal nette per passo (≈ 0,5 kcal/kg/km con passo di ~0,7 m) */
@@ -25,7 +32,7 @@ export const PROFILE = {
   kcalPerKgFat: 7700,
   /** sotto questa soglia un giorno senza pasti registrati non conta: sarebbe un falso deficit */
   minLoggedKcal: 1000,
-} as const;
+};
 
 /** kcal nette al minuto = (MET − 1) × kg / 60 */
 const netPerMin = (met: number) => ((met - 1) * PROFILE.weightKg) / 60;
