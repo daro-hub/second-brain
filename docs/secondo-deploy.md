@@ -27,6 +27,10 @@ Il profilo fisico per i calcoli di calorie, deficit e proteine è `OWNER_WEIGHT_
 (fabbisogno a riposo, senza allenarsi). Senza, valgono quelli di Francesco (65 kg, 170 cm, 1750 kcal): per un'altra persona
 i numeri di deficit sarebbero sbagliati.
 
+Il ciclo di allenamento è `OWNER_TRAINING_CYCLE` (tappe separate da `|`, es. `gambe|petto e schiena|riposo`). I nomi devono
+coincidere con `routine_name` in `workout_routines`. Con il ciclo personalizzato la tappa fatta si riconosce dagli esercizi
+registrati (non dal gruppo muscolare), perché più giorni possono avere lo stesso gruppo; senza variabile resta il ciclo di Francesco.
+
 ## Cosa creare per lei
 
 1. Progetto Vercel collegato a questo repo (branch `master`), con le sue variabili: `SUPABASE_URL`,

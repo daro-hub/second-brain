@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { exerciseTokens } from "./gym";
+import { exerciseTokens, pickRoutineByExercises } from "./gym";
 import { supabase } from "./supabase";
 import { getEventsInRange, isStudySyncEvent, type CalendarEventDetailed } from "./calendar";
 import { dateKey, dayRangeUtc, localHHMM } from "./time";
@@ -168,7 +168,23 @@ export async function getRoutinePreview(routineName: string, beforeDayKey?: stri
  * fermo sulla prossima tappa finche' non viene davvero allenata), quindi si guarda
  * SOLO l'ultimo gruppo muscolare realmente loggato, non le date.
  */
-const TRAINING_CYCLE = ["petto e schiena", "braccia", "leg day", "riposo"];
+const DEFAULT_CYCLE = ["petto e schiena", "braccia", "leg day", "riposo"];
+// Un altro deploy ha il suo ciclo: OWNER_TRAINING_CYCLE = tappe separate da "|", con gli stessi nomi di routine_name nella
+// tabella workout_routines (es. "gambe|petto e schiena|riposo"). Senza, il ciclo di Francesco.
+const CUSTOM_CYCLE = (process.env.OWNER_TRAINING_CYCLE ?? "").split("|").map((s) => s.trim().toLowerCase()).filter(Boolean);
+const TRAINING_CYCLE = CUSTOM_CYCLE.length ? CUSTOM_CYCLE : DEFAULT_CYCLE;
+
+/** Il ciclo scritto per esteso, per le pagine che lo mostrano. */
+export const trainingCycleLabel = (): string => (CUSTOM_CYCLE.length ? TRAINING_CYCLE.join(" → ") : "petto-schiena → braccia → gambe → riposo");
+
+/** Nel ciclo personalizzato la routine si riconosce dagli esercizi fatti, non dal gruppo muscolare dell'ultima serie. */
+async function routineFromExercises(exercises: string[]): Promise<number> {
+  const { data, error } = await supabase.from("workout_routines").select("routine_name, exercise");
+  if (error) throw error;
+  const routines: Record<string, string[]> = {};
+  for (const r of data ?? []) (routines[String(r.routine_name).toLowerCase()] ??= []).push(String(r.exercise));
+  return pickRoutineByExercises(exercises, routines, TRAINING_CYCLE);
+}
 
 const MUSCLE_GROUP_TO_ROUTINE: Record<string, string> = {
   petto: "petto e schiena",
@@ -182,12 +198,22 @@ const MUSCLE_GROUP_TO_ROUTINE: Record<string, string> = {
 export async function getNextRoutineToTrain(): Promise<string> {
   const { data, error } = await supabase
     .from("workout_logs")
-    .select("muscle_group, performed_at")
+    .select("exercise, muscle_group, performed_at")
     .order("performed_at", { ascending: false })
     .limit(50);
   if (error) throw error;
 
   let lastPosition = -1; // niente di tracciabile ancora -> si parte dall'inizio del ciclo
+  if (CUSTOM_CYCLE.length) {
+    const latest = data?.[0];
+    if (latest?.muscle_group === "riposo") lastPosition = TRAINING_CYCLE.indexOf("riposo");
+    else if (latest) {
+      const day = dateKey(latest.performed_at as string);
+      const sameDay = (data ?? []).filter((r) => r.muscle_group !== "riposo" && dateKey(r.performed_at as string) === day);
+      lastPosition = await routineFromExercises(sameDay.map((r) => String(r.exercise)));
+    }
+    return TRAINING_CYCLE[(lastPosition + 1) % TRAINING_CYCLE.length];
+  }
   for (const row of data ?? []) {
     if (row.muscle_group === "riposo") {
       lastPosition = TRAINING_CYCLE.indexOf("riposo");
@@ -439,11 +465,17 @@ export async function getRoutineGroups(): Promise<Record<string, string[]>> {
 export async function getRoutineForToday(dayKey: string): Promise<string> {
   const { data, error } = await supabase
     .from("workout_logs")
-    .select("muscle_group")
+    .select("exercise, muscle_group")
     .gte("performed_at", dayRangeUtc(dayKey).from.toISOString())
     .lt("performed_at", dayRangeUtc(dayKey).to.toISOString())
     .order("performed_at", { ascending: false });
   if (error) throw error;
+  if (CUSTOM_CYCLE.length) {
+    const done = (data ?? []).filter((r) => r.muscle_group !== "riposo").map((r) => String(r.exercise));
+    const pos = done.length ? await routineFromExercises(done) : -1;
+    if (pos >= 0) return TRAINING_CYCLE[pos];
+    return getNextRoutineToTrain();
+  }
   for (const row of data ?? []) {
     const routine = MUSCLE_GROUP_TO_ROUTINE[row.muscle_group as string];
     if (routine) return routine;

@@ -69,6 +69,25 @@ export function routineForGroups(groups: string[], routines: Record<string, stri
 }
 
 /**
+ * Posizione nel ciclo della routine che contiene più degli esercizi fatti (−1 se nessuna). Serve ai cicli con più giorni
+ * dello stesso gruppo (gambe, schiena, bicipiti): lì il gruppo muscolare dell'ultima serie non dice che giorno era.
+ */
+export function pickRoutineByExercises(exercises: string[], routines: Record<string, string[]>, cycle: string[]): number {
+  const norm = (e: string) => e.trim().toLowerCase();
+  const done = new Set(exercises.map(norm));
+  let best = -1;
+  let bestScore = 0;
+  cycle.forEach((name, i) => {
+    const score = (routines[name] ?? []).filter((e) => done.has(norm(e))).length;
+    if (score > bestScore) {
+      best = i;
+      bestScore = score;
+    }
+  });
+  return best;
+}
+
+/**
  * "Cosa devo allenare oggi?", "dammi la scheda", "dammi i pesi": la scheda di oggi con i pesi. Non scatta sulle
  * domande sul passato ("che allenamento ho fatto ieri?") né su un esercizio specifico ("dammi i pesi del leg curl").
  */

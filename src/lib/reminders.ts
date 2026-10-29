@@ -1,5 +1,6 @@
 import { getEventsInRange, isStudySyncEvent, type CalendarEventDetailed } from "./calendar";
 import { bold, escapeHtml } from "./format";
+import { isEnabled } from "./modules";
 import { supabase } from "./supabase";
 import { localHHMM, localHourDecimal } from "./time";
 
@@ -27,6 +28,8 @@ export function isMorningUniversityEvent(e: Pick<CalendarEventDetailed, "summary
  * dopo che l'evento è entrato nella finestra, e una tabella impedisce i doppioni.
  */
 export async function collectReminders(now: Date = new Date()): Promise<Reminder[]> {
+  // Senza il modulo calendario non c'è un account Google da interrogare: il cron ogni 5 minuti andrebbe in errore.
+  if (!isEnabled("calendar")) return [];
   const to = new Date(now.getTime() + LEAD_MINUTES * 60_000);
   const events = await getEventsInRange(now, to);
 

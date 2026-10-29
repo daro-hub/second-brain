@@ -3,7 +3,7 @@ import { getLatestWeightKg } from "../../src/lib/health";
 import { clock, dec, int } from "../../src/lib/numfmt";
 import { getDayBundle } from "../../src/lib/overview";
 import { formatDayLong, todayKey } from "../../src/lib/time";
-import { getNextRoutineToTrain } from "../../src/lib/workouts";
+import { getNextRoutineToTrain, trainingCycleLabel } from "../../src/lib/workouts";
 import { Icon } from "../components/Icon";
 import { Ring } from "../components/viz/small";
 
@@ -82,7 +82,7 @@ export async function OggiView() {
               ? bundle.gymLogs.map((g) => `${g.exercise} ${g.weightKg} kg × ${g.reps}`).join(" · ")
               : todaySessions.length > 0
                 ? todaySessions.map((s) => s.name).join(" · ")
-                : "Prossima tappa del ciclo petto-schiena → braccia → gambe → riposo"}
+                : `Prossima tappa del ciclo ${trainingCycleLabel()}`}
           </div>
         </div>
       </div>
