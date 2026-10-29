@@ -2,6 +2,7 @@ import { getEnergyOverview, PROFILE } from "./energy";
 import { getHealthDaily } from "./health";
 import { getWeekBudget } from "./insights";
 import { getMyRecentActivity } from "./linear";
+import { isEnabled } from "./modules";
 import { mean } from "./stats";
 import { getAllActivities, type StravaActivityFull } from "./strava";
 import { addDays, todayKey } from "./time";
@@ -41,8 +42,9 @@ export async function getLifeBalance(): Promise<LifeBalance> {
     getAllActivities().catch(() => [] as StravaActivityFull[]),
     getHealthDaily("protein", from, today).catch(() => []),
     getHealthDaily("step_count", from, today).catch(() => []),
-    getWeekBudget().catch(() => null),
-    getMyRecentActivity(7).catch(() => null),
+    // studio e lavoro solo se i moduli sono accesi: senza, non ci sono né orario né Linear da interrogare
+    isEnabled("uni") ? getWeekBudget().catch(() => null) : Promise.resolve(null),
+    isEnabled("work") ? getMyRecentActivity(7).catch(() => null) : Promise.resolve(null),
   ]);
 
   // allenamento: sessioni vere (camminate escluse) negli ultimi 7 giorni
@@ -100,7 +102,7 @@ export async function getLifeBalance(): Promise<LifeBalance> {
     ? { key: "lavoro", label: "Lavoro", score: clamp((work.updated / TARGETS.workUpdates) * 100), detail: `${work.updated} issue Linear toccate, ${work.completed} completate in 7 giorni` }
     : { key: "lavoro", label: "Lavoro", score: null, detail: "Linear non raggiungibile" };
 
-  const axes = [training, diet, study, health, job];
+  const axes = [training, diet, ...(isEnabled("uni") ? [study] : []), health, ...(isEnabled("work") ? [job] : [])];
   const scored = axes.filter((a) => a.score !== null) as (BalanceAxis & { score: number })[];
   let index: number | null = null;
   const insights: LifeBalance["insights"] = [];

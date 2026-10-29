@@ -16,6 +16,9 @@ const OPENAI_TOOLS = TOOLS.map((t) => ({
   function: { name: t.name, description: t.description, parameters: z.toJSONSchema(t.schema) as Record<string, unknown> },
 }));
 
+/** Le chiamate con strumenti su chat.completions non accettano il ragionamento: senza "none" l'API risponde 400 (i tipi dell'SDK non lo conoscono ancora). */
+const NO_REASONING = { reasoning_effort: "none" } as object;
+
 /** Le integrazioni che questa installazione ha davvero (seguono i moduli accesi). */
 function integrations(): string {
   return [
@@ -58,7 +61,7 @@ Sei Aira, l'assistente personale di ${OWNER_LABEL}. Hai strumenti per leggere e 
   ];
   let used = false;
   for (let step = 0; step < MAX_STEPS; step++) {
-    const res = await openai.chat.completions.create({ model: "gpt-6-luna", messages, tools: OPENAI_TOOLS });
+    const res = await openai.chat.completions.create({ model: "gpt-6-luna", ...NO_REASONING, messages, tools: OPENAI_TOOLS });
     const msg = res.choices[0].message;
     if (!msg.tool_calls?.length) return used ? (msg.content ?? "Fatto.") : null;
     messages.push(msg);
