@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { exerciseTokens, pickRoutineByExercises } from "./gym";
+import { exerciseTokens, pickRoutineByExercises, resolveCyclePosition } from "./gym";
 import { supabase } from "./supabase";
 import { getEventsInRange, isStudySyncEvent, type CalendarEventDetailed } from "./calendar";
 import { dateKey, dayRangeUtc, localHHMM } from "./time";
@@ -195,6 +195,27 @@ const MUSCLE_GROUP_TO_ROUTINE: Record<string, string> = {
   gambe: "leg day",
 };
 
+const CYCLE_CURSOR_KEY = "training_cycle_cursor";
+
+async function getCycleCursor(): Promise<{ routine: string; at: string } | null> {
+  const { data } = await supabase.from("app_settings").select("value").eq("key", CYCLE_CURSOR_KEY).maybeSingle();
+  if (!data) return null;
+  try {
+    const v = JSON.parse(String(data.value));
+    return typeof v?.routine === "string" && typeof v?.at === "string" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Dice al ciclo quale tappa è stata fatta per ultima (dalle serie registrate dopo, si riparte da lì). */
+export async function setCycleCursor(lastDone: string): Promise<void> {
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert({ key: CYCLE_CURSOR_KEY, value: JSON.stringify({ routine: lastDone.trim().toLowerCase(), at: new Date().toISOString() }), updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
 export async function getNextRoutineToTrain(): Promise<string> {
   const { data, error } = await supabase
     .from("workout_logs")
@@ -206,12 +227,14 @@ export async function getNextRoutineToTrain(): Promise<string> {
   let lastPosition = -1; // niente di tracciabile ancora -> si parte dall'inizio del ciclo
   if (CUSTOM_CYCLE.length) {
     const latest = data?.[0];
-    if (latest?.muscle_group === "riposo") lastPosition = TRAINING_CYCLE.indexOf("riposo");
+    let fromLogs: { position: number; at: string } | null = null;
+    if (latest?.muscle_group === "riposo") fromLogs = { position: TRAINING_CYCLE.indexOf("riposo"), at: latest.performed_at as string };
     else if (latest) {
       const day = dateKey(latest.performed_at as string);
       const sameDay = (data ?? []).filter((r) => r.muscle_group !== "riposo" && dateKey(r.performed_at as string) === day);
-      lastPosition = await routineFromExercises(sameDay.map((r) => String(r.exercise)));
+      fromLogs = { position: await routineFromExercises(sameDay.map((r) => String(r.exercise))), at: latest.performed_at as string };
     }
+    lastPosition = resolveCyclePosition(fromLogs, await getCycleCursor(), TRAINING_CYCLE);
     return TRAINING_CYCLE[(lastPosition + 1) % TRAINING_CYCLE.length];
   }
   for (const row of data ?? []) {

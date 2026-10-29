@@ -27,3 +27,25 @@ describe("posizione nel ciclo dagli esercizi fatti", () => {
     expect(pickRoutineByExercises(["Squat"], {}, cycle)).toBe(-1);
   });
 });
+
+import { resolveCyclePosition } from "../src/lib/gym";
+
+describe("segnaposto del ciclo messo a mano", () => {
+  const c = ["gambe", "petto e schiena", "quadricipiti", "riposo"];
+  const logs = { position: 0, at: "2026-10-29T08:00:00Z" };
+
+  it("se è più recente delle serie vince il segnaposto (ultima fatta = petto e schiena → oggi quadricipiti)", () => {
+    expect(resolveCyclePosition(logs, { routine: "Petto e schiena", at: "2026-10-29T09:00:00Z" }, c)).toBe(1);
+    expect(resolveCyclePosition(null, { routine: "petto e schiena", at: "2026-10-29T09:00:00Z" }, c)).toBe(1);
+  });
+
+  it("le serie registrate dopo il segnaposto tornano a decidere", () => {
+    expect(resolveCyclePosition({ position: 2, at: "2026-10-29T12:00:00Z" }, { routine: "petto e schiena", at: "2026-10-29T09:00:00Z" }, c)).toBe(2);
+  });
+
+  it("segnaposto assente o con un nome che non è nel ciclo: restano le serie (o −1)", () => {
+    expect(resolveCyclePosition(logs, null, c)).toBe(0);
+    expect(resolveCyclePosition(logs, { routine: "boh", at: "2026-10-29T09:00:00Z" }, c)).toBe(0);
+    expect(resolveCyclePosition(null, null, c)).toBe(-1);
+  });
+});

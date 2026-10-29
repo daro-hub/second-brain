@@ -88,6 +88,21 @@ export function pickRoutineByExercises(exercises: string[], routines: Record<str
 }
 
 /**
+ * Ultima tappa fatta nel ciclo: quella ricavata dalle serie registrate, oppure il segnaposto messo a mano
+ * (app_settings «training_cycle_cursor») se è più recente. Serve a rimettere in passo il ciclo senza inventare serie.
+ */
+export function resolveCyclePosition(
+  fromLogs: { position: number; at: string } | null,
+  cursor: { routine: string; at: string } | null,
+  cycle: string[],
+): number {
+  const cursorPos = cursor ? cycle.indexOf(cursor.routine.trim().toLowerCase()) : -1;
+  if (cursorPos < 0) return fromLogs?.position ?? -1;
+  if (!fromLogs || Date.parse(cursor!.at) > Date.parse(fromLogs.at)) return cursorPos;
+  return fromLogs.position;
+}
+
+/**
  * "Cosa devo allenare oggi?", "dammi la scheda", "dammi i pesi": la scheda di oggi con i pesi. Non scatta sulle
  * domande sul passato ("che allenamento ho fatto ieri?") né su un esercizio specifico ("dammi i pesi del leg curl").
  */
