@@ -14,6 +14,9 @@ Second Brain is a personal project used by a single person, its developer (Franc
 ## Retention and deletion
 Conversation history and any data the developer saves live in his own Supabase project and can be deleted at any time. Google access can be revoked at https://myaccount.google.com/permissions.
 
+## Other installations
+The same code can run as a separate personal installation for another individual (own Vercel project, own Supabase, own Google authorization). In that case the same rules apply to that person's own data: it is used only to answer their own requests, it is stored only in their own Supabase project, and they can revoke Google access at any time from https://myaccount.google.com/permissions.
+
 ## Contact
 darinzancof@gmail.com
 
