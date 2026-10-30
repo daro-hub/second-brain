@@ -50,7 +50,7 @@ describe("diario dell'umore", () => {
 describe("scheduler", () => {
   it("pillola dalle 9 alle 22, diario dalle 22 (ora italiana)", () => {
     expect(jobsInWindow(new Date("2026-10-06T06:00:00Z"))).toEqual([]); // 08:00
-    expect(jobsInWindow(new Date("2026-10-06T12:30:00Z"))).toEqual(["daily_pill", "gym_plan"]); // 14:30
+    expect(jobsInWindow(new Date("2026-10-06T12:30:00Z"))).toEqual(["daily_pill", "gym_plan", "daily_quiz"]); // 14:30
     expect(jobsInWindow(new Date("2026-10-06T07:30:00Z"))).toEqual(["daily_pill"]); // 09:30
     expect(jobsInWindow(new Date("2026-10-06T20:05:00Z"))).toEqual(["mood_checkin", "evening_digest", "work_tomorrow"]); // 22:05
     expect(jobsInWindow(new Date("2026-10-06T22:30:00Z"))).toEqual(["work_summary"]); // 00:30 (riassunto del giorno finito)

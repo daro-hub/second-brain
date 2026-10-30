@@ -17,6 +17,7 @@ export const MODULES = [
   "mcp", // server MCP remoto + OAuth
   "widget", // widget embeddabile
   "webchat", // chat e orb sul sito (resta solo Telegram)
+  "quiz", // quiz giornalieri su Telegram: capitali d'Europa, confini del mondo, storia
 ] as const;
 export type Module = (typeof MODULES)[number];
 

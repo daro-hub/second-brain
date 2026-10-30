@@ -8,6 +8,8 @@ import { KNOWLEDGE_AREAS } from "../lib/knowledge";
 import { saveLocation } from "../lib/location";
 import { MOOD_ASPECTS, getMood, moodKeyboard, moodPrompt, moodSummary, parseMoodCallback, saveMoodAnswer } from "../lib/mood";
 import { createPill, formatPill } from "../lib/pills";
+import { answerQuiz, formatQuiz, sendQuiz } from "../lib/quiz";
+import { QUIZ_KINDS, parseQuizCallback, type QuizKind } from "../lib/quizBuild";
 import { sendMoodCheckin } from "../lib/dailyJobs";
 import { clearPending, parseWorkCallback, tryApplyHoursReply } from "../lib/workDigest";
 import { fmtHours, setWorkMinutes } from "../lib/work";
@@ -44,11 +46,11 @@ bot.use(async (ctx, next) => {
 });
 
 // Moduli spenti in questa installazione (vedi lib/modules.ts): i loro comandi e bottoni non fanno nulla.
-const COMMAND_MODULE: Record<string, Module> = { pw: "bitwarden", job: "worker", fix: "worker", jobs: "worker", workers: "worker", stop: "worker" };
+const COMMAND_MODULE: Record<string, Module> = { quiz: "quiz", pw: "bitwarden", job: "worker", fix: "worker", jobs: "worker", workers: "worker", stop: "worker" };
 bot.use(async (ctx, next) => {
   const cmd = ctx.message?.text?.match(/^\/(\w+)/)?.[1]?.toLowerCase();
   const data = ctx.callbackQuery?.data;
-  const mod: Module | undefined = cmd ? COMMAND_MODULE[cmd] : data?.startsWith("wk:") ? "work" : data && parseCallback(data) ? "worker" : undefined;
+  const mod: Module | undefined = cmd ? COMMAND_MODULE[cmd] : data?.startsWith("wk:") ? "work" : data?.startsWith("qz:") ? "quiz" : data && parseCallback(data) ? "worker" : undefined;
   if (mod && !isEnabled(mod)) {
     if (ctx.callbackQuery) await ctx.answerCallbackQuery({ text: "Non disponibile" }).catch(() => undefined);
     else await ctx.reply("Questa funzione non è attiva qui.");
@@ -331,6 +333,37 @@ bot.command("pillole", async (ctx) => {
     await ctx.reply(formatPill(pill), { parse_mode: "HTML" });
   }
   await ctx.reply(failed ? `Fatto, ma ${failed} area/e non sono riuscita a generarle: riprova con /pillole.` : "Fatto ✅ Le ho salvate: più avanti, col check mensile, vediamo quali hai assimilato davvero.");
+});
+
+// Quiz a risposta multipla: uno al giorno per tipo (capitali, confini, storia); /quiz ne manda uno subito, /quiz capitali|confini|storia sceglie il tipo
+bot.command("quiz", async (ctx) => {
+  const arg = String(ctx.match ?? "").trim().toLowerCase();
+  const kind: QuizKind | undefined = (QUIZ_KINDS as string[]).includes(arg) ? (arg as QuizKind) : undefined;
+  if (arg && !kind) {
+    await ctx.reply("Scrivi /quiz, oppure /quiz capitali, /quiz confini o /quiz storia.");
+    return;
+  }
+  if (!(await sendQuiz(kind ?? QUIZ_KINDS[Math.floor(Math.random() * QUIZ_KINDS.length)]))) await ctx.reply("Non sono riuscito a preparare il quiz, riprova tra poco.");
+});
+
+bot.callbackQuery(/^qz:/, async (ctx) => {
+  const cb = parseQuizCallback(ctx.callbackQuery.data);
+  if (!cb) {
+    await ctx.answerCallbackQuery();
+    return;
+  }
+  try {
+    const r = await answerQuiz(cb.id, cb.idx);
+    if (!r) {
+      await ctx.answerCallbackQuery({ text: "Domanda non trovata" });
+      return;
+    }
+    await ctx.answerCallbackQuery({ text: r.already ? "Avevi già risposto" : r.correct ? "✅ Esatto!" : "❌ Sbagliato" });
+    await ctx.editMessageText(formatQuiz(r.quiz), { parse_mode: "HTML" }).catch(() => undefined);
+  } catch (err) {
+    reportError("telegram/quiz", err);
+    await ctx.answerCallbackQuery({ text: "Errore, riprova" }).catch(() => undefined);
+  }
 });
 
 // Posizione (solo se la condividi tu dal graffetta → Posizione): serve a personalizzare le pillole

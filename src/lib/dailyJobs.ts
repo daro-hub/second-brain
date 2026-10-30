@@ -2,6 +2,7 @@ import { buildEveningDigest } from "./digest";
 import { supabase } from "./supabase";
 import { getMood, moodKeyboard, moodPrompt, nextAspectIndex } from "./mood";
 import { createPill, formatPill, nextArea } from "./pills";
+import { sendDailyQuiz } from "./quiz";
 import { gymPlanOfToday } from "./respond";
 import { isEnabled } from "./modules";
 import { reportError } from "./report";
@@ -73,6 +74,7 @@ export async function runDueJobs(now: Date, dry = false): Promise<JobResult[]> {
   for (const job of jobsInWindow(now)) {
     // il riepilogo ore e il brief «domani» appartengono al lavoro: spenti, nemmeno si prenotano
     if ((job === "work_summary" || job === "work_tomorrow") && !isEnabled("work")) continue;
+    if (job === "daily_quiz" && !isEnabled("quiz")) continue;
     if (dry) {
       out.push({ job, status: "due" });
       continue;
@@ -82,6 +84,8 @@ export async function runDueJobs(now: Date, dry = false): Promise<JobResult[]> {
       const sent =
         job === "gym_plan" ? await sendGymPlan() : job === "mood_checkin" ? await sendMoodCheckin(dateKey(now)) : job === "work_summary"
           ? await sendWorkSummary(addDays(dateKey(now), -1))
+          : job === "daily_quiz"
+            ? await sendDailyQuiz()
           : job === "evening_digest"
             ? await sendEveningDigest()
             : job === "work_tomorrow"

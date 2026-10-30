@@ -10,7 +10,7 @@ separazione è tutta nelle variabili d'ambiente.
 umore, spesa e promemoria, via Telegram:
 
 ```
-NEXT_PUBLIC_DISABLED_MODULES=calendar,email,github,linear,slack,bitwarden,work,uni,worker,mcp,widget,webchat
+NEXT_PUBLIC_DISABLED_MODULES=calendar,email,github,linear,slack,bitwarden,work,uni,worker,mcp,widget,webchat,quiz
 ```
 
 Cosa fa ciascuno spento: gli strumenti e gli intenti di quel modulo spariscono dal bot (diventano «non riesco a farlo»),
