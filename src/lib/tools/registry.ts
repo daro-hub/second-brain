@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { applyCalendarOps, deleteEventsInRange } from "../calendarEdit";
 import { getEventsInRange, getUpcomingEvents } from "../calendar";
+import { shortNote } from "../agenda";
 import { createEmailDraft, searchEmails } from "../gmail";
 import { commentRepoIssue, createRepoIssue, getRepoInfo, listRepos, updateRepoIssue } from "../github";
 import { getMetricSummary } from "../health";
@@ -50,7 +51,7 @@ const ALL_TOOLS: ToolDef[] = [
   tool("site_data", false, `Dati delle pagine del sito (le stesse cifre che vede l'utente). Argomenti: ${activeSiteTopics(SITE_TOPICS).join(", ")}. Massimo 4 per chiamata.`, z.object({ topics: z.array(z.enum(SITE_TOPICS)).min(1).max(4), date: date.optional().describe("giorno di riferimento, default oggi") }), (a) => gatherSiteData(a.topics, a.date ?? null)),
   tool("kb_search", false, "Ricerca semantica nella knowledge base personale (persone, fatti, preferenze, appunti).", z.object({ query: z.string(), limit: z.number().int().min(1).max(15).optional() }), async (a) => (await searchSemantic(a.query, a.limit ?? 5)).map((d) => ({ id: d.id, content: d.content, source: d.source, created_at: d.created_at }))),
   tool("kb_search_filter", false, "Ricerca nella knowledge base per fonte, intervallo di date o testo esatto.", z.object({ source: z.string().optional(), dateFrom: date.optional(), dateTo: date.optional(), textQuery: z.string().optional() }), async (a) => (await searchByFilter(a)).map((d) => ({ id: d.id, content: d.content, source: d.source, created_at: d.created_at }))),
-  tool("calendar_events", false, "Eventi del calendario (Google, anche quello di lavoro) tra due giorni inclusi.", z.object({ from: date, to: date }), async (a) => (await getEventsInRange(dayRangeUtc(a.from).from, dayRangeUtc(a.to).to)).map((e) => ({ summary: e.summary, start: e.start, end: e.end, allDay: e.allDay, location: e.location, calendar: e.calendar }))),
+  tool("calendar_events", false, "Eventi del calendario (Google, anche quello di lavoro) tra due giorni inclusi.", z.object({ from: date, to: date }), async (a) => (await getEventsInRange(dayRangeUtc(a.from).from, dayRangeUtc(a.to).to)).map((e) => ({ summary: e.summary, start: e.start, end: e.end, allDay: e.allDay, location: e.location, description: shortNote(e.description), calendar: e.calendar }))),
   tool("calendar_upcoming", false, "Prossimi eventi del calendario.", z.object({ days: z.number().int().min(1).max(60).optional(), max: z.number().int().min(1).max(60).optional() }), (a) => getUpcomingEvents(a.max ?? 20, a.days ?? 14)),
   tool("strava_activities", false, "Attività Strava (corse, pesi...) degli ultimi N giorni, con distanza, durata, dislivello e passo delle corse.", z.object({ days: z.number().int().min(1).max(365).optional() }), async (a) => {
     const since = addDays(today(), -(a.days ?? 30));

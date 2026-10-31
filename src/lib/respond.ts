@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { getPassword } from "./bitwarden";
-import { addMinutes, asksForMeetingLink, describeOverlap, findOverlaps, formatWhen } from "./agenda";
+import { addMinutes, asksForMeetingLink, describeOverlap, findOverlaps, formatWhen, shortNote } from "./agenda";
 import { applyCalendarOps } from "./calendarEdit";
 import { GoogleAuthError } from "./googleAuth";
 import { createEvent, getEventsInRange, getUpcomingEvents, isStudySyncEvent } from "./calendar";
@@ -747,7 +747,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
       const eventsText = events.length
         ? events
             .map((e) => {
-              return `${dayOf(e.start)} ${formatWhen(e)} — ${e.summary}${e.calendar ? ` [${e.calendar}]` : ""}${e.location ? ` (${e.location})` : ""}${e.meetUrl ? ` — LINK RIUNIONE: ${e.meetUrl}` : ""}`;
+              return `${dayOf(e.start)} ${formatWhen(e)} — ${e.summary}${e.calendar ? ` [${e.calendar}]` : ""}${e.location ? ` (${e.location})` : ""}${shortNote(e.description) ? ` — NOTE: ${shortNote(e.description)}` : ""}${e.meetUrl ? ` — LINK RIUNIONE: ${e.meetUrl}` : ""}`;
             })
             .join("\n")
         : "Nessuno";

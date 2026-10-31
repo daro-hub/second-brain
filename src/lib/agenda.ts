@@ -25,6 +25,13 @@ export function formatWhen(e: AgendaEvent): string {
   return isPointEvent(e) ? localHHMM(e.start) : `${localHHMM(e.start)}–${localHHMM(e.end)}`;
 }
 
+/** Note di un evento su una riga e al massimo `max` caratteri, per il contesto del modello. */
+export const shortNote = (description: string | undefined, max = 160): string | undefined => {
+  const t = description?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  if (!t) return undefined;
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+};
+
 export interface Overlap {
   a: AgendaEvent;
   b: AgendaEvent;

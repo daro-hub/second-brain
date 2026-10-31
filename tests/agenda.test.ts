@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeOverlap, findOverlaps, formatWhen, type AgendaEvent } from "../src/lib/agenda";
+import { describeOverlap, findOverlaps, formatWhen, shortNote, type AgendaEvent } from "../src/lib/agenda";
 
 const ev = (summary: string, start: string, end: string): AgendaEvent => ({ summary, start, end });
 

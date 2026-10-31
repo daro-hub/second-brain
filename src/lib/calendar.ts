@@ -6,6 +6,8 @@ export interface CalendarEvent {
   start: string;
   end: string;
   location?: string;
+  /** note dell'evento (es. orari e codice di un volo): servono al bot per rispondere su un evento che nel titolo non dice tutto */
+  description?: string;
   /** calendario di provenienza (es. "Lavoro"); assente per il calendario principale */
   calendar?: string;
   /** link per entrare nella videochiamata (Meet, Zoom, Teams...), se l'evento ne ha uno */
@@ -107,6 +109,7 @@ async function fetchFrom(ref: CalendarRef, params: Record<string, string>): Prom
       start: e.start?.dateTime ?? e.start?.date ?? "",
       end: e.end?.dateTime ?? e.end?.date ?? "",
       location: e.location,
+      description: e.description?.trim() || undefined,
       meetUrl: extractMeetingUrl(e),
       allDay: !e.start?.dateTime,
       calendar: ref.label ?? undefined,
