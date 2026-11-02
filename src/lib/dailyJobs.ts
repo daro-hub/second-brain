@@ -1,3 +1,4 @@
+import { addTurns } from "./chatHistory";
 import { buildEveningDigest } from "./digest";
 import { supabase } from "./supabase";
 import { getMood, moodKeyboard, moodPrompt, nextAspectIndex } from "./mood";
@@ -54,6 +55,7 @@ export async function sendWorkSummary(day: string): Promise<boolean> {
   const made = await createDigestEntry(day);
   if (!made) return false;
   await setPending(made.id, day);
+  await addTurns("telegram", [{ role: "assistant", content: `Riassunto del ${day}: ${made.summary.title}. Quante ore hai lavorato il ${day}?` }]).catch(() => {});
   await sendTelegramMessage(digestMessage(day, made.summary), { html: true, markup: hoursKeyboard(made.id), notice: { title: "💼 Quante ore hai lavorato?", body: "Ho riassunto commit e call di ieri: conferma le ore.", url: "/?p=lavoro", tag: `work:${day}` } });
   return true;
 }

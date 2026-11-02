@@ -6,7 +6,7 @@ import { GoogleAuthError } from "./googleAuth";
 import { createEvent, getEventsInRange, getUpcomingEvents, isStudySyncEvent } from "./calendar";
 import { addTurns, formatHistory, freshTurns, recentTurns, toPlain, type Turn } from "./chatHistory";
 import { bold, BULLET, dropEmptyIconLines, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
-import { addWork, fmtHours } from "./work";
+import { addWork, fmtHours, getWork, setWorkMinutes } from "./work";
 import { proposalKeyboard, saveOrPropose } from "./kbProposals";
 import { getOpenAiUsageSummary } from "./openaiUsage";
 import { formatUsageReport } from "./usageReport";
@@ -653,10 +653,16 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
       }
       if (intent.kind === "work") {
         if (!intent.minutes) return "⏱ Quante ore (o minuti) hai lavorato? Per esempio «oggi 3 ore sul totem».";
-        const day = intent.date && intent.date <= todayKey() ? intent.date : todayKey();
-        await addWork({ day, minutes: intent.minutes, task: intent.note || "lavoro" });
+        // Il modello ragiona con «oggi» = perceivedTodayKey (prima delle 5 è ancora ieri): senza data esplicita, stessa regola.
+        if (intent.date && intent.date > todayKey()) return `⏱ ${intent.date} è nel futuro: a che giorno vanno le ore?`;
+        const day = intent.date ?? perceivedTodayKey();
+        // La voce automatica del giorno (0 ore, dal riassunto di mezzanotte) si compila, non si affianca una seconda
+        const open = (await getWork(day, day)).find((e) => e.source === "auto" && e.minutes === 0);
+        if (open) await setWorkMinutes(open.id, intent.minutes);
+        else await addWork({ day, minutes: intent.minutes, task: intent.note || "lavoro" });
+        const total = (await getWork(day, day)).reduce((s, e) => s + e.minutes, 0);
         src(trace, "github", `Lavoro: ${fmtHours(intent.minutes)} il ${day}`, { href: "/?p=lavoro" });
-        return `⏱ Segnate ${bold(fmtHours(intent.minutes))}${intent.note ? ` — ${escapeHtml(intent.note)}` : ""} (${day === todayKey() ? "oggi" : day}).`;
+        return `⏱ Segnate ${bold(fmtHours(intent.minutes))}${intent.note ? ` — ${escapeHtml(intent.note)}` : ""} (${day === todayKey() ? `oggi, ${day}` : day}). Totale del giorno: ${fmtHours(total)}.`;
       }
       if (intent.kind === "social") {
         await logSocial("uscita", intent.note);

@@ -89,6 +89,8 @@ export const ROUTER_CASES: RouterCase[] = [
   { id: "log-conoscenza", text: "ho letto 30 minuti di filosofia", expect: { type: "life_log", kind: "knowledge" } },
   { id: "log-lavoro", text: "oggi ho lavorato 3 ore sul totem", expect: { type: "life_log", kind: "work" } },
   { id: "log-lavoro-ieri", text: "segna ieri 90 minuti di call", expect: { type: "life_log", kind: "work" } },
+  { id: "log-lavoro-correzione", text: "Anzi 10", history: [{ role: "assistant", content: "Riassunto del 2026-11-01: Beacon, audio e percorsi. Quante ore hai lavorato il 2026-11-01?" }, { role: "user", content: "9 ore" }, { role: "assistant", content: "⏱ Segnate 9 h per il 2026-11-01." }], expect: { type: "life_log", kind: "work" } },
+  { id: "log-lavoro-data-esplicita", text: "10 ore l'1/11/2026", expect: { type: "life_log", kind: "work", date: "2026-11-01" } },
   { id: "sito-ore-lavoro", text: "quante ore ho lavorato questa settimana?", expect: { type: "site_query" } },
   { id: "sito-umore", text: "come è andato il mio umore ultimamente?", expect: { type: "site_query" } },
   { id: "log-sociale", text: "sono uscito con gli amici", expect: { type: "life_log", kind: "social" } },

@@ -11,7 +11,7 @@ import { createPill, formatPill } from "../lib/pills";
 import { answerQuiz, formatQuiz, sendQuiz } from "../lib/quiz";
 import { QUIZ_KINDS, parseQuizCallback, type QuizKind } from "../lib/quizBuild";
 import { sendMoodCheckin } from "../lib/dailyJobs";
-import { clearPending, parseWorkCallback, tryApplyHoursReply } from "../lib/workDigest";
+import { getPending, markAnswered, parseWorkCallback, tryApplyHoursReply } from "../lib/workDigest";
 import { fmtHours, setWorkMinutes } from "../lib/work";
 import { todayKey } from "../lib/time";
 import { completeReminder, formatDue, formatOpenReminders, listKeyboard, listOpenReminders, parseReminderCallback, snoozeReminder } from "../lib/todoReminders";
@@ -258,7 +258,8 @@ bot.callbackQuery(/^wk:/, async (ctx) => {
   }
   try {
     await setWorkMinutes(cb.id, cb.minutes);
-    await clearPending();
+    const pending = await getPending();
+    if (pending?.id === cb.id) await markAnswered(pending);
     await ctx.answerCallbackQuery({ text: cb.minutes ? `Segnate ${fmtHours(cb.minutes)}` : "Nessuna ora" });
     await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => undefined);
     await ctx.reply(cb.minutes ? `⏱ Segnate ${fmtHours(cb.minutes)}.` : "Ok, nessuna ora per quel giorno.");
@@ -465,6 +466,8 @@ bot.on("message:text", async (ctx) => {
   const hours = isEnabled("work") ? await tryApplyHoursReply(ctx.message.text).catch(() => null) : null;
   if (hours) {
     await ctx.reply(hours);
+    // senza, il classificatore non sapeva che «anzi 10» rispondeva alla domanda sulle ore
+    await addTurns("telegram", [{ role: "user", content: ctx.message.text }, { role: "assistant", content: hours }]).catch(() => {});
     return;
   }
   // «dammi gli appunti di programmazione, lezione 2»: manda i file della lezione

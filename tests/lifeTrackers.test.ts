@@ -179,13 +179,15 @@ describe("riassunto di mezzanotte", () => {
     expect(f.bullets).toEqual(["webapp: 2 commit", "Call: Call con Marco (30 min)"]);
     expect(parseSummary('{"title":"T","bullets":[]}')).toBeNull();
   });
-  it("la risposta con le ore aggiorna la voce in attesa una sola volta", async () => {
+  it("la risposta con le ore aggiorna la voce in attesa; dopo, solo come correzione", async () => {
     db.work_log = [{ id: "w1", day: "2026-10-05", minutes: 0 }];
     await setPending("w1", "2026-10-05");
     expect(await tryApplyHoursReply("ciao")).toBeNull();
     expect(await tryApplyHoursReply("2,5")).toContain("2,5 h");
     expect(db.work_log[0].minutes).toBe(150);
-    expect(await tryApplyHoursReply("3")).toBeNull();
+    expect(await tryApplyHoursReply("ciao")).toBeNull();
+    expect(await tryApplyHoursReply("anzi 3")).toContain("Corretto: ora sono 3 h");
+    expect(db.work_log[0].minutes).toBe(180);
   });
 });
 
