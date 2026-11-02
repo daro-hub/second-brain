@@ -3,7 +3,7 @@ import { getEventsInRange, isStudySyncEvent } from "./calendar";
 import { reportError } from "./report";
 import { supabase } from "./supabase";
 import { dateKey, dayRangeUtc, localHHMM } from "./time";
-import { addWork, fmtHours, setWorkMinutes, workGithubToken } from "./work";
+import { addWork, fmtHours, getWork, setWorkMinutes, workGithubToken } from "./work";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const GH = "https://api.github.com";
@@ -145,6 +145,8 @@ export interface HoursReply {
   corrected: boolean;
   /** Giorno detto nella risposta («10 ore l'1/11/2026»), se c'è. */
   day: string | null;
+  /** «11 totali»: è il totale del giorno, non le ore di questa voce. */
+  total: boolean;
 }
 
 /** Come `parseHoursReply`, ma capisce anche «anzi 10», «no, 8 ore» e «10 ore l'1/11/2026». */
@@ -159,8 +161,12 @@ export function parseHoursCorrection(text: string, now = new Date()): HoursReply
     day = `${year}-${d[2].padStart(2, "0")}-${d[1].padStart(2, "0")}`;
     t = t.slice(0, d.index);
   }
+  // «11 totali, non 21»: il totale detto vale, il «non 21» è solo la spiegazione
+  t = t.replace(/[,;]?\s*non\s+\d.*$/, "");
+  const total = /\b(totali|in totale|in tutto)\s*$/.test(t);
+  t = t.replace(/\s*\b(totali|in totale|in tutto)\s*$/, "");
   const minutes = parseHoursReply(t);
-  return minutes === null ? null : { minutes, corrected, day };
+  return minutes === null ? null : { minutes, corrected, day, total };
 }
 
 export const workCallback = (id: string, minutes: number) => `wk:${id}:${minutes}`;
@@ -204,8 +210,8 @@ export async function getPending(now = Date.now()): Promise<PendingWork | null> 
 }
 
 /** Le ore sono state date: la voce resta «aperta» per le correzioni («anzi 10»), invece di sparire. */
-export async function markAnswered(p: PendingWork, now = Date.now()): Promise<void> {
-  await savePending({ ...p, answeredAt: now, at: now });
+export async function markAnswered(p: Pick<PendingWork, "id" | "day">, now = Date.now()): Promise<void> {
+  await savePending({ id: p.id, day: p.day, answeredAt: now, at: now });
 }
 
 /** Puro: la risposta riguarda quella voce? Dopo una prima risposta serve un «anzi…» o essere ancora a ridosso. */
@@ -221,9 +227,15 @@ export async function tryApplyHoursReply(text: string): Promise<string | null> {
   if (!reply) return null;
   const pending = await getPending();
   if (!pending || !appliesToPending(pending, reply)) return null;
-  await setWorkMinutes(pending.id, reply.minutes);
+  let minutes = reply.minutes;
+  if (reply.total) {
+    // «11 totali»: le altre voci del giorno restano, questa si adegua
+    const others = (await getWork(pending.day, pending.day)).filter((e) => e.id !== pending.id).reduce((n, e) => n + e.minutes, 0);
+    minutes = Math.max(0, minutes - others);
+  }
+  await setWorkMinutes(pending.id, minutes);
   await markAnswered(pending);
-  return `⏱ ${pending.answeredAt === null ? "Segnate" : "Corretto: ora sono"} ${fmtHours(reply.minutes)} per il ${pending.day}.`;
+  return `⏱ ${pending.answeredAt === null ? "Segnate" : "Corretto: ora sono"} ${fmtHours(reply.minutes)}${reply.total ? " in totale" : ""} per il ${pending.day}.`;
 }
 
 export function digestMessage(day: string, s: DigestSummary): string {

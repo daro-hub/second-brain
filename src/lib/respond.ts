@@ -7,6 +7,7 @@ import { createEvent, getEventsInRange, getUpcomingEvents, isStudySyncEvent } fr
 import { addTurns, formatHistory, freshTurns, recentTurns, toPlain, type Turn } from "./chatHistory";
 import { bold, BULLET, dropEmptyIconLines, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
 import { addWork, fmtHours, getWork, setWorkMinutes } from "./work";
+import { markAnswered } from "./workDigest";
 import { proposalKeyboard, saveOrPropose } from "./kbProposals";
 import { getOpenAiUsageSummary } from "./openaiUsage";
 import { formatUsageReport } from "./usageReport";
@@ -658,8 +659,10 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
         const day = intent.date ?? perceivedTodayKey();
         // La voce automatica del giorno (0 ore, dal riassunto di mezzanotte) si compila, non si affianca una seconda
         const open = (await getWork(day, day)).find((e) => e.source === "auto" && e.minutes === 0);
+        const entryId = open ? open.id : (await addWork({ day, minutes: intent.minutes, task: intent.note || "lavoro" })).id;
         if (open) await setWorkMinutes(open.id, intent.minutes);
-        else await addWork({ day, minutes: intent.minutes, task: intent.note || "lavoro" });
+        // anche qui la voce resta correggibile: «anzi 11» la modifica invece di aggiungerne un'altra
+        await markAnswered({ id: entryId, day });
         const total = (await getWork(day, day)).reduce((s, e) => s + e.minutes, 0);
         src(trace, "github", `Lavoro: ${fmtHours(intent.minutes)} il ${day}`, { href: "/?p=lavoro" });
         return `⏱ Segnate ${bold(fmtHours(intent.minutes))}${intent.note ? ` — ${escapeHtml(intent.note)}` : ""} (${day === todayKey() ? `oggi, ${day}` : day}). Totale del giorno: ${fmtHours(total)}.`;
