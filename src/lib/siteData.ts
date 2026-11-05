@@ -17,7 +17,7 @@ import { MOOD_ASPECTS, moodIndex } from "./mood";
 import { describeFactor, getMoodFactors } from "./moodInsights";
 import { getCultureScore } from "./pills";
 import { formatProfile, getProfile } from "./profile";
-import { crossWork, fmtHours, getHourlyRate, getOrgCommits, getPayments, getWork, minutesByDay, outstanding, workStats } from "./work";
+import { crossWork, dailyWork, fmtHours, getHourlyRate, getOrgCommits, getPayments, getWork, minutesByDay, outstanding, workStats } from "./work";
 import { getDayBundle, getWeekStrip } from "./overview";
 import { reportError } from "./report";
 import { fmtAira, fmtBalance, fmtDay, fmtKnowledge, fmtPillars, fmtScatter, fmtStudy, fmtTraining } from "./siteFormat";
@@ -125,8 +125,15 @@ const PROVIDERS: Record<SiteTopic, (date: string | null) => Promise<string>> = {
     const [a, b, c] = [win(7), win(28), win(90)];
     const [rate, payments, all] = await Promise.all([getHourlyRate(), getPayments().catch(() => []), getWork("2000-01-01", today)]);
     const due = outstanding(all, payments, rate);
-    const line = (l: string, s: ReturnType<typeof workStats>) => `- ${l}: ${fmtHours(s.totalMinutes)} in ${s.daysWorked} giorni lavorati${s.avgMinutesPerWorkedDay ? ` (media ${fmtHours(s.avgMinutesPerWorkedDay)} nei giorni lavorati)` : ""}${rate ? `, circa ${Math.round((s.totalMinutes / 60) * rate)} €` : ""}`;
-    const recent = entries.slice(0, 8).map((e) => `- ${e.day}: ${e.minutes ? fmtHours(e.minutes) : "—"} ${e.task}${e.taskType ? ` [${e.taskType}]` : ""}`);
+    const line = (l: string, s: ReturnType<typeof workStats>) => `- ${l}: ${fmtHours(s.totalMinutes)} in ${s.daysWorked} giorni lavorati${s.avgMinutesPerWorkedDay ? ` (media ${fmtHours(s.avgMinutesPerWorkedDay)} nei giorni lavorati)` : ""}${rate || s.extraEur ? `, circa ${Math.round((rate ? (s.totalMinutes / 60) * rate : 0) + s.extraEur)} €${s.extraEur ? ` (di cui ${Math.round(s.extraEur)} € di extra)` : ""}` : ""}`;
+    const recent = entries.slice(0, 8).map((e) => `- ${e.day}: ${e.minutes ? fmtHours(e.minutes) : "—"} ${e.task}${e.taskType ? ` [${e.taskType}]` : ""}${e.extraEur ? ` +${e.extraEur} €` : ""}`);
+    const eur = (n: number | null) => (n === null ? "" : `${Math.round(n)} €`);
+    const sum = (m: number, h: number | null, x: number, t: number | null) => {
+      const parts = [m ? `${fmtHours(m)}${h !== null ? ` (${eur(h)})` : ""}` : "", x ? `${eur(x)} extra` : ""].filter(Boolean);
+      return parts.length ? `${parts.join(" + ")}${t !== null && parts.length > 1 ? ` = ${eur(t)}` : ""}` : "—";
+    };
+    const week = dailyWork(entries.filter((e) => e.day > addDays(today, -7)), rate);
+    const weekLines = week.days.map((d) => `- ${d.day}: ${sum(d.minutes, d.hoursEur, d.extraEur, d.totalEur)}${d.tasks.length ? ` — ${d.tasks.join("; ")}` : ""}`);
     const cross = commits ? crossWork(minutesByDay(entries), commits.byDay) : null;
     return [
       "Ore di lavoro registrate nel tracker (storico importato da Notion):",
@@ -134,6 +141,7 @@ const PROVIDERS: Record<SiteTopic, (date: string | null) => Promise<string>> = {
       line("ultimi 28 giorni", b),
       line("ultimi 90 giorni", c),
       `Pagamenti: ${due.paidUntil ? `pagato fino al ${due.paidUntil}` : "nessun pagamento registrato"}; da incassare ${fmtHours(due.minutes)} in ${due.days} giorni${due.dueEur !== null ? `, circa ${due.dueEur} € (tariffa ${rate} €/h)` : " (tariffa non impostata)"}${due.received ? `; incassato finora (registrato) ${due.received} €` : ""}`,
+      `Ultimi 7 giorni, giorno per giorno:\n${weekLines.join("\n") || "nessuna registrazione"}\nTotale 7 giorni: ${sum(week.total.minutes, week.total.hoursEur, week.total.extraEur, week.total.totalEur)}`,
       `Ultime registrazioni:\n${recent.join("\n") || "nessuna"}`,
       cross && commits
         ? `Incrocio con i commit GitHub (${commits.org}, utente ${commits.user}, 90 giorni): ${cross.both} giorni con ore e commit, ${cross.hoursOnly} con ore ma senza commit, ${cross.commitsOnly.length} con commit ma senza ore (${cross.commitsOnly.slice(-5).join(", ") || "nessuno"})`

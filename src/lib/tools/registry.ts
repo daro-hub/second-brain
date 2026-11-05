@@ -21,7 +21,7 @@ import { getAllActivities } from "../strava";
 import { addTodoReminder, completeReminder, createReminderEvent, deleteReminder, formatDue, listOpenReminders, resolveDue, updateReminder } from "../todoReminders";
 import { addDays, dayRangeUtc, perceivedTodayKey, todayKey } from "../time";
 import { deleteExam, getCourses, getPlannedExams, saveExam, setCourseResult } from "../uniExams";
-import { addPayment, addWork, deletePayment, deleteWork, getHourlyRate, getPayments, getWork, outstanding, setHourlyRate, updateWork } from "../work";
+import { addPayment, addWork, deletePayment, deleteWork, getHourlyRate, getPayments, dailyWork, getWork, outstanding, setHourlyRate, splitAmount, updateWork } from "../work";
 import { deleteLog, getExerciseHistory, getLastSession, getPR, getRecentLogs, getRoutinePreview, logWorkout, nextInRoutine, resolveExercise, updateLog } from "../workouts";
 
 /**
@@ -70,7 +70,7 @@ const ALL_TOOLS: ToolDef[] = [
   tool("gym_routine_preview", false, "Anteprima di una routine (es. 'schiena e bicipiti') con gli ultimi pesi usati.", z.object({ routine: z.string() }), (a) => getRoutinePreview(a.routine)),
   tool("work_hours", false, "Ore di lavoro registrate tra due giorni, tariffa oraria e importo da incassare.", z.object({ from: date, to: date }), async (a) => {
     const [entries, payments, rate] = await Promise.all([getWork(a.from, a.to), getPayments(), getHourlyRate()]);
-    return { entries, payments, hourlyRate: rate, outstanding: outstanding(entries, payments, rate) };
+    return { entries, payments, hourlyRate: rate, outstanding: outstanding(entries, payments, rate), byDay: dailyWork(entries, rate) };
   }),
   tool("mood_history", false, "Diario dell'umore (sette aspetti 1-5) degli ultimi N giorni.", z.object({ days: z.number().int().min(1).max(180).optional() }), (a) => getMoodHistory(a.days ?? 30)),
   tool("university", false, "Esami e corsi universitari: stato, voti, esami pianificati.", z.object({}), async () => ({ courses: await getCourses(), plannedExams: await getPlannedExams() })),
@@ -153,7 +153,23 @@ const ALL_TOOLS: ToolDef[] = [
     const next = await nextInRoutine(name, perceivedTodayKey()).catch(() => null);
     return { saved, exercise: name, next };
   }),
-  tool("work_log_add", true, "Aggiunge ore di lavoro al tracker.", z.object({ task: z.string(), minutes: z.number().int().min(0), day: date.optional(), details: z.string().optional() }), (a) => addWork({ task: a.task, minutes: a.minutes, day: a.day, details: a.details ?? null })),
+  tool("work_log_add", true, "Aggiunge ore di lavoro o un importo in euro non legato alle ore (compenso forfettario, rimborso: extraEur). Per un importo complessivo su più giorni passa day (primo giorno) e to (ultimo): l'importo viene diviso in parti uguali, una voce per giorno. Mai mettere importi solo in details.", z.object({ task: z.string(), minutes: z.number().int().min(0).optional(), day: date.optional(), to: date.optional(), extraEur: z.number().optional(), details: z.string().optional() }), async (a) => {
+    const minutes = a.minutes ?? 0;
+    if (minutes === 0 && !a.extraEur) throw new Error("Servono le ore o un importo (extraEur)");
+    const kind = a.extraEur && minutes === 0 ? "Compenso" : null;
+    let parts: { day?: string; eur: number | null }[] = [{ day: a.day, eur: a.extraEur ?? null }];
+    if (a.to) {
+      if (!a.extraEur || !a.day) throw new Error("Per più giorni (to) servono day ed extraEur");
+      if (minutes !== 0) throw new Error("Con to le ore non si usano: solo un importo (extraEur)");
+      parts = splitAmount(a.day, a.to, a.extraEur);
+    }
+    const saved = [];
+    for (const p of parts) {
+      const e = await addWork({ task: a.task, minutes, day: p.day, taskType: kind, extraEur: p.eur, details: a.details ?? null });
+      saved.push({ id: e.id, day: e.day, minutes: e.minutes, extraEur: e.extraEur, task: e.task });
+    }
+    return { saved };
+  }),
   tool("work_payment_add", true, "Registra un pagamento ricevuto per il lavoro (data, importo, 'coperto fino al').", z.object({ paidOn: date, amountEur: z.number().nullable().optional(), coversUntil: date, note: z.string().optional() }), async (a) => {
     await addPayment({ paidOn: a.paidOn, amountEur: a.amountEur ?? null, coversUntil: a.coversUntil, note: a.note });
     return { ok: true };

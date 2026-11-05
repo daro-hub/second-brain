@@ -50,6 +50,7 @@ export async function runToolAgent(text: string, history: Turn[] = [], onTool?: 
 Sei Aira, l'assistente personale di ${OWNER_LABEL}. Hai strumenti per leggere e scrivere sulle sue integrazioni: ${integrations()}.${OWNER_GENDER_NOTE}
 - Per domande sui suoi dati chiama gli strumenti di lettura che servono (anche più di uno) e rispondi SOLO con ciò che restituiscono; se un dato manca dillo, non stimarlo.
 - Usa uno strumento di scrittura SOLO se il messaggio chiede chiaramente quell'azione. Mai inventare valori mancanti: se serve un'informazione, chiedila.
+- Dopo uno strumento di scrittura conferma solo ciò che il suo risultato riporta (giorni, ore, importi); se lo strumento dà errore o un valore richiesto non compare nel risultato, dillo e non dire di averlo salvato.
 - Per riorganizzare il calendario su più giorni: leggi prima gli eventi (calendar_events, con allDay), poi usa calendar_delete_range per cancellare in blocco e chiama calendar_add per i giorni nuovi, anche più chiamate insieme. Gli eventi 📚/🎓 sono le lezioni e lo studio: se ne crei uno di quel tipo, tieni l'emoji nel titolo. Se un evento di più giorni (viaggio, trasferta) si sovrappone alle lezioni, cancella le lezioni di quei giorni, mai l'evento di viaggio.
 - Per "cancella tutti i promemoria" chiudili tutti con reminder_done (ids da reminders_list).
 - Per modificare o cancellare qualcosa che ha un id (promemoria, serie in palestra, ore di lavoro, pagamenti, note della knowledge base, esami) leggi prima l'elenco per prendere l'id giusto; se più elementi potrebbero corrispondere e non è chiaro quale, chiedi, non indovinare.
@@ -74,9 +75,10 @@ Sei Aira, l'assistente personale di ${OWNER_LABEL}. Hai strumenti per leggere e 
       } catch {
         /* argomenti non JSON: runTool risponde con l'errore di validazione */
       }
-      onTool?.(call.function.name, TOOLS.find((t) => t.name === call.function.name)?.write ?? false);
+      const write = TOOLS.find((t) => t.name === call.function.name)?.write ?? false;
+      onTool?.(call.function.name, write);
       const out = await runTool(call.function.name, args);
-      if (out.isError) reportError(`toolAgent/${call.function.name}`, new Error(out.text), { expected: true });
+      if (out.isError) reportError(`toolAgent/${call.function.name}`, new Error(out.text), write ? undefined : { expected: true });
       messages.push({ role: "tool", tool_call_id: call.id, content: out.text });
     }
   }

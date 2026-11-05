@@ -5,6 +5,8 @@ vi.mock("openai", () => ({ default: class {} }));
 
 import { describe, expect, it } from "vitest";
 import { db, resetDb } from "./helpers/memdb";
+import { dailyWork, splitAmount } from "../src/lib/work";
+import { runTool } from "../src/lib/tools/registry";
 import { appliesToPending, markAnswered, parseHoursCorrection, tryApplyHoursReply } from "../src/lib/workDigest";
 
 const now = new Date("2026-11-02T00:30:00Z");
@@ -61,5 +63,34 @@ describe("correzione dopo una registrazione manuale", () => {
     expect(await tryApplyHoursReply("Intendevo 11 totali, non 21")).toContain("11 h in totale");
     expect(db.work_log.find((e) => e.id === "man")?.minutes).toBe(60);
     expect(db.work_log).toHaveLength(2);
+  });
+});
+
+describe("importi senza ore", () => {
+  beforeEach(() => resetDb());
+  const e = (day: string, minutes: number, extraEur: number | null) => ({ id: day + minutes, day, minutes, task: "t", taskType: null, extraEur, source: "manual", details: null });
+
+  it("splitAmount: parti uguali, resto sull'ultimo giorno", () => {
+    expect(splitAmount("2026-11-02", "2026-11-04", 600)).toEqual([{ day: "2026-11-02", eur: 200 }, { day: "2026-11-03", eur: 200 }, { day: "2026-11-04", eur: 200 }]);
+    expect(splitAmount("2026-11-02", "2026-11-04", 100).map((x) => x.eur)).toEqual([33.33, 33.33, 33.34]);
+    expect(() => splitAmount("2026-11-04", "2026-11-02", 100)).toThrow();
+  });
+
+  it("dailyWork: un giorno con soli extra compare col suo importo", () => {
+    const r = dailyWork([e("2026-11-02", 0, 200), e("2026-11-01", 240, null), e("2026-11-02", 0, null)], 15);
+    expect(r.days.map((d) => d.day)).toEqual(["2026-11-01", "2026-11-02"]);
+    expect(r.days[1]).toMatchObject({ extraEur: 200, totalEur: 200 });
+    expect(r.total).toMatchObject({ minutes: 240, hoursEur: 60, extraEur: 200, totalEur: 260 });
+  });
+
+  it("work_log_add: importo su più giorni → una voce per giorno; senza ore né importo → errore", async () => {
+    const ok = await runTool("work_log_add", { task: "Lavoro a Barcellona", minutes: 0, day: "2026-11-02", to: "2026-11-04", extraEur: 600 });
+    expect(ok.isError).toBe(false);
+    expect(db.work_log).toHaveLength(3);
+    expect(db.work_log.every((r) => r.extra_eur === 200 && r.task_type === "Compenso")).toBe(true);
+    resetDb();
+    const ko = await runTool("work_log_add", { task: "x" });
+    expect(ko.isError).toBe(true);
+    expect(db.work_log ?? []).toHaveLength(0);
   });
 });

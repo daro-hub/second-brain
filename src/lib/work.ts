@@ -93,6 +93,41 @@ export function workStats(entries: WorkEntry[]): WorkStats {
   };
 }
 
+/** Puro: divide un importo in parti uguali (al centesimo) sui giorni da `from` a `to`; il resto dei centesimi va all'ultimo giorno. */
+export function splitAmount(from: string, to: string, eur: number): { day: string; eur: number }[] {
+  if (to < from) throw new Error("L'ultimo giorno è prima del primo");
+  const days: string[] = [];
+  for (let d = from; d <= to; d = addDays(d, 1)) days.push(d);
+  const cents = Math.round(eur * 100);
+  const part = Math.floor(cents / days.length);
+  return days.map((day, i) => ({ day, eur: (i === days.length - 1 ? cents - part * (days.length - 1) : part) / 100 }));
+}
+
+const cents2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Puro: ore, extra e importo per giorno (crescente) e in totale. Un giorno con soli extra compare col suo importo. */
+export function dailyWork(entries: WorkEntry[], rate: number | null) {
+  const money = (minutes: number, extraEur: number, hasExtra: boolean) => {
+    const hoursEur = rate === null ? null : cents2((minutes / 60) * rate);
+    return { hoursEur, totalEur: hoursEur === null ? (hasExtra ? extraEur : null) : cents2(hoursEur + extraEur) };
+  };
+  const map = new Map<string, { minutes: number; extraEur: number; hasExtra: boolean; tasks: string[] }>();
+  for (const e of entries) {
+    const d = map.get(e.day) ?? { minutes: 0, extraEur: 0, hasExtra: false, tasks: [] };
+    d.minutes += e.minutes;
+    if (e.extraEur) {
+      d.extraEur = cents2(d.extraEur + e.extraEur);
+      d.hasExtra = true;
+    }
+    if (e.task && !d.tasks.includes(e.task)) d.tasks.push(e.task);
+    map.set(e.day, d);
+  }
+  const days = [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, d]) => ({ day, minutes: d.minutes, extraEur: d.extraEur, ...money(d.minutes, d.extraEur, d.hasExtra), tasks: d.tasks }));
+  const minutes = days.reduce((a, d) => a + d.minutes, 0);
+  const extraEur = cents2(days.reduce((a, d) => a + d.extraEur, 0));
+  return { days, total: { minutes, extraEur, ...money(minutes, extraEur, days.some((d) => d.extraEur)) } };
+}
+
 export const fmtHours = (min: number) => `${(min / 60).toLocaleString("it-IT", { maximumFractionDigits: 1 })} h`;
 
 /** Tariffa oraria per stimare il compenso (le formule di Notion non sono leggibili): vuota finché non la confermi. */
