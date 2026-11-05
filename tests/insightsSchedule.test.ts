@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const sched = new Map<string, { startTime: string; endTime: string; type: "studio" | "lezione"; subject: string }[]>();
 
@@ -17,6 +17,13 @@ vi.mock("../src/lib/workouts", () => ({ getScheduleForRange: vi.fn(async () => s
 import { getTrainingHours, getWeekBudget } from "../src/lib/insights";
 
 describe("insights letti dal calendario", () => {
+  // getWeekBudget/getTrainingHours partono da "oggi": senza data fissa il test dipende dal giorno in cui gira
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-14T12:00:00+02:00")); // mercoledì della settimana di lunedì 2026-10-12
+  });
+  afterEach(() => vi.useRealTimers());
+
   it("getWeekBudget somma studio e lezioni dei giorni della settimana dal calendario", async () => {
     sched.clear();
     const mon = "2026-10-12";
@@ -29,6 +36,18 @@ describe("insights letti dal calendario", () => {
     expect(day.study).toBe(2.5);
     expect(day.lesson).toBe(2);
     expect(b.days.find((d) => d.dayKey === "2026-10-14")!.study).toBe(0); // mercoledì senza lezioni
+  });
+
+  it("getWeekBudget copre una settimana a cavallo di mese (lunedì in ottobre, domenica in novembre)", async () => {
+    vi.setSystemTime(new Date("2026-10-29T12:00:00+01:00")); // giovedì
+    sched.clear();
+    sched.set("2026-11-01", [{ startTime: "09:00", endTime: "11:00", type: "studio", subject: "Analisi" }]);
+    const b = await getWeekBudget();
+    expect(b.monday).toBe("2026-10-26");
+    expect(b.days.map((d) => d.dayKey)).toEqual([
+      "2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31", "2026-11-01",
+    ]);
+    expect(b.totals.study).toBe(2);
   });
 
   it("getTrainingHours segna occupate le ore con lezione e conta lo scontro con l'allenamento", async () => {
