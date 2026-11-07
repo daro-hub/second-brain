@@ -1,7 +1,9 @@
-import { moduleGate } from "../../../../src/lib/modules";
+import { isEnabled, moduleGate } from "../../../../src/lib/modules";
 import { airaGate } from "../../../../src/lib/airaAuth";
-import { stripForSpeech } from "../../../../src/lib/format";
+import { escapeHtml, stripForSpeech } from "../../../../src/lib/format";
 import { handleMessageTraced } from "../../../../src/lib/respond";
+import { tryApplyHoursReply } from "../../../../src/lib/workDigest";
+import { addTurns } from "../../../../src/lib/chatHistory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +35,15 @@ export async function POST(req: Request) {
         controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
       let intent = "none";
       try {
+        // Come su Telegram: un messaggio secco con le ore corregge la voce del giorno in attesa
+        // (riassunto di mezzanotte) invece di aggiungerne una seconda.
+        const hours = isEnabled("work") ? await tryApplyHoursReply(text).catch(() => null) : null;
+        if (hours) {
+          send({ t: "intent", type: "life_log" });
+          await addTurns("web", [{ role: "user", content: text }, { role: "assistant", content: hours }]).catch(() => {});
+          send({ t: "reply", html: escapeHtml(hours), speech: stripForSpeech(hours).slice(0, 1200), sensitive: false });
+          return;
+        }
         const reply = await handleMessageTraced(text, {
           intent: (type) => {
             intent = type;
