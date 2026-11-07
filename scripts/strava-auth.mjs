@@ -1,5 +1,8 @@
-import "dotenv/config";
+import dotenv from "dotenv";
 import http from "node:http";
+
+// le chiavi stanno in .env.local (vercel env pull), come per scripts/google-auth.mjs: .env nel repo non esiste
+dotenv.config({ path: new URL("../.env.local", import.meta.url).pathname });
 
 const PORT = 3052;
 const REDIRECT_URI = `http://localhost:${PORT}/callback`;
@@ -43,11 +46,16 @@ const server = http.createServer(async (req, res) => {
 
     if (tokens.refresh_token) {
       const fs = await import("node:fs");
-      const envPath = new URL("../.env", import.meta.url);
-      let envContent = fs.readFileSync(envPath, "utf-8");
-      envContent = envContent.replace(/STRAVA_REFRESH_TOKEN=.*/, `STRAVA_REFRESH_TOKEN=${tokens.refresh_token}`);
+      const envPath = new URL("../.env.local", import.meta.url);
+      let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf-8") : "";
+      const line = /^STRAVA_REFRESH_TOKEN=.*/m;
+      if (line.test(envContent)) envContent = envContent.replace(line, `STRAVA_REFRESH_TOKEN=${tokens.refresh_token}`);
+      else envContent += `${envContent && !envContent.endsWith("\n") ? "\n" : ""}STRAVA_REFRESH_TOKEN=${tokens.refresh_token}\n`;
       fs.writeFileSync(envPath, envContent);
-      console.log("Autorizzazione riuscita con scope activity:read_all. Refresh token aggiornato in .env.");
+      // Strava rimanda nel redirect gli scope davvero concessi: se manca la spunta sulle attività, il token dà 401 sulle attività
+      const granted = url.searchParams.get("scope") ?? "";
+      if (!granted.includes("activity:read")) console.warn(`Attenzione: scope concessi «${granted}», senza activity:read_all le attività daranno 401. Rifai e lascia la spunta sulle attività.`);
+      console.log(`Autorizzazione riuscita (scope: ${granted || "non indicati"}). Refresh token aggiornato in .env.local (non lo stampo); va copiato anche su Vercel.`);
       res.writeHead(200, { "Content-Type": "text/html" }).end("<h1>Fatto, puoi chiudere questa finestra.</h1>");
     } else {
       console.error("Nessun refresh_token nella risposta:", tokens);
