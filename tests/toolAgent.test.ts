@@ -5,7 +5,10 @@ vi.mock("openai", () => ({ default: class { chat = { completions: { create } }; 
 vi.mock("../src/lib/tools/registry", async () => {
   const { z } = await import("zod");
   return {
-    TOOLS: [{ name: "shopping_add", description: "d", schema: z.object({ items: z.array(z.string()) }), write: true, run: async () => ({}) }],
+    TOOLS: [
+      { name: "shopping_add", description: "d", schema: z.object({ items: z.array(z.string()) }), write: true, run: async () => ({}) },
+      { name: "kb_search", description: "d", schema: z.object({ q: z.string().optional() }), write: false, run: async () => ({}) },
+    ],
     runTool: vi.fn(async () => ({ text: '{"added":["latte"]}', isError: false })),
   };
 });
@@ -49,5 +52,69 @@ describe("agente a strumenti del bot", () => {
     for (let i = 0; i < 20; i++) say({ role: "assistant", content: null, tool_calls: [{ id: `c${i}`, type: "function", function: { name: "shopping_add", arguments: "{}" } }] });
     expect(await runToolAgent("x")).toContain("limite di passaggi");
     expect(create.mock.calls.length).toBe(12);
+  });
+
+  it("le chiamate dello stesso passo partono insieme e i risultati tornano nell'ordine delle tool_calls", async () => {
+    const resolvers: Record<string, (v: { text: string; isError: boolean }) => void> = {};
+    let inFlight = 0;
+    let maxInFlight = 0;
+    vi.mocked(runTool).mockImplementation(
+      (name: string) =>
+        new Promise((resolve) => {
+          inFlight++;
+          maxInFlight = Math.max(maxInFlight, inFlight);
+          resolvers[name] = (v) => {
+            inFlight--;
+            resolve(v);
+          };
+        }),
+    );
+    say({
+      role: "assistant",
+      content: null,
+      tool_calls: [
+        { id: "a", type: "function", function: { name: "kb_search", arguments: "{}" } },
+        { id: "b", type: "function", function: { name: "shopping_add", arguments: '{"items":[]}' } },
+      ],
+    });
+    say({ role: "assistant", content: "Fatto." });
+    const done = runToolAgent("x");
+    await vi.waitFor(() => expect(maxInFlight).toBe(2));
+    // la seconda finisce prima della prima: l'ordine dei messaggi deve restare quello delle tool_calls
+    resolvers.shopping_add({ text: "due", isError: false });
+    resolvers.kb_search({ text: "uno", isError: false });
+    expect(await done).toBe("Fatto.");
+    const msgs = create.mock.calls[1][0].messages.slice(-2);
+    expect(msgs).toEqual([
+      { role: "tool", tool_call_id: "a", content: "uno" },
+      { role: "tool", tool_call_id: "b", content: "due" },
+    ]);
+    vi.mocked(runTool).mockImplementation(async () => ({ text: '{"added":["latte"]}', isError: false }));
+  });
+
+  it("modello: gpt-6.1-terra di default, TOOL_AGENT_MODEL se impostata", async () => {
+    const prev = process.env.TOOL_AGENT_MODEL;
+    try {
+      delete process.env.TOOL_AGENT_MODEL;
+      say({ role: "assistant", content: "ok" });
+      await runToolAgent("x");
+      expect(create.mock.calls[0][0].model).toBe("gpt-6.1-terra");
+      process.env.TOOL_AGENT_MODEL = "altro-modello";
+      say({ role: "assistant", content: "ok" });
+      await runToolAgent("x");
+      expect(create.mock.calls[1][0].model).toBe("altro-modello");
+    } finally {
+      if (prev === undefined) delete process.env.TOOL_AGENT_MODEL;
+      else process.env.TOOL_AGENT_MODEL = prev;
+    }
+  });
+
+  it("il system prompt non inizia con la data (cache del prefisso) ma la contiene", async () => {
+    say({ role: "assistant", content: "ok" });
+    await runToolAgent("x");
+    const system = create.mock.calls[0][0].messages[0].content as string;
+    expect(system.startsWith("Adesso è")).toBe(false);
+    expect(system).toContain("Adesso è ");
+    expect(system).toContain("(Europe/Rome).");
   });
 });

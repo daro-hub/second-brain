@@ -34,6 +34,7 @@ import { SOURCE_LABELS, type Source, type SourceId, type Trace } from "./trace";
 import { getRunningStats } from "./dashboard";
 import { getAllActivities } from "./strava";
 import { runToolAgent } from "./toolAgent";
+import { BOT_MODEL, NO_REASONING } from "./llm";
 import { addTodoReminder, completeReminder, createReminderEvent, formatDue, formatOpenReminders, listOpenReminders, resolveDue } from "./todoReminders";
 import { addShoppingItems, checkOffShoppingItemsByName, getActiveShoppingList, getKnownShoppingItems } from "./shoppingList";
 import { getEnergyOverview, PROFILE } from "./energy";
@@ -86,11 +87,12 @@ async function respondConversationally(text: string, trace?: Trace, history: Tur
     : "Nessuna informazione pertinente trovata nella knowledge base.";
 
   const res = await openai.chat.completions.create({
-    model: "gpt-6-luna",
+    model: BOT_MODEL,
+    ...NO_REASONING,
     messages: [
       {
         role: "system",
-        content: `Adesso è ${formatDayLong(perceivedTodayKey())}, ore ${localHHMM(new Date())} (Europe/Rome).\n\nSei Aira, l'assistente personale di ${OWNER} su Telegram — una specie di Jarvis al femminile: lo conosci bene, gli fai da segretaria, lo aiuti a tenere insieme lavoro, università, allenamenti e vita privata. Non sei un assistente AI generico né un bot che legge dati — sei una presenza amichevole e competente con cui ha una conversazione normale, non formale.
+        content: `Sei Aira, l'assistente personale di ${OWNER} su Telegram — una specie di Jarvis al femminile: lo conosci bene, gli fai da segretaria, lo aiuti a tenere insieme lavoro, università, allenamenti e vita privata. Non sei un assistente AI generico né un bot che legge dati — sei una presenza amichevole e competente con cui ha una conversazione normale, non formale.
 
 Regole di conversazione:
 - Rispondi sempre in italiano.
@@ -106,6 +108,8 @@ ${STYLE_GUIDE}${OWNER_GENDER_NOTE}
 
 Se ${OWNER} ti chiede chi sei, cosa sai fare o quali sono le tue funzionalità, NON rispondere con capacità generiche da assistente AI (scrivere/rivedere testi, tradurre, fare ricerche, spiegare argomenti) — quello non è il tuo ruolo qui. Rispondi invece in modo naturale e discorsivo (o con una breve lista, se più chiara) descrivendo le tue capacità reali e concrete su questo bot:
 ${capabilitiesBullets()}
+
+Adesso è ${formatDayLong(perceivedTodayKey())}, ore ${localHHMM(new Date())} (Europe/Rome).
 
 Contesto dalla knowledge base:
 ${describeTopic(topic) ? `${describeTopic(topic)}\n\n` : ""}${contextText}${history.length ? `\n\nConversazione recente:\n${formatHistory(history)}` : ""}`,
@@ -160,17 +164,24 @@ async function tryToolAgent(text: string, trace: Trace | undefined, history: Tur
   }
 }
 
+// Le risposte dai dati ragionano poco ma non zero: con "none" sbagliava il mese di «quanto ho corso questo mese?» e
+// spacciava 3 giorni per «la settimana prima» (stress test del 05/11/2026); "low" risponde giusto ed è più veloce del default.
+const ANSWER_REASONING = { reasoning_effort: "low" } as object;
+
 async function answerFromData(text: string, context: string, extraGuidance?: string): Promise<string> {
   const res = await openai.chat.completions.create({
-    model: "gpt-6-luna",
+    model: BOT_MODEL,
+    ...ANSWER_REASONING,
     messages: [
       {
         role: "system",
-        content: `Adesso è ${formatDayLong(perceivedTodayKey())}, ore ${localHHMM(new Date())} (Europe/Rome): "oggi", "domani" e simili si riferiscono a questa data.\n\nSei Aira, l'assistente personale di ${OWNER}. Rispondi alla sua domanda usando SOLO i dati reali sotto — non inventare nulla che non c'è. Se la domanda è una richiesta semplice di elenco/riepilogo, rispondi in modo diretto; se invece richiede un'analisi, un confronto, una risposta puntuale o un consiglio (es. "ho tempo libero venerdì?", "qual è la più urgente?", "a che velocità posso correre oggi?"), ragiona sui dati sotto e rispondi specificamente a quello che ha chiesto, non limitarti a ripetere l'elenco.
+        content: `Sei Aira, l'assistente personale di ${OWNER}. Rispondi alla sua domanda usando SOLO i dati reali sotto — non inventare nulla che non c'è. Se la domanda è una richiesta semplice di elenco/riepilogo, rispondi in modo diretto; se invece richiede un'analisi, un confronto, una risposta puntuale o un consiglio (es. "ho tempo libero venerdì?", "qual è la più urgente?", "a che velocità posso correre oggi?"), ragiona sui dati sotto e rispondi specificamente a quello che ha chiesto, non limitarti a ripetere l'elenco.
 
-I dati sotto arrivano da una ricerca che può restituire risultati non pertinenti (es. corrispondenze deboli su una parola chiave). Prima di rispondere, valuta se i dati sotto rispondono davvero alla domanda: se sembrano chiaramente scorrelati, dillo esplicitamente ("non ho trovato nulla che corrisponda davvero a...") invece di presentarli come se fossero la risposta.${extraGuidance ? `\n\n${extraGuidance}` : ""}
+I dati sotto arrivano da una ricerca che può restituire risultati non pertinenti (es. corrispondenze deboli su una parola chiave). Prima di rispondere, valuta se i dati sotto rispondono davvero alla domanda: se sembrano chiaramente scorrelati, dillo esplicitamente ("non ho trovato nulla che corrisponda davvero a...") invece di presentarli come se fossero la risposta.
 
-${STYLE_GUIDE}
+${STYLE_GUIDE}${extraGuidance ? `\n\n${extraGuidance}` : ""}
+
+Adesso è ${formatDayLong(perceivedTodayKey())}, ore ${localHHMM(new Date())} (Europe/Rome): "oggi", "domani" e simili si riferiscono a questa data.
 
 ${context}`,
       },
@@ -185,16 +196,10 @@ ${context}`,
  * che senza un verbo lo trattava come conversazione. Si salta se il bot aveva appena fatto una domanda: in quel caso
  * la parola è una risposta ("Pane" a "cosa hai mangiato?"), non un acquisto.
  */
-async function bareShoppingIntent(text: string, history: Turn[]): Promise<MessageIntent | null> {
+async function bareShoppingIntent(text: string, history: Turn[], known: string[]): Promise<MessageIntent | null> {
   const last = freshTurns(history).at(-1); // una domanda di ieri non rende «Pane» una risposta
   if (last?.role === "assistant" && last.content.includes("?")) return null;
   if (text.length > 50 || text.includes("?")) return null;
-  let known: string[] = [];
-  try {
-    known = await getKnownShoppingItems();
-  } catch (err) {
-    reportError("respond/bareShopping", err, { expected: true });
-  }
   const items = parseBareItems(text, known);
   return items ? { type: "shopping_add", items } : null;
 }
@@ -307,8 +312,19 @@ export async function handleMessage(text: string): Promise<string> {
  * si capiscono nel loro contesto.
  */
 export async function handleMessageTraced(text: string, trace?: Trace, channel = "telegram"): Promise<string> {
-  const history = await recentTurns().catch(() => [] as Turn[]);
-  const topic = await getTopic();
+  // letture indipendenti in parallelo; routine e prodotti noti servono a route(): un errore non deve far fallire il messaggio
+  const [history, topic, routineName, knownItems] = await Promise.all([
+    recentTurns().catch(() => [] as Turn[]),
+    getTopic(),
+    findMatchingRoutine(text).catch((err) => {
+      reportError("respond/routine", err, { expected: true });
+      return null;
+    }),
+    getKnownShoppingItems().catch((err) => {
+      reportError("respond/bareShopping", err, { expected: true });
+      return [] as string[];
+    }),
+  ]);
   let intentType = "none";
   const wrapped: Trace = {
     intent: (t) => {
@@ -317,15 +333,17 @@ export async function handleMessageTraced(text: string, trace?: Trace, channel =
     },
     source: (x) => trace?.source(x),
   };
-  const reply = await route(text, wrapped, history, topic);
+  const reply = await route(text, wrapped, history, topic, { routineName, knownItems });
   // le password non passano mai dallo storico (né la richiesta né la risposta)
   if (intentType !== "password_request") {
     // ricorda di cosa si sta parlando (per i seguiti brevi); una conversazione generica non cambia l'argomento attivo
-    if (intentType !== "none") await setTopic({ intent: intentType, text: text.slice(0, 200), at: Date.now() });
-    await addTurns(channel, [
-      { role: "user", content: text },
-      { role: "assistant", content: toPlain(reply) },
-    ]).catch(() => {});
+    await Promise.all([
+      intentType !== "none" ? setTopic({ intent: intentType, text: text.slice(0, 200), at: Date.now() }) : Promise.resolve(),
+      addTurns(channel, [
+        { role: "user", content: text },
+        { role: "assistant", content: toPlain(reply) },
+      ]).catch(() => {}),
+    ]);
   }
   return reply;
 }
@@ -337,7 +355,8 @@ async function rememberAndReply(text: string, history: Turn[], trace?: Trace): P
   let durable = true;
   try {
     const res = await openai.chat.completions.create({
-      model: "gpt-6-luna",
+      model: BOT_MODEL,
+      ...NO_REASONING,
       response_format: { type: "json_object" },
       messages: [
         {
@@ -386,7 +405,13 @@ Vuoi che la sostituisca con:
   return reply;
 }
 
-async function route(text: string, trace: Trace | undefined, history: Turn[], topic: ActiveTopic | null = null): Promise<string> {
+async function route(
+  text: string,
+  trace: Trace | undefined,
+  history: Turn[],
+  topic: ActiveTopic | null,
+  prefetched: { routineName: string | null; knownItems: string[] },
+): Promise<string> {
   // Scorciatoie esatte (router.ts, coperte da test): "spesa" → lista, "gym" → scheda di oggi
   const early = earlyRoute(text);
   if (early === "shopping_query") {
@@ -398,7 +423,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
     return replyWithGymPlan(trace, history);
   }
 
-  const routineName = await findMatchingRoutine(text);
+  const routineName = prefetched.routineName;
   if (routineName) {
     trace?.intent("routine_preview");
     return routinePreviewReply(routineName, trace);
@@ -423,7 +448,7 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
   const uniReply = isEnabled("uni") ? await maybeHandleUniUpload(text) : null;
   if (uniReply) return uniReply;
 
-  const intent = (await bareShoppingIntent(text, history)) ?? (await classifyMessage(text, history, topic));
+  const intent = (await bareShoppingIntent(text, history, prefetched.knownItems)) ?? (await classifyMessage(text, history, topic));
   trace?.intent(intent.type);
 
   // poco sicuro: una domanda breve invece di una risposta sbagliata
@@ -783,11 +808,14 @@ async function route(text: string, trace: Trace | undefined, history: Turn[], to
           .slice(0, 8),
       });
       src(trace, "gym", `Routine di oggi: ${nextRoutine}`, { href: "/?p=allenamento" });
-      const context = `Periodo richiesto: ${hasRange ? (rangeStart === rangeEnd ? formatDayLong(rangeStart) : `dal ${formatDayLong(rangeStart)} al ${formatDayLong(rangeEnd)}`) : "prossimi giorni"}\n\nEventi in calendario (orario di inizio–fine):\n${eventsText}\n\nSovrapposizioni tra eventi (calcolate, affidabili): ${overlapsText}\n\nOrario di studio/lezioni:\n${scheduleText}\n\nAllenamento: la routine di OGGI nel ciclo (${nextRoutine === "riposo" ? "giorno di riposo" : "quella in corso se Daro ha già registrato serie oggi"}) è "${nextRoutine}"`;
+      const periodLabel = hasRange ? (rangeStart === rangeEnd ? formatDayLong(rangeStart) : `dal ${formatDayLong(rangeStart)} al ${formatDayLong(rangeEnd)}`) : "prossimi giorni";
+      const context = `Periodo richiesto: ${periodLabel}\n\nEventi in calendario (orario di inizio–fine):\n${eventsText}\n\nSovrapposizioni tra eventi (calcolate, affidabili): ${overlapsText}\n\nOrario di studio/lezioni:\n${scheduleText}\n\nAllenamento: la routine di OGGI nel ciclo (${nextRoutine === "riposo" ? "giorno di riposo" : "quella in corso se Daro ha già registrato serie oggi"}) è "${nextRoutine}"`;
+      // un seguito («e il giorno dopo?») letto da solo accanto a «Adesso è giovedì…» veniva ricalcolato da oggi: il giorno
+      // risolto dal classificatore viaggia con la domanda
       return await answerFromData(
-        text,
+        hasRange ? `${text}\n(il periodo chiesto è già calcolato ed è ${periodLabel}: descrivi questo, senza spostarlo di un giorno)` : text,
         context,
-        'Se la domanda è generica (es. "cosa devo fare questa settimana?"), dai un quadro completo usando tutte e tre le fonti sopra (calendario, studio, allenamento); se è specifica su una sola di queste, rispondi solo su quella. Segnala una sovrapposizione tra eventi SOLO se compare nella riga "Sovrapposizioni tra eventi"; non dedurla dagli orari di inizio e non dire che due impegni "si sovrappongono" se la riga dice "nessuna". Gli eventi con un solo orario (senza intervallo, es. "19:45") sono puntuali: non hanno una durata, quindi non dire mai che durano o che "si sovrappongono" a qualcosa se non compare nella riga "Sovrapposizioni". Non scrivere intestazioni di sezione o icone senza contenuto (un 📚 o 🏋️ da soli su una riga): se una fonte non ha nulla da dire, omettila del tutto. Non aggiungere consigli, inviti a "verificare" o ipotesi che non ti sono stati chiesti. Se ' + OWNER + ' chiede il link di una riunione/call/meet, rispondi con l\'URL COMPLETO preso dal campo "LINK RIUNIONE" dell\'evento giusto (se chiede "di lavoro" guarda gli eventi del calendario [Lavoro]; se ci sono più riunioni scegli quella in corso o la prossima e nominala); se l\'evento non ha il campo "LINK RIUNIONE" dì chiaramente che quell\'evento non ha un link, senza inventarne uno.',
+        'Il giorno o il periodo della domanda è già risolto nella riga "Periodo richiesto": se la domanda è un seguito ("e il giorno dopo?", "e ieri?"), rispondi su quel periodo e non ricalcolarlo da oggi. Se la domanda è generica (es. "cosa devo fare questa settimana?"), dai un quadro completo usando tutte e tre le fonti sopra (calendario, studio, allenamento); se è specifica su una sola di queste, rispondi solo su quella. Segnala una sovrapposizione tra eventi SOLO se compare nella riga "Sovrapposizioni tra eventi"; non dedurla dagli orari di inizio e non dire che due impegni "si sovrappongono" se la riga dice "nessuna". Gli eventi con un solo orario (senza intervallo, es. "19:45") sono puntuali: non hanno una durata, quindi non dire mai che durano o che "si sovrappongono" a qualcosa se non compare nella riga "Sovrapposizioni". Non scrivere intestazioni di sezione o icone senza contenuto (un 📚 o 🏋️ da soli su una riga): se una fonte non ha nulla da dire, omettila del tutto. Non aggiungere consigli, inviti a "verificare" o ipotesi che non ti sono stati chiesti. Se ' + OWNER + ' chiede il link di una riunione/call/meet, rispondi con l\'URL COMPLETO preso dal campo "LINK RIUNIONE" dell\'evento giusto (se chiede "di lavoro" guarda gli eventi del calendario [Lavoro]; se ci sono più riunioni scegli quella in corso o la prossima e nominala); se l\'evento non ha il campo "LINK RIUNIONE" dì chiaramente che quell\'evento non ha un link, senza inventarne uno.',
       );
     } catch (err) {
       reportError("respond/calendar_query", err);
@@ -898,7 +926,8 @@ Per chiuderli: /promemoria.` : formatOpenReminders(items);
       const open = await listOpenReminders();
       if (!open.length) return "📝 Non ho promemoria aperti da chiudere.";
       const res = await openai.chat.completions.create({
-        model: "gpt-6-luna",
+        model: BOT_MODEL,
+        ...NO_REASONING,
         response_format: { type: "json_object" },
         messages: [
           {

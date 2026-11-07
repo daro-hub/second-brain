@@ -462,6 +462,8 @@ bot.command("passaggi", async (ctx) => {
 });
 
 bot.on("message:text", async (ctx) => {
+  // segnale «sta scrivendo…» subito, senza attendere: non deve rallentare né far fallire il messaggio
+  ctx.replyWithChatAction("typing").catch(() => {});
   // risposta secca con le ore («3», «2,5h», «90 min») al riassunto di mezzanotte
   const hours = isEnabled("work") ? await tryApplyHoursReply(ctx.message.text).catch(() => null) : null;
   if (hours) {
@@ -572,6 +574,8 @@ async function replyToPhoto(ctx: Context, fileId: string, mime: string, size: nu
 }
 
 bot.on("message:voice", async (ctx) => {
+  // segnale «sta scrivendo…» subito, senza attendere: non deve rallentare né far fallire il messaggio
+  ctx.replyWithChatAction("typing").catch(() => {});
   const file = await ctx.getFile();
   const fileUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file.file_path}`;
   const audioRes = await fetch(fileUrl);

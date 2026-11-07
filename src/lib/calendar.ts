@@ -99,10 +99,17 @@ async function fetchFrom(ref: CalendarRef, params: Record<string, string>): Prom
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   url.searchParams.set("singleEvents", "true");
   url.searchParams.set("orderBy", "startTime");
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok) throw new Error(`Google Calendar API error: ${res.status} (${ref.id})`);
-  const data = await res.json();
-  return ((data.items ?? []) as RawEvent[])
+  // segue nextPageToken (tetto 10 pagine): con intervalli lunghi una pagina sola perdeva eventi
+  const items: RawEvent[] = [];
+  for (let page = 0; page < 10; page++) {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error(`Google Calendar API error: ${res.status} (${ref.id})`);
+    const data = await res.json();
+    items.push(...((data.items ?? []) as RawEvent[]));
+    if (!data.nextPageToken) break;
+    url.searchParams.set("pageToken", data.nextPageToken);
+  }
+  return items
     .filter((e) => e.status !== "cancelled")
     .map((e) => ({
       summary: e.summary ?? "(senza titolo)",
@@ -132,7 +139,12 @@ async function fetchAll(params: Record<string, string>, limit: number): Promise<
   const merged = new Map<string, CalendarEventDetailed>();
   for (const r of results) {
     if (r.status !== "fulfilled") continue;
-    for (const { uid, ...e } of r.value) if (!merged.has(uid)) merged.set(uid, { ...e, uid });
+    // stesso evento in due calendari = stesso iCalUID e stesso inizio; le occorrenze di una serie ricorrente condividono
+    // l'iCalUID ma non l'inizio: con il solo uid una palestra settimanale compariva una volta sola nell'intervallo
+    for (const { uid, ...e } of r.value) {
+      const key = `${uid}|${e.start}`;
+      if (!merged.has(key)) merged.set(key, { ...e, uid });
+    }
   }
   return [...merged.values()].sort((a, b) => a.start.localeCompare(b.start)).slice(0, limit);
 }
@@ -240,9 +252,11 @@ export async function getUpcomingEvents(maxResults = 10, windowDays = 30): Promi
  * Eventi in un intervallo esatto di istanti (usare dayRangeUtc per un giorno locale
  * Europe/Rome). getEventsForDate calcola invece i confini del giorno nel fuso del server
  * (UTC su Vercel), quindi sfasa di 1-2 ore gli eventi a cavallo della mezzanotte locale.
+ * `query` è la ricerca testuale di Google (titolo, descrizione, luogo): su intervalli di mesi, senza, il tetto di 200 eventi
+ * si riempie di lezioni prima di arrivare a quello cercato («quando è il compleanno della mamma?»).
  */
-export async function getEventsInRange(from: Date, to: Date): Promise<CalendarEventDetailed[]> {
-  return fetchAll({ timeMin: from.toISOString(), timeMax: to.toISOString(), maxResults: "100" }, 200);
+export async function getEventsInRange(from: Date, to: Date, query?: string): Promise<CalendarEventDetailed[]> {
+  return fetchAll({ timeMin: from.toISOString(), timeMax: to.toISOString(), maxResults: "100", ...(query?.trim() ? { q: query.trim() } : {}) }, 200);
 }
 
 /** Gli eventi che iniziano con 📚/🎓 sono l'orario di studio sincronizzato su Calendar: duplicano quello del piano di studio. */
