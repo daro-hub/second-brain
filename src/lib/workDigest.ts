@@ -235,7 +235,10 @@ export async function tryApplyHoursReply(text: string): Promise<string | null> {
   }
   await setWorkMinutes(pending.id, minutes);
   await markAnswered(pending);
-  return `⏱ ${pending.answeredAt === null ? "Segnate" : "Corretto: ora sono"} ${fmtHours(reply.minutes)}${reply.total ? " in totale" : ""} per il ${pending.day}.`;
+  // il totale riletto dal tracker: se il giorno ha altre voci, «ora sono 2 h» da solo faceva pensare a 2 h in tutto
+  const dayTotal = (await getWork(pending.day, pending.day)).reduce((n, e) => n + e.minutes, 0);
+  const totalNote = !reply.total && dayTotal !== minutes ? ` (totale del giorno: ${fmtHours(dayTotal)})` : "";
+  return `⏱ ${pending.answeredAt === null ? "Segnate" : "Corretto: ora sono"} ${fmtHours(reply.minutes)}${reply.total ? " in totale" : ""} per il ${pending.day}${totalNote}.`;
 }
 
 export function digestMessage(day: string, s: DigestSummary): string {

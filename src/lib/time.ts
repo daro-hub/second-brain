@@ -94,3 +94,22 @@ export function weekdayShort(key: string): string {
 export function perceivedTodayKey(now: Date = new Date()): string {
   return localHourDecimal(now) < 5 ? addDays(dateKey(now), -1) : dateKey(now);
 }
+
+/**
+ * Di notte «ieri» detto alle 00:40 è il giorno appena finito (= il giorno percepito), non quello prima: un modello che
+ * ragiona col giorno percepito lo sposta indietro di uno (11/11/2026: un'ora del 10 è finita sul 9). Da mettere nei prompt.
+ */
+export function nightDaysHint(now: Date = new Date()): string {
+  if (localHourDecimal(now) >= 5) return "";
+  const p = perceivedTodayKey(now);
+  return ` È notte, dopo mezzanotte: «oggi» e anche «ieri» indicano ${p} (il giorno appena finito); «l'altro ieri» è ${addDays(p, -1)}.`;
+}
+
+/** Stessa regola in codice, per i dati che contano (ore): se il testo dice «ieri» di notte e il modello ha messo il giorno prima, vale il giorno percepito. */
+export function fixNightYesterday(text: string, date: string | null, now: Date = new Date()): string | null {
+  if (!date || localHourDecimal(now) >= 5) return date;
+  const p = perceivedTodayKey(now);
+  const t = text.toLowerCase();
+  const saysYesterday = /\bieri\b/.test(t) && !/altr[oa]\s*ieri|l['’]altroieri/.test(t);
+  return saysYesterday && date === addDays(p, -1) ? p : date;
+}

@@ -17,7 +17,7 @@ import { MOOD_ASPECTS, moodIndex } from "./mood";
 import { describeFactor, getMoodFactors } from "./moodInsights";
 import { getCultureScore } from "./pills";
 import { formatProfile, getProfile } from "./profile";
-import { crossWork, dailyWork, fmtHours, getHourlyRate, getOrgCommits, getPayments, getWork, minutesByDay, outstanding, workStats } from "./work";
+import { crossWork, dailyWork, fmtExtra, fmtHours, getHourlyRate, getOrgCommits, getPayments, getWork, minutesByDay, outstanding, workStats } from "./work";
 import { getDayBundle, getWeekStrip } from "./overview";
 import { reportError } from "./report";
 import { fmtAira, fmtBalance, fmtDay, fmtKnowledge, fmtPillars, fmtScatter, fmtStudy, fmtTraining } from "./siteFormat";
@@ -126,7 +126,7 @@ const PROVIDERS: Record<SiteTopic, (date: string | null) => Promise<string>> = {
     const [rate, payments, all] = await Promise.all([getHourlyRate(), getPayments().catch(() => []), getWork("2000-01-01", today)]);
     const due = outstanding(all, payments, rate);
     const line = (l: string, s: ReturnType<typeof workStats>) => `- ${l}: ${fmtHours(s.totalMinutes)} in ${s.daysWorked} giorni lavorati${s.avgMinutesPerWorkedDay ? ` (media ${fmtHours(s.avgMinutesPerWorkedDay)} nei giorni lavorati)` : ""}${rate || s.extraEur ? `, circa ${Math.round((rate ? (s.totalMinutes / 60) * rate : 0) + s.extraEur)} €${s.extraEur ? ` (di cui ${Math.round(s.extraEur)} € di extra)` : ""}` : ""}`;
-    const recent = entries.slice(0, 8).map((e) => `- ${e.day}: ${e.minutes ? fmtHours(e.minutes) : "—"} ${e.task}${e.taskType ? ` [${e.taskType}]` : ""}${e.extraEur ? ` +${e.extraEur} €` : ""}`);
+    const recent = entries.slice(0, 8).map((e) => `- ${e.day}: ${e.minutes ? fmtHours(e.minutes) : "—"} ${e.task}${e.taskType ? ` [${e.taskType}]` : ""}${e.extraEur ? ` ${fmtExtra(e.extraEur)}` : ""}`);
     const eur = (n: number | null) => (n === null ? "" : `${Math.round(n)} €`);
     const sum = (m: number, h: number | null, x: number, t: number | null) => {
       const parts = [m ? `${fmtHours(m)}${h !== null ? ` (${eur(h)})` : ""}` : "", x ? `${eur(x)} extra` : ""].filter(Boolean);
@@ -140,7 +140,7 @@ const PROVIDERS: Record<SiteTopic, (date: string | null) => Promise<string>> = {
       line("ultimi 7 giorni", a),
       line("ultimi 28 giorni", b),
       line("ultimi 90 giorni", c),
-      `Pagamenti: ${due.paidUntil ? `pagato fino al ${due.paidUntil}` : "nessun pagamento registrato"}; da incassare ${fmtHours(due.minutes)} in ${due.days} giorni${due.dueEur !== null ? `, circa ${due.dueEur} € (tariffa ${rate} €/h)` : " (tariffa non impostata)"}${due.received ? `; incassato finora (registrato) ${due.received} €` : ""}`,
+      `Pagamenti: ${due.paidUntil ? `pagato fino al ${due.paidUntil}` : "nessun pagamento registrato"}; da incassare ${fmtHours(due.minutes)} in ${due.days} giorni${due.dueEur !== null ? `, circa ${due.dueEur} € in tutto (tariffa ${rate} €/h)` : " (tariffa non impostata)"}; extra da incassare nello stesso periodo (rimborsi meno trattenute, già compresi nel totale): ${due.extraEur.toLocaleString("it-IT", { maximumFractionDigits: 2 })} €${due.received ? `; incassato finora (registrato) ${due.received} €` : ""}`,
       `Ultimi 7 giorni, giorno per giorno:\n${weekLines.join("\n") || "nessuna registrazione"}\nTotale 7 giorni: ${sum(week.total.minutes, week.total.hoursEur, week.total.extraEur, week.total.totalEur)}`,
       `Ultime registrazioni:\n${recent.join("\n") || "nessuna"}`,
       cross && commits

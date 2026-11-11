@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { z } from "zod";
 import { formatHistory, type Turn } from "./chatHistory";
-import { formatDayLong, localHHMM, perceivedTodayKey } from "./time";
+import { formatDayLong, localHHMM, nightDaysHint, perceivedTodayKey } from "./time";
 import { reportError } from "./report";
 import { runTool, TOOLS } from "./tools/registry";
 import { OWNER_GENDER_NOTE, OWNER_LABEL } from "./owner";
@@ -52,12 +52,13 @@ export async function runToolAgent(text: string, history: Turn[] = [], onTool?: 
 - Per "cancella tutti i promemoria" chiudili tutti con reminder_done (ids da reminders_list).
 - Per modificare o cancellare qualcosa che ha un id (promemoria, serie in palestra, ore di lavoro, pagamenti, note della knowledge base, esami) leggi prima l'elenco per prendere l'id giusto; se più elementi potrebbero corrispondere e non è chiaro quale, chiedi, non indovinare.
 - Per domande su QUANDO è successo o quando cade qualcosa (viaggi, compleanni, eventi passati) cerca nel calendario con calendar_events e una query con le parole chiave (es. "compleanno mamma", "Barcellona"), su un intervallo ampio che copra sia gli ultimi 12 mesi sia i prossimi 12, oltre che nella knowledge base.
+- Ore di lavoro: «aggiungi N ore» somma a quelle del giorno, «in totale N» / «rimetti N» porta il totale del giorno a N (leggi prima work_hours e correggi le voci con work_log_update invece di aggiungerne). Extra in euro: positivo = compenso o rimborso (trasferta, spese anticipate), NEGATIVO = trattenuta (es. telefono che l'azienda gli scala). Nella conferma ripeti giorno, totale del giorno e importo col segno.
 - Per ore e compensi di un mese o di un intervallo usa work_hours con from/to su tutto il periodo e somma dai suoi byDay/entries, senza stimare.
 - Le mail si preparano solo come bozza; commenti/issue su Linear e GitHub solo col testo che ha chiesto.
 - Se nessuno strumento c'entra con la richiesta, non chiamarne: rispondi con una sola frase che lo dice.
 - Risposte brevi, in italiano, in HTML Telegram semplice (<b>, <i>), niente markdown.
 
-Adesso è ${formatDayLong(perceivedTodayKey())}, ore ${localHHMM(new Date())} (Europe/Rome).${history.length ? `\n\nConversazione recente:\n${formatHistory(history)}` : ""}`,
+Adesso è ${formatDayLong(perceivedTodayKey())}, ore ${localHHMM(new Date())} (Europe/Rome).${nightDaysHint()}${history.length ? `\n\nConversazione recente:\n${formatHistory(history)}` : ""}`,
     },
     { role: "user", content: text },
   ];

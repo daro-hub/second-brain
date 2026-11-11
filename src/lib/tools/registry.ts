@@ -21,7 +21,7 @@ import { getAllActivities } from "../strava";
 import { addTodoReminder, completeReminder, createReminderEvent, deleteReminder, formatDue, listOpenReminders, resolveDue, updateReminder } from "../todoReminders";
 import { addDays, dayRangeUtc, perceivedTodayKey, todayKey } from "../time";
 import { deleteExam, getCourses, getPlannedExams, saveExam, setCourseResult } from "../uniExams";
-import { addPayment, addWork, deletePayment, deleteWork, getHourlyRate, getPayments, dailyWork, getWork, outstanding, setHourlyRate, splitAmount, updateWork } from "../work";
+import { addPayment, addWork, deletePayment, deleteWork, extraKind, getHourlyRate, getPayments, dailyWork, getWork, outstanding, setHourlyRate, splitAmount, updateWork } from "../work";
 import { deleteLog, getExerciseHistory, getLastSession, getPR, getRecentLogs, getRoutinePreview, logWorkout, nextInRoutine, resolveExercise, updateLog } from "../workouts";
 
 /**
@@ -121,7 +121,7 @@ const ALL_TOOLS: ToolDef[] = [
     await deleteLog(a.id);
     return { deleted: true };
   }),
-  tool("work_log_update", true, "Corregge una voce delle ore di lavoro (minuti, titolo, dettagli, giorno). Gli id vengono da work_hours.", z.object({ id: z.string(), minutes: z.number().int().min(0).optional(), task: z.string().optional(), details: z.string().optional(), day: date.optional() }), async (a) => ({ updated: await updateWork(a.id, a) })),
+  tool("work_log_update", true, "Corregge una voce delle ore di lavoro (minuti, titolo, dettagli, giorno, importo extraEur col segno: positivo rimborso/compenso, negativo trattenuta). Gli id vengono da work_hours.", z.object({ id: z.string(), minutes: z.number().int().min(0).optional(), task: z.string().optional(), details: z.string().optional(), day: date.optional(), extraEur: z.number().optional() }), async (a) => ({ updated: await updateWork(a.id, a) })),
   tool("work_log_delete", true, "Cancella una voce delle ore di lavoro. Gli id vengono da work_hours.", z.object({ id: z.string() }), async (a) => {
     await deleteWork(a.id);
     return { deleted: true };
@@ -153,10 +153,10 @@ const ALL_TOOLS: ToolDef[] = [
     const next = await nextInRoutine(name, perceivedTodayKey()).catch(() => null);
     return { saved, exercise: name, next };
   }),
-  tool("work_log_add", true, "Aggiunge ore di lavoro o un importo in euro non legato alle ore (compenso forfettario, rimborso: extraEur). Per un importo complessivo su più giorni passa day (primo giorno) e to (ultimo): l'importo viene diviso in parti uguali, una voce per giorno. Mai mettere importi solo in details.", z.object({ task: z.string(), minutes: z.number().int().min(0).optional(), day: date.optional(), to: date.optional(), extraEur: z.number().optional(), details: z.string().optional() }), async (a) => {
+  tool("work_log_add", true, "Aggiunge ore di lavoro o un importo in euro non legato alle ore (extraEur). Segno di extraEur: POSITIVO = compenso o rimborso a suo favore (trasferta, es. 200 € al giorno; spese anticipate); NEGATIVO = trattenuta, cioè soldi che l'azienda gli scala (es. -600 per un telefono comprato dall'azienda per lui). Per un importo complessivo su più giorni passa day (primo giorno) e to (ultimo): l'importo viene diviso in parti uguali, una voce per giorno. Mai mettere importi solo in details.", z.object({ task: z.string(), minutes: z.number().int().min(0).optional(), day: date.optional(), to: date.optional(), extraEur: z.number().optional(), details: z.string().optional() }), async (a) => {
     const minutes = a.minutes ?? 0;
     if (minutes === 0 && !a.extraEur) throw new Error("Servono le ore o un importo (extraEur)");
-    const kind = a.extraEur && minutes === 0 ? "Compenso" : null;
+    const kind = a.extraEur && minutes === 0 ? extraKind(a.extraEur) : null;
     let parts: { day?: string; eur: number | null }[] = [{ day: a.day, eur: a.extraEur ?? null }];
     if (a.to) {
       if (!a.extraEur || !a.day) throw new Error("Per più giorni (to) servono day ed extraEur");
@@ -166,7 +166,7 @@ const ALL_TOOLS: ToolDef[] = [
     const saved = [];
     for (const p of parts) {
       const e = await addWork({ task: a.task, minutes, day: p.day, taskType: kind, extraEur: p.eur, details: a.details ?? null });
-      saved.push({ id: e.id, day: e.day, minutes: e.minutes, extraEur: e.extraEur, task: e.task });
+      saved.push({ id: e.id, day: e.day, minutes: e.minutes, extraEur: e.extraEur, kind: e.extraEur ? extraKind(e.extraEur) : null, task: e.task });
     }
     return { saved };
   }),

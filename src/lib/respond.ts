@@ -6,7 +6,7 @@ import { GoogleAuthError } from "./googleAuth";
 import { createEvent, getEventsInRange, getUpcomingEvents, isStudySyncEvent } from "./calendar";
 import { addTurns, formatHistory, freshTurns, recentTurns, toPlain, type Turn } from "./chatHistory";
 import { bold, BULLET, dropEmptyIconLines, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
-import { addWork, fmtHours, getWork, setWorkMinutes } from "./work";
+import { applyWorkOps, fmtHours, getWork, getWorkCreatedSince, planDayTotal, type WorkOp } from "./work";
 import { markAnswered } from "./workDigest";
 import { proposalKeyboard, saveOrPropose } from "./kbProposals";
 import { getOpenAiUsageSummary } from "./openaiUsage";
@@ -29,7 +29,7 @@ import { searchIssues } from "./linear";
 import { searchMessages, slackConfigured } from "./slack";
 import { reportError } from "./report";
 import { searchSemantic } from "./search";
-import { addDays, dateKey, dayRangeUtc, formatDayLong, localHHMM, perceivedTodayKey, todayKey, weekdayOf } from "./time";
+import { addDays, dateKey, dayRangeUtc, fixNightYesterday, formatDayLong, localHHMM, nightDaysHint, perceivedTodayKey, todayKey, weekdayOf } from "./time";
 import { SOURCE_LABELS, type Source, type SourceId, type Trace } from "./trace";
 import { getRunningStats } from "./dashboard";
 import { getAllActivities } from "./strava";
@@ -181,7 +181,7 @@ I dati sotto arrivano da una ricerca che può restituire risultati non pertinent
 
 ${STYLE_GUIDE}${extraGuidance ? `\n\n${extraGuidance}` : ""}
 
-Adesso è ${formatDayLong(perceivedTodayKey())}, ore ${localHHMM(new Date())} (Europe/Rome): "oggi", "domani" e simili si riferiscono a questa data.
+Adesso è ${formatDayLong(perceivedTodayKey())}, ore ${localHHMM(new Date())} (Europe/Rome): "oggi", "domani" e simili si riferiscono a questa data.${nightDaysHint()}
 
 ${context}`,
       },
@@ -403,6 +403,29 @@ Vuoi che la sostituisca con:
   }
   src(trace, "kb", "Nuova nota salvata", { href: "/aira?view=brain", items: [{ text: note.length > 140 ? `${note.slice(0, 140)}…` : note }] });
   return reply;
+}
+
+/** «ieri, lunedì 10 novembre»: il giorno sempre per esteso, così una data sbagliata si vede subito (11/11/2026). */
+function workDayLabel(day: string): string {
+  const rel = day === todayKey() ? "oggi, " : day === addDays(todayKey(), -1) ? "ieri, " : "";
+  return `${rel}${formatDayLong(day)}`;
+}
+
+const REPEAT_RE = /\b(ancora|altr[aeio]|di nuovo|un'altra|un altro)\b/i;
+const DAY_WORD_RE = /\b(oggi|ieri|altroieri|stamattina|stasera|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|\d{1,2}\s*\/\s*\d{1,2}|\d{1,2}\s+(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre))(?![\wà-ù])/i;
+
+/**
+ * Stessa durata segnata a mano pochi minuti fa: quasi sempre è lo stesso messaggio riletto (una protesta, «ti avevo chiesto
+ * di aggiungerne una», l'11/11/2026 aveva aggiunto un'altra ora). Si chiede invece di scrivere: «ancora», «altre» la sbloccano.
+ */
+async function recentSameWork(text: string, day: string, minutes: number): Promise<string | null> {
+  if (REPEAT_RE.test(text)) return null;
+  const recent = (await getWorkCreatedSince(new Date(Date.now() - 10 * 60_000).toISOString())).filter((e) => e.minutes === minutes);
+  // una durata uguale su un altro giorno è un doppione solo se il messaggio non nomina un giorno («1 ora oggi e 1 ieri» è legittimo)
+  const dup = recent.find((e) => e.day === day) ?? (DAY_WORD_RE.test(text) ? undefined : recent[0]);
+  if (!dup) return null;
+  const total = (await getWork(dup.day, dup.day)).reduce((s, e) => s + e.minutes, 0);
+  return `⏱ Ho già segnato ${bold(fmtHours(minutes))} su ${workDayLabel(dup.day)} pochi minuti fa (totale del giorno: ${fmtHours(total)}), quindi non le aggiungo di nuovo. Se sono ore in più scrivi «aggiungi altre ${fmtHours(minutes)}»; per fissare il totale «in totale N ore» col giorno.`;
 }
 
 async function route(
@@ -678,19 +701,35 @@ async function route(
         return `📚 Registrato: ${bold(escapeHtml(intent.area))}, ${intent.minutes} minuti${intent.note ? ` — ${escapeHtml(intent.note)}` : ""}.`;
       }
       if (intent.kind === "work") {
-        if (!intent.minutes) return "⏱ Quante ore (o minuti) hai lavorato? Per esempio «oggi 3 ore sul totem».";
+        const mode = intent.mode ?? "add";
+        if (intent.minutes === null || (mode !== "set" && !intent.minutes)) return "⏱ Quante ore (o minuti) hai lavorato? Per esempio «oggi 3 ore sul totem».";
         // Il modello ragiona con «oggi» = perceivedTodayKey (prima delle 5 è ancora ieri): senza data esplicita, stessa regola.
-        if (intent.date && intent.date > todayKey()) return `⏱ ${intent.date} è nel futuro: a che giorno vanno le ore?`;
-        const day = intent.date ?? perceivedTodayKey();
-        // La voce automatica del giorno (0 ore, dal riassunto di mezzanotte) si compila, non si affianca una seconda
-        const open = (await getWork(day, day)).find((e) => e.source === "auto" && e.minutes === 0);
-        const entryId = open ? open.id : (await addWork({ day, minutes: intent.minutes, task: intent.note || "lavoro" })).id;
-        if (open) await setWorkMinutes(open.id, intent.minutes);
+        const date = fixNightYesterday(text, intent.date);
+        if (date && date > todayKey()) return `⏱ ${date} è nel futuro: a che giorno vanno le ore?`;
+        const day = date ?? perceivedTodayKey();
+        const label = workDayLabel(day);
+        if (mode === "add") {
+          const dup = await recentSameWork(text, day, intent.minutes);
+          if (dup) return dup;
+        }
+        const entries = await getWork(day, day);
+        const before = entries.reduce((s, e) => s + e.minutes, 0);
+        let ops: WorkOp[];
+        if (mode === "add") {
+          // La voce automatica del giorno (0 ore, dal riassunto di mezzanotte) si compila, non si affianca una seconda
+          const open = entries.find((e) => e.source === "auto" && e.minutes === 0);
+          ops = [open ? { kind: "update", id: open.id, minutes: intent.minutes } : { kind: "insert", minutes: intent.minutes }];
+        } else ops = planDayTotal(entries, mode === "set" ? intent.minutes : before - intent.minutes);
+        const touched = await applyWorkOps(day, ops, intent.note || "lavoro");
         // anche qui la voce resta correggibile: «anzi 11» la modifica invece di aggiungerne un'altra
-        await markAnswered({ id: entryId, day });
+        if (touched) await markAnswered({ id: touched, day });
+        // la risposta dice ciò che c'è davvero nel tracker dopo la scrittura, non ciò che si voleva scrivere
         const total = (await getWork(day, day)).reduce((s, e) => s + e.minutes, 0);
-        src(trace, "github", `Lavoro: ${fmtHours(intent.minutes)} il ${day}`, { href: "/?p=lavoro" });
-        return `⏱ Segnate ${bold(fmtHours(intent.minutes))}${intent.note ? ` — ${escapeHtml(intent.note)}` : ""} (${day === todayKey() ? `oggi, ${day}` : day}). Totale del giorno: ${fmtHours(total)}.`;
+        src(trace, "github", `Lavoro: ${fmtHours(total)} il ${day}`, { href: "/?p=lavoro" });
+        const was = before && before !== total ? ` (prima ${fmtHours(before)})` : "";
+        if (mode === "add") return `⏱ Segnate ${bold(fmtHours(intent.minutes))}${intent.note ? ` — ${escapeHtml(intent.note)}` : ""} su ${label}. Totale del giorno: ${bold(fmtHours(total))}${was}.`;
+        if (total === before) return `⏱ ${label[0].toUpperCase()}${label.slice(1)}: ${mode === "set" ? "erano già" : "risultano"} ${bold(fmtHours(total))}, non ho cambiato nulla.`;
+        return `⏱ ${mode === "set" ? "Corretto" : `Tolte ${fmtHours(before - total)}`}: ${label} ora ha in totale ${bold(fmtHours(total))}${was}.`;
       }
       if (intent.kind === "social") {
         await logSocial("uscita", intent.note);

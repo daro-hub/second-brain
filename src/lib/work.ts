@@ -11,6 +11,7 @@ export interface WorkEntry {
   extraEur: number | null;
   source: string;
   details: string | null;
+  createdAt?: string | null;
 }
 
 const toEntry = (r: Record<string, unknown>): WorkEntry => ({
@@ -22,6 +23,7 @@ const toEntry = (r: Record<string, unknown>): WorkEntry => ({
   extraEur: r.extra_eur === null || r.extra_eur === undefined ? null : Number(r.extra_eur),
   source: String(r.source ?? "manual"),
   details: (r.details as string | null) ?? null,
+  createdAt: (r.created_at as string | null) ?? null,
 });
 
 export async function addWork(e: { day?: string; minutes: number; task: string; taskType?: string | null; extraEur?: number | null; details?: string | null; source?: string; externalId?: string }): Promise<WorkEntry> {
@@ -39,10 +41,11 @@ export async function setWorkMinutes(id: string, minutes: number): Promise<void>
   if (error) throw error;
 }
 
-/** Corregge una voce delle ore: minuti, titolo, dettagli o giorno. */
-export async function updateWork(id: string, patch: { minutes?: number; task?: string; details?: string; day?: string }): Promise<boolean> {
+/** Corregge una voce delle ore: minuti, titolo, dettagli, giorno o importo extra (null = toglie l'importo). */
+export async function updateWork(id: string, patch: { minutes?: number; task?: string; details?: string; day?: string; extraEur?: number | null }): Promise<boolean> {
   const row: Record<string, unknown> = {};
   if (patch.minutes !== undefined) row.minutes = Math.max(0, Math.round(patch.minutes));
+  if (patch.extraEur !== undefined) row.extra_eur = patch.extraEur;
   if (patch.task !== undefined) row.task = patch.task.trim().slice(0, 200);
   if (patch.details !== undefined) row.details = patch.details;
   if (patch.day !== undefined) row.day = patch.day;
@@ -55,6 +58,59 @@ export async function updateWork(id: string, patch: { minutes?: number; task?: s
 export async function deleteWork(id: string): Promise<void> {
   const { error } = await supabase.from("work_log").delete().eq("id", id);
   if (error) throw error;
+}
+
+/** Voci registrate a mano dopo un certo istante (per riconoscere una registrazione ripetuta per sbaglio). */
+export async function getWorkCreatedSince(sinceIso: string): Promise<WorkEntry[]> {
+  const { data, error } = await supabase.from("work_log").select("*").gte("created_at", sinceIso).eq("source", "manual").limit(50);
+  if (error) throw error;
+  return (data ?? []).map(toEntry);
+}
+
+/** Segno degli extra: positivo = compenso o rimborso (trasferta, spese anticipate), negativo = trattenuta (es. telefono comprato dall'azienda). */
+export const extraKind = (eur: number): "Compenso" | "Detrazione" => (eur < 0 ? "Detrazione" : "Compenso");
+
+/** «+200 €» / «−600 €»: l'importo col suo segno, mai «+-600». */
+export const fmtExtra = (eur: number) => `${eur < 0 ? "−" : "+"}${Math.abs(eur).toLocaleString("it-IT", { maximumFractionDigits: 2 })} €`;
+
+export type WorkOp = { kind: "update"; id: string; minutes: number } | { kind: "insert"; minutes: number };
+
+const byNewest = (a: WorkEntry, b: WorkEntry) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""));
+
+/**
+ * Puro: le modifiche per portare il totale del giorno a `target` minuti toccando il meno possibile. Si adegua la voce più
+ * recente (in calo, se non basta, anche le precedenti); un giorno senza voci ne riceve una nuova. Le voci restano (al più a 0).
+ */
+export function planDayTotal(entries: WorkEntry[], target: number): WorkOp[] {
+  target = Math.max(0, Math.round(target));
+  let delta = target - entries.reduce((n, e) => n + e.minutes, 0);
+  if (delta === 0) return [];
+  const newest = [...entries].sort(byNewest);
+  if (delta > 0) {
+    const e = newest.find((x) => x.minutes > 0) ?? newest[0];
+    return e ? [{ kind: "update", id: e.id, minutes: e.minutes + delta }] : [{ kind: "insert", minutes: delta }];
+  }
+  const ops: WorkOp[] = [];
+  for (const e of newest) {
+    if (delta === 0) break;
+    if (e.minutes <= 0) continue;
+    const cut = Math.min(e.minutes, -delta);
+    ops.push({ kind: "update", id: e.id, minutes: e.minutes - cut });
+    delta += cut;
+  }
+  return ops;
+}
+
+/** Applica le modifiche del giorno; restituisce l'id dell'ultima voce toccata (resta correggibile con «anzi…»). */
+export async function applyWorkOps(day: string, ops: WorkOp[], task: string): Promise<string | null> {
+  let last: string | null = null;
+  for (const op of ops) {
+    if (op.kind === "update") {
+      await setWorkMinutes(op.id, op.minutes);
+      last = op.id;
+    } else last = (await addWork({ day, minutes: op.minutes, task })).id;
+  }
+  return last;
 }
 
 export async function getWork(from: string, to: string): Promise<WorkEntry[]> {
