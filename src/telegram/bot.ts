@@ -15,7 +15,7 @@ import { getPending, markAnswered, parseWorkCallback, tryApplyHoursReply } from 
 import { fmtHours, setWorkMinutes } from "../lib/work";
 import { todayKey } from "../lib/time";
 import { completeReminder, formatDue, formatOpenReminders, listKeyboard, listOpenReminders, parseReminderCallback, snoozeReminder } from "../lib/todoReminders";
-import { isDuplicateUpdate } from "../lib/dedup";
+import { runOnce } from "../lib/dedup";
 import { bold, BULLET, escapeHtml, stripForSpeech } from "../lib/format";
 import { getExerciseHistory, getPR } from "../lib/workouts";
 import { ingest } from "../lib/ingest";
@@ -40,10 +40,8 @@ bot.use(async (ctx, next) => {
   await next();
 });
 
-bot.use(async (ctx, next) => {
-  if (await isDuplicateUpdate(ctx.update.update_id)) return;
-  await next();
-});
+// doppioni scartati; se l'elaborazione fallisce l'update si libera e il ritentativo di Telegram la rifà
+bot.use((ctx, next) => runOnce(ctx.update.update_id, next));
 
 // Moduli spenti in questa installazione (vedi lib/modules.ts): i loro comandi e bottoni non fanno nulla.
 const COMMAND_MODULE: Record<string, Module> = { quiz: "quiz", pw: "bitwarden", job: "worker", fix: "worker", jobs: "worker", workers: "worker", stop: "worker" };
@@ -465,7 +463,8 @@ bot.on("message:text", async (ctx) => {
   // segnale «sta scrivendo…» subito, senza attendere: non deve rallentare né far fallire il messaggio
   ctx.replyWithChatAction("typing").catch(() => {});
   // risposta secca con le ore («3», «2,5h», «90 min») al riassunto di mezzanotte
-  const hours = isEnabled("work") ? await tryApplyHoursReply(ctx.message.text).catch(() => null) : null;
+  const replyToDigest = /quante ore hai lavorato/i.test(ctx.message.reply_to_message?.text ?? "");
+  const hours = isEnabled("work") ? await tryApplyHoursReply(ctx.message.text, { replyToDigest }).catch((err) => (reportError("telegram/hoursReply", err), null)) : null;
   if (hours) {
     await ctx.reply(hours);
     // senza, il classificatore non sapeva che «anzi 10» rispondeva alla domanda sulle ore

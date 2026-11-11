@@ -181,6 +181,7 @@ describe("riassunto di mezzanotte", () => {
   });
   it("la risposta con le ore aggiorna la voce in attesa; dopo, solo come correzione", async () => {
     db.work_log = [{ id: "w1", day: "2026-10-05", minutes: 0 }];
+    db.chat_history = [{ channel: "telegram", role: "assistant", content: "Riassunto del 2026-10-05: x. Quante ore hai lavorato il 2026-10-05?", created_at: "2026-10-05T22:00:00Z" }];
     await setPending("w1", "2026-10-05");
     expect(await tryApplyHoursReply("ciao")).toBeNull();
     expect(await tryApplyHoursReply("2,5")).toContain("2,5 h");

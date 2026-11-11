@@ -4,6 +4,7 @@ import { escapeHtml, stripForSpeech } from "../../../../src/lib/format";
 import { handleMessageTraced } from "../../../../src/lib/respond";
 import { tryApplyHoursReply } from "../../../../src/lib/workDigest";
 import { addTurns } from "../../../../src/lib/chatHistory";
+import { reportError } from "../../../../src/lib/report";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
       try {
         // Come su Telegram: un messaggio secco con le ore corregge la voce del giorno in attesa
         // (riassunto di mezzanotte) invece di aggiungerne una seconda.
-        const hours = isEnabled("work") ? await tryApplyHoursReply(text).catch(() => null) : null;
+        const hours = isEnabled("work") ? await tryApplyHoursReply(text).catch((err) => (reportError("aira/hoursReply", err), null)) : null;
         if (hours) {
           send({ t: "intent", type: "life_log" });
           await addTurns("web", [{ role: "user", content: text }, { role: "assistant", content: hours }]).catch(() => {});

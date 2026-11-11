@@ -113,6 +113,36 @@ export async function applyWorkOps(day: string, ops: WorkOp[], task: string): Pr
   return last;
 }
 
+let rpcMissing = false;
+
+/**
+ * Porta il totale del giorno a `target` minuti (o lo cala di `minus`) leggendo e scrivendo in un'unica transazione con un
+ * lock per giorno (funzione work_adjust_day, migrazione 0028): due «in totale N» ravvicinati non si sovrascrivono. Senza
+ * la migrazione ripiega su lettura + scrittura separate (planDayTotal), con lo stesso risultato ma senza il lock.
+ */
+export async function adjustDayTotal(day: string, change: { target: number } | { minus: number }, task: string): Promise<{ touched: string | null; before: number; after: number }> {
+  const args = "target" in change ? { p_target: Math.max(0, Math.round(change.target)) } : { p_minus: Math.max(0, Math.round(change.minus)) };
+  if (!rpcMissing) {
+    const { data, error } = await supabase.rpc("work_adjust_day", { p_day: day, ...args, p_task: task });
+    const row = Array.isArray(data) ? (data[0] as { touched: string | null; before_total: number; after_total: number } | undefined) : undefined;
+    if (!error && row) return { touched: row.touched, before: Number(row.before_total), after: Number(row.after_total) };
+    // funzione non ancora creata: si ripiega (una volta per processo), ogni altro errore si propaga
+    if (error && error.code !== "PGRST202" && error.code !== "42883") throw error;
+    rpcMissing = true;
+    reportError("work/adjustDayTotal", new Error("work_adjust_day mancante: totale senza lock (applica la migrazione 0028)"), { expected: true });
+  }
+  const entries = await getWork(day, day);
+  const before = entries.reduce((n, e) => n + e.minutes, 0);
+  const touched = await applyWorkOps(day, planDayTotal(entries, "target" in change ? change.target : before - change.minus), task);
+  const after = (await getWork(day, day)).reduce((n, e) => n + e.minutes, 0);
+  return { touched, before, after };
+}
+
+/** Solo per i test: torna a provare la funzione SQL. */
+export const resetAdjustRpc = () => {
+  rpcMissing = false;
+};
+
 export async function getWork(from: string, to: string): Promise<WorkEntry[]> {
   const { data, error } = await supabase.from("work_log").select("*").gte("day", from).lte("day", to).order("day", { ascending: false }).limit(5000);
   if (error) throw error;

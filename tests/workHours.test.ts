@@ -37,16 +37,25 @@ describe("parseHoursCorrection", () => {
 describe("appliesToPending", () => {
   const open = { id: "x", day: "2026-11-01", answeredAt: null };
   const t = 1_000_000_000;
-  it("prima risposta: sempre, se il giorno non è un altro", () => {
-    expect(appliesToPending(open, { minutes: 60, corrected: false, day: null, total: false }, t)).toBe(true);
-    expect(appliesToPending(open, { minutes: 60, corrected: false, day: "2026-11-01", total: false }, t)).toBe(true);
-    expect(appliesToPending(open, { minutes: 60, corrected: false, day: "2026-10-31", total: false }, t)).toBe(false);
+  const asked = { lastAssistant: "Riassunto del 2026-11-01: x. Quante ore hai lavorato il 2026-11-01?" };
+  const confirmed = { lastAssistant: "⏱ Segnate 9 h per il 2026-11-01." };
+  const gym = { lastAssistant: "✅ Aggiornato: pullup 22.5kg x7 ⏎ Prossimo: row" };
+  it("prima risposta: dopo la domanda sulle ore, in reply al riassunto o col giorno scritto", () => {
+    expect(appliesToPending(open, { minutes: 60, corrected: false, day: null, total: false }, t, asked)).toBe(true);
+    expect(appliesToPending(open, { minutes: 60, corrected: false, day: null, total: false }, t, { ...gym, replyToDigest: true })).toBe(true);
+    expect(appliesToPending(open, { minutes: 60, corrected: false, day: "2026-11-01", total: false }, t, gym)).toBe(true);
+    expect(appliesToPending(open, { minutes: 60, corrected: false, day: "2026-10-31", total: false }, t, asked)).toBe(false);
+  });
+  it("un numero secco in un altro contesto (palestra, nessuna cronologia) non è una risposta sulle ore", () => {
+    expect(appliesToPending(open, { minutes: 480, corrected: false, day: null, total: false }, t, gym)).toBe(false);
+    expect(appliesToPending(open, { minutes: 480, corrected: true, day: null, total: false }, t, gym)).toBe(false);
+    expect(appliesToPending(open, { minutes: 480, corrected: false, day: null, total: false }, t)).toBe(false);
   });
   it("dopo la risposta: correzione sì; numero secco solo entro 15 minuti", () => {
     const done = { ...open, answeredAt: t };
-    expect(appliesToPending(done, { minutes: 600, corrected: true, day: null, total: false }, t + 3 * 3600_000)).toBe(true);
-    expect(appliesToPending(done, { minutes: 600, corrected: false, day: null, total: false }, t + 5 * 60_000)).toBe(true);
-    expect(appliesToPending(done, { minutes: 600, corrected: false, day: null, total: false }, t + 3 * 3600_000)).toBe(false);
+    expect(appliesToPending(done, { minutes: 600, corrected: true, day: null, total: false }, t + 3 * 3600_000, confirmed)).toBe(true);
+    expect(appliesToPending(done, { minutes: 600, corrected: false, day: null, total: false }, t + 5 * 60_000, confirmed)).toBe(true);
+    expect(appliesToPending(done, { minutes: 600, corrected: false, day: null, total: false }, t + 3 * 3600_000, confirmed)).toBe(false);
   });
 });
 
@@ -58,6 +67,7 @@ describe("correzione dopo una registrazione manuale", () => {
       { id: "man", day: "2026-11-01", minutes: 600 },
     ];
     await markAnswered({ id: "man", day: "2026-11-01" });
+    db.chat_history = [{ channel: "telegram", role: "assistant", content: "⏱ Segnate 10 h su domenica 1 novembre.", created_at: "2026-11-01T20:00:00Z" }];
     expect(await tryApplyHoursReply("Anzi 11 ore")).toContain("Corretto");
     expect(db.work_log.find((e) => e.id === "man")?.minutes).toBe(660);
     expect(await tryApplyHoursReply("Intendevo 11 totali, non 21")).toContain("11 h in totale");

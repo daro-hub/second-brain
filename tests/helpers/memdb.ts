@@ -17,7 +17,8 @@ export class Q {
   select() { return this; }
   insert(row: Row | Row[]) {
     const list = Array.isArray(row) ? row : [row];
-    if (list.some((r) => r.key !== undefined && db[this.table].some((x) => x.key === r.key))) {
+    const clash = (r: Row, col: string) => r[col] !== undefined && db[this.table].some((x) => x[col] === r[col]);
+    if (list.some((r) => clash(r, "key") || clash(r, "update_id"))) {
       this.err = { code: "23505", message: "duplicate key" };
       return this;
     }

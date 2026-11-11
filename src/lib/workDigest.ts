@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { getEventsInRange, isStudySyncEvent } from "./calendar";
+import { recentTurns } from "./chatHistory";
 import { reportError } from "./report";
 import { supabase } from "./supabase";
 import { dateKey, dayRangeUtc, localHHMM } from "./time";
@@ -214,19 +215,38 @@ export async function markAnswered(p: Pick<PendingWork, "id" | "day">, now = Dat
   await savePending({ id: p.id, day: p.day, answeredAt: now, at: now });
 }
 
-/** Puro: la risposta riguarda quella voce? Dopo una prima risposta serve un «anzi…» o essere ancora a ridosso. */
-export function appliesToPending(p: PendingWork, r: HoursReply, now = Date.now()): boolean {
+/** Dove arriva la risposta: in reply al messaggio del riassunto, e qual era l'ultimo messaggio di Aira. */
+export interface HoursReplyContext {
+  replyToDigest?: boolean;
+  lastAssistant?: string | null;
+}
+
+/** L'ultimo messaggio di Aira parlava di ore (la domanda del riassunto o una conferma ⏱): solo allora un numero secco è una risposta sulle ore. */
+export const isHoursContext = (lastAssistant: string | null | undefined): boolean =>
+  !!lastAssistant && (/quante ore hai lavorato/i.test(lastAssistant) || lastAssistant.trimStart().startsWith("⏱"));
+
+/**
+ * Puro: la risposta riguarda quella voce? Serve che sia chiaro: in reply al riassunto, col giorno della voce scritto, oppure
+ * subito dopo un messaggio sulle ore. Prima bastava una voce in attesa (36 ore): un «8» in palestra diventava 8 ore di lavoro.
+ * Dopo una prima risposta serve inoltre un «anzi…», il reply o essere ancora a ridosso.
+ */
+export function appliesToPending(p: PendingWork, r: HoursReply, now = Date.now(), ctx: HoursReplyContext = {}): boolean {
   if (r.day && r.day !== p.day) return false;
+  const explicit = !!ctx.replyToDigest || r.day === p.day;
+  if (!explicit && !isHoursContext(ctx.lastAssistant)) return false;
   if (p.answeredAt === null) return true;
-  return r.corrected || now - p.answeredAt <= CORRECTION_WINDOW_MS;
+  return r.corrected || explicit || now - p.answeredAt <= CORRECTION_WINDOW_MS;
 }
 
 /** Se c'è un riassunto in attesa (o appena compilato) e il testo è una durata, registra le ore su quella giornata. */
-export async function tryApplyHoursReply(text: string): Promise<string | null> {
+export async function tryApplyHoursReply(text: string, opts: { replyToDigest?: boolean } = {}): Promise<string | null> {
   const reply = parseHoursCorrection(text);
   if (!reply) return null;
   const pending = await getPending();
-  if (!pending || !appliesToPending(pending, reply)) return null;
+  if (!pending) return null;
+  // chiamata prima di salvare il messaggio attuale: l'ultimo turno di Aira è quello a cui si sta rispondendo
+  const lastAssistant = (await recentTurns(4).catch(() => [])).filter((t) => t.role === "assistant").at(-1)?.content ?? null;
+  if (!appliesToPending(pending, reply, Date.now(), { replyToDigest: opts.replyToDigest, lastAssistant })) return null;
   let minutes = reply.minutes;
   if (reply.total) {
     // «11 totali»: le altre voci del giorno restano, questa si adegua

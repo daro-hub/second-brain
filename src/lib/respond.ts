@@ -6,7 +6,7 @@ import { GoogleAuthError } from "./googleAuth";
 import { createEvent, getEventsInRange, getUpcomingEvents, isStudySyncEvent } from "./calendar";
 import { addTurns, formatHistory, freshTurns, recentTurns, toPlain, type Turn } from "./chatHistory";
 import { bold, BULLET, dropEmptyIconLines, escapeHtml, sanitizeTelegramHtml, STYLE_GUIDE } from "./format";
-import { applyWorkOps, fmtHours, getWork, getWorkCreatedSince, planDayTotal, type WorkOp } from "./work";
+import { adjustDayTotal, applyWorkOps, fmtHours, getWork, getWorkCreatedSince } from "./work";
 import { markAnswered } from "./workDigest";
 import { proposalKeyboard, saveOrPropose } from "./kbProposals";
 import { getOpenAiUsageSummary } from "./openaiUsage";
@@ -712,19 +712,23 @@ async function route(
           const dup = await recentSameWork(text, day, intent.minutes);
           if (dup) return dup;
         }
-        const entries = await getWork(day, day);
-        const before = entries.reduce((s, e) => s + e.minutes, 0);
-        let ops: WorkOp[];
+        let before: number;
+        let total: number;
+        let touched: string | null;
         if (mode === "add") {
+          const entries = await getWork(day, day);
+          before = entries.reduce((s, e) => s + e.minutes, 0);
           // La voce automatica del giorno (0 ore, dal riassunto di mezzanotte) si compila, non si affianca una seconda
           const open = entries.find((e) => e.source === "auto" && e.minutes === 0);
-          ops = [open ? { kind: "update", id: open.id, minutes: intent.minutes } : { kind: "insert", minutes: intent.minutes }];
-        } else ops = planDayTotal(entries, mode === "set" ? intent.minutes : before - intent.minutes);
-        const touched = await applyWorkOps(day, ops, intent.note || "lavoro");
+          touched = await applyWorkOps(day, [open ? { kind: "update", id: open.id, minutes: intent.minutes } : { kind: "insert", minutes: intent.minutes }], intent.note || "lavoro");
+          // la risposta dice ciò che c'è davvero nel tracker dopo la scrittura, non ciò che si voleva scrivere
+          total = (await getWork(day, day)).reduce((s, e) => s + e.minutes, 0);
+        } else {
+          // lettura e scrittura insieme, con un lock per giorno: due correzioni ravvicinate non si sovrascrivono
+          ({ touched, before, after: total } = await adjustDayTotal(day, mode === "set" ? { target: intent.minutes } : { minus: intent.minutes }, intent.note || "lavoro"));
+        }
         // anche qui la voce resta correggibile: «anzi 11» la modifica invece di aggiungerne un'altra
         if (touched) await markAnswered({ id: touched, day });
-        // la risposta dice ciò che c'è davvero nel tracker dopo la scrittura, non ciò che si voleva scrivere
-        const total = (await getWork(day, day)).reduce((s, e) => s + e.minutes, 0);
         src(trace, "github", `Lavoro: ${fmtHours(total)} il ${day}`, { href: "/?p=lavoro" });
         const was = before && before !== total ? ` (prima ${fmtHours(before)})` : "";
         if (mode === "add") return `⏱ Segnate ${bold(fmtHours(intent.minutes))}${intent.note ? ` — ${escapeHtml(intent.note)}` : ""} su ${label}. Totale del giorno: ${bold(fmtHours(total))}${was}.`;
